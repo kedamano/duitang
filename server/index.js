@@ -320,6 +320,9 @@ app.get('/api/posts/:id/comments', (req, res) => {
   const postId = parseInt(req.params.id);
   const comments = db.prepare('SELECT c.*, u.nickname as author_nickname, u.avatar as author_avatar FROM comments c JOIN users u ON c.author_id = u.id WHERE c.post_id = ? ORDER BY c.created_at ASC').all(postId);
 
+  // 统一携带 is_liked，游客默认 false
+  comments.forEach(c => { c.is_liked = false; });
+
   // 当前用户对评论的点赞状态
   const authHeader = req.headers.authorization?.replace('Bearer ', '');
   if (authHeader) {

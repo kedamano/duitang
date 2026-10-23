@@ -21,7 +21,10 @@ describe('联调测试 - 完整用户旅程', function () {
     userId = reg.body.user.id;
 
     const login = await request(app).post('/api/auth/login').send({ username, password: '123456' });
-    if (login.status !== 200 || login.body.token !== userToken) throw new Error('登录 token 不一致');
+    // JWT iat 精度为秒，跨秒时 token 字符串不同；应验证登录 token 可用而非字符串相等
+    if (login.status !== 200 || !login.body.token) throw new Error('登录失败');
+    const loginMe = await request(app).get('/api/auth/me').set('Authorization', 'Bearer ' + login.body.token);
+    if (loginMe.body.user.id !== userId) throw new Error('登录 token 会话用户不匹配');
 
     const me = await request(app).get('/api/auth/me').set('Authorization', 'Bearer ' + userToken);
     if (me.body.user.id !== userId) throw new Error('会话恢复用户不匹配');

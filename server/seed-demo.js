@@ -2,13 +2,6 @@
  * 演示数据填充：仅在默认开发库（未设置 DB_PATH）且 posts 为空时由 database.js 调用。
  * 也可手动执行: node seed-demo.js
  */
-const path = require('path');
-
-const BOARDS = {
-  wallpaper: '壁纸头像', anime: '动漫插画', fashion: '时尚穿搭', food: '美食菜谱',
-  diy: '手工DIY', home: '家居生活', makeup: '美妆造型', travel: '旅行摄影',
-  ancient: '古风汉服', pet: '萌宠植物', quote: '文字句子', wedding: '婚纱婚礼',
-};
 
 // [board, title, description, tags, [[w,h],...]] —— 尺寸取自 picsum 实际可请求的常见比例
 const DEMO_POSTS = [
@@ -49,9 +42,21 @@ const DEMO_COMMENTS = [
   '教程很清晰，学到了', '氛围感拉满 🌸', '请问这是在哪儿拍的呀？', '每天都在等更新！',
 ];
 
-function seed(db) {
+function seed(db, { force = false } = {}) {
   const users = db.prepare('SELECT id, username FROM users').all();
   if (users.length === 0) return;
+
+  const cols = db.prepare('PRAGMA table_info(posts)').all();
+  if (!cols.some(c => c.name === 'sizes')) {
+    db.exec("ALTER TABLE posts ADD COLUMN sizes TEXT DEFAULT '[]'");
+  }
+
+  // 幂等：已有内容则不重复灌入（node seed-demo.js --force 可显式追加演示内容）
+  const existing = db.prepare('SELECT COUNT(*) AS c FROM posts').get().c;
+  if (existing > 0 && !force) {
+    console.log(`已存在 ${existing} 篇帖子，跳过演示数据灌入（如需追加请加 --force）`);
+    return;
+  }
 
   const insPost = db.prepare(
     'INSERT INTO posts (author_id, title, description, board, images, tags, sizes, likes_count, collects_count, comments_count, shares_count, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
@@ -76,7 +81,7 @@ function seed(db) {
 
     const info = insPost.run(
       author.id, title, description, board,
-      JSON.stringify(images), JSON.stringify(tags), JSON.stringify(sizeList),
+      JSON.stringify(images), JSON.stringify(tags), JSON.stringify(sizeList.map(([w, h]) => ({ w, h }))),
       likes, collects, 0, shares, createdAt
     );
 
@@ -102,27 +107,13 @@ function seed(db) {
     if (i % 2 === 0) insFollow.run(users[i].id, users[(i + 2) % users.length].id);
   }
 
-  // 把历史遗留的中文 board 迁移为英文 key
-  const labelToKey = Object.fromEntries(Object.entries(BOARDS).map(([k, label]) => [label, k]));
-  const legacy = db.prepare('SELECT id, board FROM posts WHERE board != ""').all();
-  let migrated = 0;
-  for (const p of legacy) {
-    const key = labelToKey[p.board];
-    if (key) {
-      db.prepare('UPDATE posts SET board = ? WHERE id = ?').run(key, p.id);
-      migrated++;
-    }
-  }
-
-  console.log(`演示数据已填充: ${DEMO_POSTS.length} 篇帖子${migrated ? `，并迁移 ${migrated} 条旧 board` : ''}`);
+  console.log(`演示数据已填充: ${DEMO_POSTS.length} 篇帖子`);
 }
 
 module.exports = { seed };
 
-// 直接运行: node seed-demo.js（作用于默认库）
+// 直接运行: node seed-demo.js（复用 database.js，确保建列与 board 迁移先执行）
+//              node seed-demo.js --force  在已有内容的库上追加演示数据
 if (require.main === module) {
-  const { DatabaseSync } = require('node:sqlite');
-  const db = new DatabaseSync(process.env.DB_PATH || path.join(__dirname, 'database.sqlite'));
-  db.exec('PRAGMA foreign_keys = ON;');
-  seed(db);
+  seed(require('./database'), { force: process.argv.includes('--force') });
 }

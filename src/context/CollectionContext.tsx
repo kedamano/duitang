@@ -155,15 +155,14 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
     } catch { showToast("操作失败，请稍后重试", "error"); }
   }, [token, showToast]);
 
-  /** 打开详情时加载该帖评论（原先只靠本次会话内存，刷新即丢） */
+  /** 打开详情时加载该帖评论（公开接口，游客也可浏览；写操作仍需登录） */
   const loadComments = useCallback(async (postId: number) => {
-    if (!token) return;
     try {
       const data = await api.getComments(postId);
       setComments(prev => ({ ...prev, [postId]: (data.comments || []).map(normalizeComment) }));
       setCommentsLoaded(prev => ({ ...prev, [postId]: true }));
     } catch { showToast("评论加载失败", "error"); }
-  }, [token, showToast]);
+  }, [showToast]);
 
   const addComment = useCallback(async (postId: number, content: string) => {
     if (!token) return;

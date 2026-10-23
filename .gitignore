@@ -15,6 +15,7 @@ server/.env
 # 编辑器 / 工具产物
 .workbuddy/
 .acl-backup/
+.e2e-shots/
 nul
 
 # 系统与编辑器

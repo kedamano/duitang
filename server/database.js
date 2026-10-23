@@ -122,6 +122,25 @@ function ensureColumn(table, column, definition) {
 }
 ensureColumn('posts', 'sizes', "TEXT DEFAULT '[]'");
 
+// 历史数据迁移：早期前端把中文画板标签直接存进了 board，统一成英文 key
+const BOARD_LABEL_TO_KEY = {
+  '壁纸头像': 'wallpaper', '动漫插画': 'anime', '时尚穿搭': 'fashion', '美食菜谱': 'food',
+  '手工DIY': 'diy', '家居生活': 'home', '美妆造型': 'makeup', '旅行摄影': 'travel',
+  '古风汉服': 'ancient', '萌宠植物': 'pet', '文字句子': 'quote', '婚纱婚礼': 'wedding',
+};
+{
+  const labeled = db.prepare("SELECT id, board FROM posts WHERE board IS NOT NULL AND board != ''").all();
+  let migrated = 0;
+  for (const p of labeled) {
+    const key = BOARD_LABEL_TO_KEY[p.board];
+    if (key && key !== p.board) {
+      db.prepare('UPDATE posts SET board = ? WHERE id = ?').run(key, p.id);
+      migrated++;
+    }
+  }
+  if (migrated) console.log(`已迁移 ${migrated} 条帖子的画板字段为英文 key`);
+}
+
 // 插入初始用户（含演示账号，便于本地体验；密码统一 123456）
 const seedUsers = [
   { username: 'tangyan', nickname: '糖小颜', bio: '生活需要一点甜 🍬 | 分享美好日常' },

@@ -15,10 +15,18 @@ export function parseJsonArray<T = any>(value: unknown): T[] {
   return [];
 }
 
-/** 后端返回的图片尺寸项（发布时记录，缺失时回落默认比例） */
-interface PostSize {
-  w?: number;
-  h?: number;
+/** 后端返回的图片尺寸项：兼容 {w,h} 对象与 [w,h] 元组两种写法，缺失时回落默认比例 */
+type PostSize = { w?: number; h?: number } | [number, number];
+
+function readSize(size: PostSize | undefined): { w: number; h: number } {
+  if (Array.isArray(size)) {
+    const [w, h] = size;
+    return { w: Number(w) > 0 ? Number(w) : 400, h: Number(h) > 0 ? Number(h) : 300 };
+  }
+  return {
+    w: Number(size?.w) > 0 ? Number(size!.w) : 400,
+    h: Number(size?.h) > 0 ? Number(size!.h) : 300,
+  };
 }
 
 /**
@@ -29,8 +37,7 @@ export function normalizePost(p: any): ImageCard {
   const images = parseJsonArray<string>(p.images);
   const tags = parseJsonArray<string>(p.tags);
   const sizes = parseJsonArray<PostSize>(p.sizes);
-  const width = Number(sizes[0]?.w) > 0 ? Number(sizes[0].w) : 400;
-  const height = Number(sizes[0]?.h) > 0 ? Number(sizes[0].h) : 300;
+  const { w: width, h: height } = readSize(sizes[0]);
 
   return {
     id: p.id,

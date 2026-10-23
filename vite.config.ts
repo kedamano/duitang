@@ -8,6 +8,10 @@ import { viteSingleFile } from "vite-plugin-singlefile";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// 后端地址：默认 http://localhost:3001，端口被占用时可用环境变量覆盖
+//   PowerShell:  $env:BACKEND_URL="http://localhost:3002"; npm run dev
+const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:3001";
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), tailwindcss(), viteSingleFile()],
@@ -24,11 +28,11 @@ export default defineConfig({
         rewrite: (p) => p.replace(/^\/api\/pollinations/, ""),
       },
       "/api": {
-        target: "http://localhost:3001",
+        target: BACKEND_URL,
         changeOrigin: true,
       },
       "/uploads": {
-        target: "http://localhost:3001",
+        target: BACKEND_URL,
         changeOrigin: true,
       },
     },
