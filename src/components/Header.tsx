@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { useNavigate } from "react-router-dom";
 import { cn } from "../utils/cn";
 import { navCategories, hotSearches } from "../data/images";
 import { api } from "../api";
@@ -103,10 +103,24 @@ export default function Header({
 }) {
   const { user, logout, setShowLogin, setShowRegister } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchFocused, setSearchFocused] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profileDropdown, setProfileDropdown] = useState(false);
+
+  // 分类/搜索只在首页有意义：非首页触发时先回到首页，避免"点了没反应"
+  const goHomeIfNeeded = () => {
+    if (location.pathname !== "/") navigate("/");
+  };
+  const handleNavChange = (cat: string) => {
+    goHomeIfNeeded();
+    onNavChange(cat);
+  };
+  const handleSearchChange = (v: string) => {
+    if (v) goHomeIfNeeded();
+    onSearchChange(v);
+  };
 
   useEffect(() => {
     const handler = () => setScrolled(window.scrollY > 10);
@@ -138,19 +152,19 @@ export default function Header({
       {/* Top row */}
       <div className="flex items-center gap-3 px-4 md:px-6 h-14 border-b border-gray-100">
         {/* Logo */}
-        <a href="/" className="flex items-center gap-1.5 shrink-0">
+        <Link to="/" className="flex items-center gap-1.5 shrink-0">
           <div className="w-8 h-8 bg-gradient-to-br from-[#e05d6f] to-[#f0a0a8] rounded-lg flex items-center justify-center shadow-sm">
             <svg viewBox="0 0 24 24" className="w-5 h-5 text-white" fill="currentColor">
               <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/>
             </svg>
           </div>
           <span className="font-bold text-lg text-[#e05d6f] hidden sm:block tracking-wide">堆糖</span>
-        </a>
+        </Link>
 
         {/* Search */}
         <SearchBar
           value={search}
-          onChange={onSearchChange}
+          onChange={handleSearchChange}
           focused={searchFocused}
           onFocus={() => setSearchFocused(true)}
           onBlur={() => setTimeout(() => setSearchFocused(false), 150)}
@@ -259,7 +273,7 @@ export default function Header({
         {navCategories.map(cat => (
           <button
             key={cat}
-            onClick={() => onNavChange(cat)}
+            onClick={() => handleNavChange(cat)}
             className={cn(
               "shrink-0 px-4 py-3 text-sm font-medium whitespace-nowrap transition-all duration-150 border-b-2",
               activeNav === cat

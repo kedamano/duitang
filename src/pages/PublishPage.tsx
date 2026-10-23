@@ -5,9 +5,8 @@ import { useCollection } from "../context/CollectionContext";
 import { useToast } from "../context/ToastContext";
 import { api } from "../api";
 import { cn } from "../utils/cn";
+import { labelToBoard, boardOptions } from "../data/images";
 import AiImageGenModal from "../components/AiImageGenModal";
-
-const boardOptions = ["壁纸头像", "动漫插画", "时尚穿搭", "美食菜谱", "手工DIY", "家居生活", "美妆造型", "旅行摄影", "古风汉服", "萌宠植物", "文字句子", "婚纱婚礼"];
 
 function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -15,6 +14,16 @@ function fileToDataUrl(file: File): Promise<string> {
     reader.onload = () => resolve(reader.result as string);
     reader.onerror = reject;
     reader.readAsDataURL(file);
+  });
+}
+
+/** 读取图片真实宽高（后端据此返回 sizes，前端做错落瀑布流） */
+function measureImage(url: string): Promise<{ w: number; h: number }> {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => resolve({ w: img.naturalWidth || 400, h: img.naturalHeight || 300 });
+    img.onerror = () => resolve({ w: 400, h: 300 });
+    img.src = url;
   });
 }
 
@@ -113,24 +122,28 @@ export default function PublishPage() {
 
     try {
       const imageUrls: string[] = [];
+      const sizes: { w: number; h: number }[] = [];
       for (const img of images) {
         if (img.preview.startsWith('data:')) {
           const blob = await fetch(img.preview).then(r => r.blob());
-          const file = new File([blob], 'image.jpg', { type: 'image/jpeg' });
+          const file = new File([blob], 'image.jpg', { type: img.file?.type || blob.type || 'image/jpeg' });
           const data = await api.upload(file);
           if (!data.url) throw new Error('图片上传失败');
           imageUrls.push(data.url);
-        } else if (img.preview.startsWith('/uploads/') || img.preview.startsWith('http')) {
+        } else {
+          // 已是可访问地址（本地上传结果或 AI 生成的远程图）
           imageUrls.push(img.preview);
         }
+        sizes.push(await measureImage(img.preview));
       }
 
       const result = await api.createPost({
         title: title.trim(),
         description: description.trim() || '',
-        board,
+        board: labelToBoard[board] ?? board,
         images: imageUrls,
         tags,
+        sizes,
       });
       addUserPost(result.post);
       setPublishing(false);

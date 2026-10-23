@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { HashRouter, Routes, Route } from "react-router-dom";
+import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
 import { CollectionProvider } from "./context/CollectionContext";
 import { ToastProvider } from "./context/ToastContext";
@@ -10,6 +10,7 @@ import RegisterModal from "./components/RegisterModal";
 import HomePage from "./pages/HomePage";
 import PublishPage from "./pages/PublishPage";
 import ProfilePage from "./pages/ProfilePage";
+import PostDetailPage from "./pages/PostDetailPage";
 
 function AppContent() {
   const [search, setSearch] = useState("");
@@ -35,35 +36,12 @@ function AppContent() {
         } />
         <Route path="/publish" element={<PublishPage />} />
         <Route path="/profile" element={<ProfilePage />} />
+        <Route path="/pin/:id" element={<PostDetailPage />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
 
       <LoginModal />
       <RegisterModal />
-
-      <style>{`
-        .scrollbar-hide::-webkit-scrollbar { display: none; }
-        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
-
-        @keyframes fade-in {
-          from { opacity: 0; transform: translateY(-6px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        .animate-fade-in { animation: fade-in 0.2s ease both; }
-
-        @keyframes modal-in {
-          from { opacity: 0; transform: scale(0.94) translateY(16px); }
-          to { opacity: 1; transform: scale(1) translateY(0); }
-        }
-        .animate-modal-in { animation: modal-in 0.3s cubic-bezier(0.34,1.2,0.64,1) both; }
-
-        .line-clamp-2 {
-          display: -webkit-box;
-          -webkit-line-clamp: 2;
-          -webkit-box-orient: vertical;
-          overflow: hidden;
-        }
-        .break-inside-avoid { break-inside: avoid; }
-      `}</style>
     </div>
   );
 }

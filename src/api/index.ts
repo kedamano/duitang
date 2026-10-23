@@ -37,8 +37,15 @@ export const api = {
     return request<{ posts: any[]; total: number; page: number; limit: number }>(`/posts?${qs}`);
   },
   getPost: (id: number) => request<{ post: any }>(`/posts/${id}`),
-  createPost: (data: { title: string; description: string; board: string; images: string[]; tags: string[] }) =>
-    request<{ post: any }>('/posts', { method: 'POST', body: JSON.stringify(data) }),
+  createPost: (data: {
+    title: string;
+    description: string;
+    board: string;
+    images: string[];
+    tags: string[];
+    /** 与 images 一一对应的真实宽高，用于瀑布流错落布局 */
+    sizes?: { w: number; h: number }[];
+  }) => request<{ post: any }>('/posts', { method: 'POST', body: JSON.stringify(data) }),
   deletePost: (id: number) => request(`/posts/${id}`, { method: 'DELETE' }),
 
   // ─── Likes ───

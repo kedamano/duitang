@@ -1,10 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useCollection } from "../context/CollectionContext";
 import { useToast } from "../context/ToastContext";
 import { api } from "../api";
 import { cn } from "../utils/cn";
+import { PostDetailModal } from "../components/PostDetail";
 import type { ImageCard } from "../data/images";
 
 type Tab = "posts" | "collection" | "likes";
@@ -16,7 +17,7 @@ function MiniCard({ card, onCardClick }: { card: ImageCard; onCardClick?: (card:
   const collected = isCollected(card.id);
   const likeCount = getLikeCount(card.id, card.likes);
   const collectCount = getCollectCount(card.id, card.collects);
-  const aspectRatio = (card.height / card.width) * 100;
+  const aspectRatio = card.width > 0 && card.height > 0 ? (card.height / card.width) * 100 : 75;
 
   return (
     <div
@@ -66,6 +67,123 @@ function MiniCard({ card, onCardClick }: { card: ImageCard; onCardClick?: (card:
   );
 }
 
+// ─── 资料编辑面板（头像 + 昵称 + 简介）────────────────────────────────────────
+function EditProfilePanel({ onClose }: { onClose: () => void }) {
+  const { user, updateUser } = useAuth();
+  const { showToast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [nickname, setNickname] = useState(user?.nickname ?? "");
+  const [bio, setBio] = useState(user?.bio ?? "");
+  const [avatarPreview, setAvatarPreview] = useState<string>(user?.avatar ?? "");
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const pickAvatar = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setAvatarFile(file);
+    setAvatarPreview(URL.createObjectURL(file));
+  };
+
+  const save = async () => {
+    if (!nickname.trim()) { showToast("昵称不能为空", "error"); return; }
+    setSaving(true);
+    try {
+      let avatarUrl: string | undefined;
+      if (avatarFile) {
+        const uploaded = await api.upload(avatarFile);
+        avatarUrl = uploaded.url;
+      }
+      const data = await api.updateMe({
+        nickname: nickname.trim(),
+        bio,
+        ...(avatarUrl ? { avatar: avatarUrl } : {}),
+      });
+      updateUser({
+        nickname: data.user.nickname,
+        bio: data.user.bio ?? "",
+        avatar: data.user.avatar,
+      });
+      showToast("资料已更新", "success");
+      onClose();
+    } catch (err) {
+      showToast("保存失败：" + (err as Error).message, "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl animate-modal-in"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="font-bold text-gray-800">编辑资料</h2>
+          <button onClick={onClose} className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Avatar */}
+        <div className="flex flex-col items-center mb-5">
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="relative group"
+            title="更换头像"
+          >
+            <img src={avatarPreview} alt="" className="w-20 h-20 rounded-full bg-gray-100 ring-2 ring-[#f0a0a8] object-cover" />
+            <span className="absolute inset-0 rounded-full bg-black/40 text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+              更换
+            </span>
+          </button>
+          <input ref={fileInputRef} type="file" accept="image/*" onChange={pickAvatar} className="hidden" />
+          <p className="text-xs text-gray-400 mt-2">点击头像上传新图片</p>
+        </div>
+
+        {/* Nickname */}
+        <label className="block text-sm font-medium text-gray-600 mb-1.5">昵称</label>
+        <input
+          type="text"
+          value={nickname}
+          onChange={e => setNickname(e.target.value)}
+          maxLength={20}
+          className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#e05d6f]/30 text-gray-700 mb-4"
+        />
+
+        {/* Bio */}
+        <label className="block text-sm font-medium text-gray-600 mb-1.5">简介</label>
+        <textarea
+          value={bio}
+          onChange={e => setBio(e.target.value)}
+          maxLength={100}
+          rows={3}
+          className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#e05d6f]/30 text-gray-700 resize-none mb-5"
+        />
+
+        <div className="flex gap-3">
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl bg-gray-100 text-gray-600 text-sm font-medium hover:bg-gray-200 transition-colors">
+            取消
+          </button>
+          <button
+            onClick={save}
+            disabled={saving || !nickname.trim()}
+            className="flex-1 py-2.5 rounded-xl bg-[#e05d6f] text-white text-sm font-bold hover:bg-[#c94d5e] transition-colors disabled:opacity-50"
+          >
+            {saving ? "保存中..." : "保存"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ProfilePage() {
   const { user, setShowLogin, updateUser } = useAuth();
   const { showToast } = useToast();
@@ -76,13 +194,14 @@ export default function ProfilePage() {
   const [activeTab, setActiveTab] = useState<Tab>(
     (tabParam === "collection" ? "collection" : tabParam === "likes" ? "likes" : "posts") as Tab
   );
-  const [editingBio, setEditingBio] = useState(false);
   const [bio, setBio] = useState(user?.bio ?? "");
   const [selectedCard, setSelectedCard] = useState<ImageCard | null>(null);
   const [myCollects, setMyCollects] = useState<ImageCard[]>([]);
   const [myLikes, setMyLikes] = useState<ImageCard[]>([]);
   const [targetUser, setTargetUser] = useState<any>(null);
   const [targetPosts, setTargetPosts] = useState<ImageCard[]>([]);
+  const [showEditPanel, setShowEditPanel] = useState(false);
+  const [editingBio, setEditingBio] = useState(false);
   const targetUserId = searchParams.get("user");
   const isViewingOther = !!targetUserId && targetUserId !== String(user?.id ?? -1);
 
@@ -98,22 +217,32 @@ export default function ProfilePage() {
 
   // Fetch collects and likes when user logs in
   useEffect(() => {
-    if (!user) return;
+    if (!user || isViewingOther) return;
     getMyCollects().then(setMyCollects);
     getMyLikes().then(setMyLikes);
-  }, [user, getMyCollects, getMyLikes]);
+  }, [user, isViewingOther, getMyCollects, getMyLikes]);
 
-  // 查看他人主页:拉取资料与该用户发帖
+  // 查看他人主页: 拉取资料与该用户发帖
   useEffect(() => {
     if (!isViewingOther || !targetUserId) return;
-    api.getUserProfile(parseInt(targetUserId))
+    const uid = parseInt(targetUserId, 10);
+    if (!uid) return;
+    let cancelled = false;
+    api.getUserProfile(uid)
       .then(data => {
+        if (cancelled) return;
         if (data.user) {
-          setTargetUser({ ...data.user, followers: data.stats?.followers ?? 0, following: data.stats?.following ?? 0, posts: data.stats?.posts ?? 0 });
+          setTargetUser({
+            ...data.user,
+            followers: data.stats?.followers ?? 0,
+            following: data.stats?.following ?? 0,
+            posts: data.stats?.posts ?? 0,
+          });
         }
       })
       .catch(() => showToast("加载用户失败", "error"));
-    getUserPosts(parseInt(targetUserId)).then(posts => setTargetPosts(posts));
+    getUserPosts(uid).then(posts => { if (!cancelled) setTargetPosts(posts); });
+    return () => { cancelled = true; };
   }, [isViewingOther, targetUserId, getUserPosts, showToast]);
 
   if (!user && !isViewingOther) {
@@ -146,7 +275,7 @@ export default function ProfilePage() {
   const profilePosts = isViewingOther ? targetPosts : userPosts;
 
   const tabs: { key: Tab; label: string; count: number }[] = isViewingOther
-    ? [{ key: "posts", label: "TA的发布", count: profilePosts.length }]
+    ? [{ key: "posts", label: "TA的发布", count: targetPosts.length }]
     : [
       { key: "posts", label: "我的发布", count: userPosts.length },
       { key: "collection", label: "我的收集", count: myCollects.length },
@@ -154,6 +283,7 @@ export default function ProfilePage() {
     ];
 
   const currentCards = activeTab === "posts" ? profilePosts : activeTab === "collection" ? myCollects : myLikes;
+  const postCount = isViewingOther ? (profileUser?.posts ?? profilePosts.length) : userPosts.length;
 
   return (
     <div className="min-h-screen bg-[#f8f8f8] pb-20">
@@ -167,12 +297,18 @@ export default function ProfilePage() {
             <span className="text-sm font-medium">返回</span>
           </button>
           <h1 className="flex-1 text-center font-bold text-gray-800 text-sm">个人主页</h1>
-          <button className="p-2 rounded-full hover:bg-gray-100 text-gray-500">
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-          </button>
+          {!isViewingOther && (
+            <button
+              onClick={() => setShowEditPanel(true)}
+              className="p-2 rounded-full hover:bg-gray-100 text-gray-500 transition-colors"
+              title="编辑资料"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35.39-.13.818-.018 1.193.186z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </button>
+          )}
         </div>
       </div>
 
@@ -182,33 +318,33 @@ export default function ProfilePage() {
           {/* Cover */}
           <div className="h-32 bg-gradient-to-r from-[#e05d6f] via-[#f0a0a8] to-[#e8b4c0] relative">
             <div className="absolute -bottom-10 left-6">
-              <img src={profileUser?.avatar} alt="" className="w-20 h-20 rounded-full border-4 border-white shadow-md bg-white" />
+              <img src={profileUser?.avatar} alt="" className="w-20 h-20 rounded-full border-4 border-white shadow-md bg-white object-cover" />
             </div>
           </div>
 
           {/* Profile info */}
           <div className="pt-14 px-6 pb-6">
-            <div className="flex items-start justify-between">
-              <div>
-                <h2 className="font-bold text-gray-800 text-lg">{profileUser?.nickname}</h2>
-                <p className="text-xs text-gray-400 mt-0.5">@{profileUser?.username}</p>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h2 className="font-bold text-gray-800 text-lg truncate">{profileUser?.nickname ?? "加载中..."}</h2>
+                <p className="text-xs text-gray-400 mt-0.5 truncate">@{profileUser?.username}</p>
               </div>
               {isViewingOther ? (
                 <button
-                  onClick={() => toggleFollow(parseInt(targetUserId!))}
+                  onClick={() => targetUserId && toggleFollow(parseInt(targetUserId, 10))}
                   className={cn(
-                    "px-5 py-2 rounded-full text-xs font-bold transition-colors shadow-sm",
-                    isFollowing(parseInt(targetUserId!))
+                    "px-5 py-2 rounded-full text-xs font-bold transition-colors shadow-sm shrink-0",
+                    targetUserId && isFollowing(parseInt(targetUserId, 10))
                       ? "bg-gray-100 text-gray-600 hover:bg-gray-200"
                       : "bg-[#e05d6f] text-white hover:bg-[#c94d5e]"
                   )}
                 >
-                  {isFollowing(parseInt(targetUserId!)) ? "已关注" : "+ 关注"}
+                  {targetUserId && isFollowing(parseInt(targetUserId, 10)) ? "已关注" : "+ 关注"}
                 </button>
               ) : (
                 <button
                   onClick={() => navigate("/publish")}
-                  className="flex items-center gap-1.5 bg-[#e05d6f] text-white text-xs font-bold px-4 py-2 rounded-full hover:bg-[#c94d5e] transition-colors shadow-sm"
+                  className="flex items-center gap-1.5 bg-[#e05d6f] text-white text-xs font-bold px-4 py-2 rounded-full hover:bg-[#c94d5e] transition-colors shadow-sm shrink-0"
                 >
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
@@ -246,7 +382,7 @@ export default function ProfilePage() {
             {/* Stats */}
             <div className="flex items-center gap-6 mt-4">
               <div className="text-center">
-                <p className="font-bold text-gray-800">{profilePosts.length}</p>
+                <p className="font-bold text-gray-800">{postCount}</p>
                 <p className="text-xs text-gray-400">发布</p>
               </div>
               <div className="text-center">
@@ -259,7 +395,7 @@ export default function ProfilePage() {
               </div>
               {!isViewingOther && (
                 <div className="text-center">
-                  <p className="font-bold text-gray-800">{tabs[1].count}</p>
+                  <p className="font-bold text-gray-800">{myCollects.length}</p>
                   <p className="text-xs text-gray-400">收集</p>
                 </div>
               )}
@@ -303,7 +439,7 @@ export default function ProfilePage() {
                   ? "还没有喜欢的内容哦，去首页逛逛吧～"
                   : "还没有发布内容哦～"}
               </p>
-              {activeTab === "posts" && (
+              {activeTab === "posts" && !isViewingOther && (
                 <button onClick={() => navigate("/publish")} className="text-sm text-[#e05d6f] hover:underline font-medium">
                   去发布第一篇 →
                 </button>
@@ -318,244 +454,22 @@ export default function ProfilePage() {
         </div>
 
         {currentCards.length > 0 && (
-          <p className="text-center text-gray-300 text-sm py-8">— 更多内容敬请期待 —</p>
+          <p className="text-center text-gray-300 text-sm py-8">— 已经到底啦 🌸 —</p>
         )}
       </div>
 
+      {/* 编辑资料（头像 / 昵称 / 简介）*/}
+      {showEditPanel && !isViewingOther && <EditPanelWrapper onClose={() => setShowEditPanel(false)} />}
+
       {/* Detail modal for profile cards */}
       {selectedCard && (
-        <ProfileDetailModal card={selectedCard} onClose={() => setSelectedCard(null)} />
+        <PostDetailModal card={selectedCard} onClose={() => setSelectedCard(null)} />
       )}
     </div>
   );
 }
 
-// ─── Lightweight detail modal for profile page ───────────────────────────────
-function ProfileDetailModal({ card, onClose }: { card: ImageCard; onClose: () => void }) {
-  const { user, setShowLogin } = useAuth();
-  const { isCollected, isLiked, toggleCollect, toggleLike, getLikeCount, getCollectCount, comments, addComment, deleteComment, likeComment, isFollowing, toggleFollow } = useCollection();
-
-  const liked = isLiked(card.id);
-  const collected = isCollected(card.id);
-  const likeCount = getLikeCount(card.id, card.likes);
-  const collectCount = getCollectCount(card.id, card.collects);
-  const cardComments = comments[card.id] ?? [];
-  const commentCount = cardComments.length;
-
-  const [commentText, setCommentText] = useState("");
-  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
-
-  const requireAuth = () => {
-    if (!user) { setShowLogin(true); return true; }
-    return false;
-  };
-
-  useEffect(() => {
-    document.body.style.overflow = "hidden";
-    const handleEsc = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", handleEsc);
-    return () => {
-      document.body.style.overflow = "";
-      window.removeEventListener("keydown", handleEsc);
-    };
-  }, [onClose]);
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-2 md:p-4 bg-black/60 backdrop-blur-sm animate-fade-in"
-      onClick={onClose}
-    >
-      <div
-        className="bg-white rounded-2xl overflow-hidden w-full max-w-3xl max-h-[95vh] shadow-2xl flex flex-col md:flex-row animate-modal-in"
-        onClick={e => e.stopPropagation()}
-      >
-        {/* Left - Image */}
-        <div className="relative md:w-1/2 bg-gray-100 flex-shrink-0 max-h-[40vh] md:max-h-full overflow-hidden">
-          <img src={card.src} alt={card.title} className="w-full h-full object-cover" />
-        </div>
-
-        {/* Right - Content */}
-        <div className="md:w-1/2 flex flex-col overflow-hidden">
-          {/* Author */}
-          <div className="flex items-center justify-between p-4 border-b border-gray-100 shrink-0">
-            <div className="flex items-center gap-3">
-              <img src={card.avatar} alt={card.author} className="w-10 h-10 rounded-full bg-gray-200 ring-2 ring-[#f0a0a8]" />
-              <div>
-                <p className="font-semibold text-gray-800 text-sm">{card.author}</p>
-                <p className="text-xs text-gray-400">分享了这张图片</p>
-              </div>
-              {user && card.authorId && user.id !== card.authorId && (
-                <button
-                  onClick={() => toggleFollow(card.authorId!)}
-                  className={cn(
-                    "ml-2 px-3 py-1 rounded-full text-xs font-bold transition-colors",
-                    isFollowing(card.authorId!)
-                      ? "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                      : "bg-[#e05d6f] text-white hover:bg-[#c94d5e]"
-                  )}
-                >
-                  {isFollowing(card.authorId!) ? "已关注" : "+ 关注"}
-                </button>
-              )}
-            </div>
-            <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-
-          {/* Title & tags */}
-          <div className="px-4 pt-4 pb-2 shrink-0">
-            <h2 className="font-bold text-gray-800 text-base mb-2">{card.title}</h2>
-            <div className="flex flex-wrap gap-1.5">
-              {card.tags.map(tag => (
-                <span key={tag} className="text-xs bg-[#fde8eb] text-[#e05d6f] px-3 py-1 rounded-full font-medium">
-                  #{tag}
-                </span>
-              ))}
-            </div>
-          </div>
-
-          {/* Comments */}
-          <div className="flex-1 overflow-y-auto px-4 py-2">
-            <p className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-1.5">
-              <span>💬 评论区</span>
-              <span className="text-xs text-gray-400 font-normal">({commentCount})</span>
-            </p>
-            {cardComments.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-8 gap-2">
-                <div className="text-3xl">💭</div>
-                <p className="text-sm text-gray-400">还没有评论，来说点什么吧~</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {cardComments.map(c => (
-                  <div key={c.id}>
-                    {deleteConfirmId === c.id ? (
-                      <div className="flex gap-2.5">
-                        <img src={c.avatar} alt={c.author} className="w-8 h-8 rounded-full bg-gray-100 shrink-0" />
-                        <div className="bg-red-50 rounded-2xl px-4 py-3 flex-1">
-                          <p className="text-sm text-red-600 mb-2">确定删除这条评论吗？</p>
-                          <div className="flex gap-2">
-                            <button onClick={() => { deleteComment(card.id, c.id); setDeleteConfirmId(null); }} className="text-xs bg-red-500 text-white px-3 py-1 rounded-full hover:bg-red-600">删除</button>
-                            <button onClick={() => setDeleteConfirmId(null)} className="text-xs bg-gray-200 text-gray-600 px-3 py-1 rounded-full hover:bg-gray-300">取消</button>
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex gap-2.5 group/comment">
-                        <img src={c.avatar} alt={c.author} className="w-8 h-8 rounded-full bg-gray-100 shrink-0 ring-1 ring-gray-200" />
-                        <div className="flex-1 min-w-0">
-                          <div className="bg-gray-50 rounded-2xl rounded-tl-none px-3 py-2">
-                            <p className="text-xs font-semibold text-gray-700 mb-0.5">{c.author}</p>
-                            <p className="text-sm text-gray-600 leading-relaxed">{c.content}</p>
-                          </div>
-                          <div className="flex items-center gap-3 mt-1 ml-2">
-                            <span className="text-xs text-gray-400">{new Date(c.created_at).toLocaleDateString()}</span>
-                            <button
-                              onClick={() => { if (!requireAuth()) likeComment(card.id, c.id); }}
-                              className={cn(
-                                "flex items-center gap-1 text-xs transition-colors",
-                                c.liked ? "text-[#e05d6f]" : "text-gray-400 hover:text-[#e05d6f]"
-                              )}
-                            >
-                              <svg className="w-3 h-3" viewBox="0 0 24 24" fill={c.liked ? "currentColor" : "none"} stroke="currentColor" strokeWidth={2}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                              </svg>
-                              {c.likes > 0 && c.likes}
-                            </button>
-                            {user?.username === c.author && (
-                              <button
-                                onClick={() => setDeleteConfirmId(c.id)}
-                                className="text-xs text-gray-400 hover:text-red-400 opacity-0 group-hover/comment:opacity-100"
-                              >
-                                删除
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Bottom action bar */}
-          <div className="border-t border-gray-100 p-3 shrink-0 bg-white">
-            <div className="flex items-center gap-2 mb-3">
-              <button
-                onClick={() => { if (!requireAuth()) toggleLike(card.id); }}
-                className={cn(
-                  "flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium transition-all",
-                  liked
-                    ? "bg-[#fde8eb] text-[#e05d6f]"
-                    : "bg-gray-100 text-gray-600 hover:bg-[#fde8eb] hover:text-[#e05d6f]",
-                )}
-              >
-                <svg className={cn("w-4 h-4 transition-transform", liked && "scale-110")} viewBox="0 0 24 24" fill={liked ? "currentColor" : "none"} stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                </svg>
-                {likeCount}
-              </button>
-              <button
-                onClick={() => { if (!requireAuth()) toggleCollect(card.id); }}
-                className={cn(
-                  "flex-1 flex items-center justify-center gap-1.5 py-2 rounded-full text-sm font-bold transition-all",
-                  collected
-                    ? "bg-[#d94f60] text-white shadow-md shadow-[#e05d6f]/30"
-                    : "bg-[#e05d6f] text-white hover:bg-[#c94d5e] shadow-md shadow-[#e05d6f]/30",
-                )}
-              >
-                <svg className="w-4 h-4" viewBox="0 0 24 24" fill={collected ? "currentColor" : "none"} stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
-                </svg>
-                {collected ? `已收集 ${collectCount}` : `收集图片 ${collectCount}`}
-              </button>
-            </div>
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <input
-                  type="text"
-                  value={commentText}
-                  onChange={e => setCommentText(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === "Enter" && commentText.trim() && user) {
-                      addComment(card.id, commentText.trim());
-                      setCommentText("");
-                    }
-                  }}
-                  placeholder="说点什么吧..."
-                  maxLength={200}
-                  className="w-full bg-gray-100 rounded-full px-4 py-2.5 pr-16 text-sm outline-none focus:ring-2 focus:ring-[#e05d6f]/30 focus:bg-white text-gray-700 transition-all"
-                />
-                {user && (
-                  <img src={user.avatar} alt="" className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-gray-200" />
-                )}
-              </div>
-              <button
-                onClick={() => {
-                  if (!commentText.trim()) return;
-                  if (requireAuth()) return;
-                  addComment(card.id, commentText.trim());
-                  setCommentText("");
-                }}
-                disabled={!commentText.trim()}
-                className={cn(
-                  "px-5 py-2.5 rounded-full text-sm font-medium transition-all",
-                  commentText.trim()
-                    ? "bg-[#e05d6f] text-white hover:bg-[#c94d5e] shadow-sm"
-                    : "bg-gray-200 text-gray-400 cursor-not-allowed",
-                )}
-              >
-                发送
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+/** key 保证每次打开都重新初始化表单状态 */
+function EditPanelWrapper({ onClose }: { onClose: () => void }) {
+  return <EditProfilePanel key={Date.now()} onClose={onClose} />;
 }

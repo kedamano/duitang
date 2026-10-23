@@ -163,20 +163,40 @@ app.post('/api/upload', authMiddleware, upload.single('file'), async (req, res) 
 // 帖子
 // ─────────────────────────────────────────────
 
+// 中文画板标签 → 英文 key（兼容旧客户端直接提交标签的情况）
+const BOARD_ALIAS = {
+  '壁纸头像': 'wallpaper', '动漫插画': 'anime', '时尚穿搭': 'fashion', '美食菜谱': 'food',
+  '手工DIY': 'diy', '家居生活': 'home', '美妆造型': 'makeup', '旅行摄影': 'travel',
+  '古风汉服': 'ancient', '萌宠植物': 'pet', '文字句子': 'quote', '婚纱婚礼': 'wedding',
+};
+function normalizeBoard(board) {
+  if (!board) return '';
+  return BOARD_ALIAS[board] || board;
+}
+
+// 解析 post 行内的 JSON 字段
+function hydratePost(post) {
+  try { post.images = JSON.parse(post.images); } catch { post.images = []; }
+  try { post.tags = JSON.parse(post.tags); } catch { post.tags = []; }
+  try { post.sizes = JSON.parse(post.sizes || '[]'); } catch { post.sizes = []; }
+  return post;
+}
+
 // 帖子列表（分页）
 app.get('/api/posts', (req, res) => {
   const { page = 1, limit = 20, board, user_id, q } = req.query;
   const pageNum = Math.max(1, parseInt(page) || 1);
   const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 20));
   const offset = (pageNum - 1) * limitNum;
+  const boardKey = normalizeBoard(board);
 
   let sql = 'SELECT p.*, u.nickname as author_nickname, u.avatar as author_avatar FROM posts p JOIN users u ON p.author_id = u.id WHERE 1=1';
   let countSql = 'SELECT COUNT(*) as count FROM posts p WHERE 1=1';
   const params = [];
   const countParams = [];
-  if (board) {
+  if (boardKey) {
     sql += ' AND p.board = ?'; countSql += ' AND p.board = ?';
-    params.push(board); countParams.push(board);
+    params.push(boardKey); countParams.push(boardKey);
   }
   if (user_id) {
     sql += ' AND p.author_id = ?'; countSql += ' AND p.author_id = ?';
@@ -193,12 +213,7 @@ app.get('/api/posts', (req, res) => {
   sql += ' ORDER BY p.created_at DESC LIMIT ? OFFSET ?';
   params.push(limitNum, offset);
 
-  const posts = db.prepare(sql).all(...params);
-  posts.forEach(post => {
-    try { post.images = JSON.parse(post.images); } catch { post.images = []; }
-    try { post.tags = JSON.parse(post.tags); } catch { post.tags = []; }
-  });
-
+  const posts = db.prepare(sql).all(...params).map(hydratePost);
   const total = db.prepare(countSql).get(...countParams).count;
   res.json({ posts, total, page: pageNum, limit: limitNum });
 });
@@ -207,8 +222,7 @@ app.get('/api/posts', (req, res) => {
 app.get('/api/posts/:id', (req, res) => {
   const post = db.prepare('SELECT p.*, u.nickname as author_nickname, u.avatar as author_avatar FROM posts p JOIN users u ON p.author_id = u.id WHERE p.id = ?').get(req.params.id);
   if (!post) return res.status(404).json({ error: '帖子不存在' });
-  try { post.images = JSON.parse(post.images); } catch { post.images = []; }
-  try { post.tags = JSON.parse(post.tags); } catch { post.tags = []; }
+  hydratePost(post);
 
   // 当前用户的互动状态
   const authHeader = req.headers.authorization?.replace('Bearer ', '');
@@ -225,19 +239,22 @@ app.get('/api/posts/:id', (req, res) => {
 
 // 发布帖子
 app.post('/api/posts', authMiddleware, (req, res) => {
-  const { title, description, board, images, tags } = req.body;
+  const { title, description, board, images, tags, sizes } = req.body;
   if (!title || !title.trim()) return res.status(400).json({ error: '标题必填' });
-  if (!images || images.length === 0) return res.status(400).json({ error: '至少一张图片' });
+  if (!Array.isArray(images) || images.length === 0) return res.status(400).json({ error: '至少一张图片' });
 
-  const imageStr = JSON.stringify(images);
-  const tagStr = JSON.stringify(tags || []);
-  const info = db.prepare('INSERT INTO posts (author_id, title, description, board, images, tags) VALUES (?, ?, ?, ?, ?, ?)').run(
-    req.user.id, title, description || '', board || '', imageStr, tagStr
+  const imageStr = JSON.stringify(images.slice(0, 9));
+  const tagStr = JSON.stringify((tags || []).slice(0, 5));
+  // sizes 与 images 一一对应；缺省时存空数组，前端回落到默认比例
+  const sizeStr = Array.isArray(sizes) && sizes.length === images.length
+    ? JSON.stringify(sizes.map(s => ({ w: Number(s?.w) || 400, h: Number(s?.h) || 300 })))
+    : '[]';
+  const info = db.prepare('INSERT INTO posts (author_id, title, description, board, images, tags, sizes) VALUES (?, ?, ?, ?, ?, ?, ?)').run(
+    req.user.id, title.trim(), description || '', normalizeBoard(board), imageStr, tagStr, sizeStr
   );
 
   const post = db.prepare('SELECT p.*, u.nickname as author_nickname, u.avatar as author_avatar FROM posts p JOIN users u ON p.author_id = u.id WHERE p.id = ?').get(info.lastInsertRowid);
-  try { post.images = JSON.parse(post.images); } catch { post.images = []; }
-  try { post.tags = JSON.parse(post.tags); } catch { post.tags = []; }
+  hydratePost(post);
 
   res.json({ post });
 });

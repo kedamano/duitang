@@ -1,28 +1,12 @@
-const normalizePost = (p: any): ImageCard => ({
-  id: p.id,
-  src: (Array.isArray(p.images) ? p.images : JSON.parse(p.images || '[]'))[0] || '',
-  title: p.title,
-  description: p.description || '',
-  author: p.author_nickname || '匿名',
-  authorId: p.author_id,
-  avatar: p.author_avatar || '',
-  tags: Array.isArray(p.tags) ? p.tags : JSON.parse(p.tags || '[]'),
-  category: p.board || 'all',
-  likes: p.likes_count || 0,
-  collects: p.collects_count || 0,
-  comments: p.comments_count || 0,
-  width: 400,
-  height: 300,
-});
-
-
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { cn } from "../utils/cn";
 import { useAuth } from "../context/AuthContext";
-import { useCollection, type Comment } from "../context/CollectionContext";
+import { useCollection } from "../context/CollectionContext";
 import { useToast } from "../context/ToastContext";
 import { api } from "../api";
-import type { ImageCard } from "../data/images";
+import { normalizePost } from "../utils/normalizePost";
+import { PostDetailModal } from "../components/PostDetail";
+import { labelToBoard, type ImageCard } from "../data/images";
 
 // ─── Banner ───────────────────────────────────────────────────────────────────
 function Banner() {
@@ -102,7 +86,7 @@ function Card({ card, onClick }: { card: ImageCard; onClick: () => void }) {
 
   return (
     <div
-      className="group relative bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer hover:-translate-y-1 mb-4 break-inside-avoid"
+      className="group relative bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer hover:-translate-y-1 break-inside-avoid"
       onClick={onClick}
     >
       <div className="relative overflow-hidden bg-gray-100" style={{ paddingBottom: `${aspectRatio}%` }}>
@@ -142,6 +126,11 @@ function Card({ card, onClick }: { card: ImageCard; onClick: () => void }) {
             </span>
           ))}
         </div>
+        {card.images && card.images.length > 1 && (
+          <span className="absolute top-3 left-3 bg-black/40 text-white text-xs px-2 py-0.5 rounded-full backdrop-blur-sm">
+            共{card.images.length}张
+          </span>
+        )}
       </div>
       <div className="p-3">
         <p className="text-sm font-medium text-gray-800 line-clamp-2 leading-snug mb-2">{card.title}</p>
@@ -175,9 +164,9 @@ function Card({ card, onClick }: { card: ImageCard; onClick: () => void }) {
 }
 
 // ─── Masonry Grid ─────────────────────────────────────────────────────────────
+/** 按累计列高分配卡片（配合真实宽高），实现错落瀑布流 */
 function MasonryGrid({ cards, onCardClick }: { cards: ImageCard[]; onCardClick: (c: ImageCard) => void }) {
   const [cols, setCols] = useState(4);
-  const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const update = () => {
@@ -192,11 +181,20 @@ function MasonryGrid({ cards, onCardClick }: { cards: ImageCard[]; onCardClick: 
     return () => window.removeEventListener("resize", update);
   }, []);
 
-  const columns: ImageCard[][] = Array.from({ length: cols }, () => []);
-  cards.forEach((card, i) => columns[i % cols].push(card));
+  const columns: ImageCard[][] = useMemo(() => {
+    const buckets: ImageCard[][] = Array.from({ length: cols }, () => []);
+    const heights = new Array(cols).fill(0);
+    cards.forEach(card => {
+      const ratio = card.width > 0 && card.height > 0 ? card.height / card.width : 0.75;
+      const shortest = heights.indexOf(Math.min(...heights));
+      buckets[shortest].push(card);
+      heights[shortest] += ratio;
+    });
+    return buckets;
+  }, [cards, cols]);
 
   return (
-    <div ref={ref} className="flex gap-3 md:gap-4 items-start">
+    <div className="flex gap-3 md:gap-4 items-start">
       {columns.map((col, ci) => (
         <div key={ci} className="flex-1 flex flex-col gap-3 md:gap-4">
           {col.map(card => (
@@ -208,431 +206,17 @@ function MasonryGrid({ cards, onCardClick }: { cards: ImageCard[]; onCardClick: 
   );
 }
 
-// ─── Detail Modal ─────────────────────────────────────────────────────────────
-function CommentItem({
-  comment, currentUsername, onDelete, onLikeComment,
-}: {
-  comment: Comment;
-  currentUsername: string | null;
-  onDelete: (commentId: number) => void;
-  onLikeComment: (commentId: number) => void;
-}) {
-  return (
-    <div className="flex gap-2.5 group/comment">
-      <img src={comment.avatar} alt={comment.author} className="w-8 h-8 rounded-full bg-gray-100 shrink-0 ring-1 ring-gray-200" />
-      <div className="flex-1 min-w-0">
-        <div className="bg-gray-50 rounded-2xl rounded-tl-none px-3 py-2">
-          <p className="text-xs font-semibold text-gray-700 mb-0.5">{comment.author}</p>
-          <p className="text-sm text-gray-600 leading-relaxed">{comment.content}</p>
-        </div>
-        <div className="flex items-center gap-3 mt-1 ml-2">
-          <span className="text-xs text-gray-400">{new Date(comment.created_at).toLocaleDateString()}</span>
-          <button
-            onClick={() => onLikeComment(comment.id)}
-            className={cn(
-              "flex items-center gap-1 text-xs transition-colors",
-              comment.liked ? "text-[#e05d6f]" : "text-gray-400 hover:text-[#e05d6f]"
-            )}
-          >
-            <svg className="w-3 h-3" viewBox="0 0 24 24" fill={comment.liked ? "currentColor" : "none"} stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-            </svg>
-            {comment.likes > 0 && comment.likes}
-          </button>
-          {currentUsername === comment.author && (
-            <button
-              onClick={() => onDelete(comment.id)}
-              className="text-xs text-gray-400 hover:text-red-400 transition-colors opacity-0 group-hover/comment:opacity-100"
-            >
-              删除
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-export function DetailModal({ card, onClose }: { card: ImageCard; onClose: () => void }) {
-  const { user, setShowLogin } = useAuth();
-  const {
-    isCollected, isLiked, toggleCollect, toggleLike,
-    getLikeCount, getCollectCount, getCommentCount, getShareCount,
-    comments, addComment, deleteComment, likeComment, sharePost, deletePost,
-    isFollowing, toggleFollow,
-  } = useCollection();
-
-  const liked = isLiked(card.id);
-  const collected = isCollected(card.id);
-  const likeCount = getLikeCount(card.id, card.likes);
-  const collectCount = getCollectCount(card.id, card.collects);
-  const commentCount = getCommentCount(card.id);
-  const shareCount = getShareCount(card.id);
-
-  const [commentText, setCommentText] = useState("");
-  const [showSharePanel, setShowSharePanel] = useState(false);
-  const [shareToast, setShareToast] = useState("");
-  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
-  const [deletePostConfirm, setDeletePostConfirm] = useState(false);
-  const commentListRef = useRef<HTMLDivElement>(null);
-
-  const requireAuth = () => {
-    if (!user) { setShowLogin(true); return true; }
-    return false;
-  };
-
-  const handleLike = () => {
-    if (requireAuth()) return;
-    toggleLike(card.id);
-  };
-
-  const handleCollect = () => {
-    if (requireAuth()) return;
-    toggleCollect(card.id);
-  };
-
-  const handleSendComment = () => {
-    if (!commentText.trim()) return;
-    if (requireAuth()) return;
-    addComment(card.id, commentText.trim());
-    setCommentText("");
-    setTimeout(() => commentListRef.current?.scrollTo({ top: 0, behavior: "smooth" }), 100);
-  };
-
-  const handleDeleteComment = (commentId: number) => {
-    deleteComment(card.id, commentId);
-    setDeleteConfirmId(null);
-  };
-
-  const handleLikeComment = (commentId: number) => {
-    if (requireAuth()) return;
-    likeComment(card.id, commentId);
-  };
-
-  const handleCopyLink = async () => {
-    try {
-      await navigator.clipboard.writeText(window.location.href + "#pin-" + card.id);
-    } catch {
-      const input = document.createElement("input");
-      input.value = window.location.href + "#pin-" + card.id;
-      document.body.appendChild(input);
-      input.select();
-      document.execCommand("copy");
-      document.body.removeChild(input);
-    }
-    sharePost(card.id);
-    setShareToast("链接已复制到剪贴板！");
-    setShowSharePanel(false);
-    setTimeout(() => setShareToast(""), 2500);
-  };
-
-  const handleShareWechat = () => {
-    sharePost(card.id);
-    setShareToast("请截图分享到微信");
-    setShowSharePanel(false);
-    setTimeout(() => setShareToast(""), 2500);
-  };
-
-  const handleShareWeibo = () => {
-    sharePost(card.id);
-    const url = encodeURIComponent(window.location.href);
-    const title = encodeURIComponent(`${card.title} - 来自堆糖`);
-    window.open(`https://service.weibo.com/share/share.php?url=${url}&title=${title}`, "_blank");
-    setShowSharePanel(false);
-  };
-
-  useEffect(() => {
-    document.body.style.overflow = "hidden";
-    const handleEsc = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", handleEsc);
-    return () => {
-      document.body.style.overflow = "";
-      window.removeEventListener("keydown", handleEsc);
-    };
-  }, [onClose]);
-
-  const cardComments = comments[card.id] ?? [];
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-2 md:p-4 bg-black/60 backdrop-blur-sm animate-fade-in"
-      onClick={onClose}
-    >
-      <div
-        className="bg-white rounded-2xl md:rounded-3xl overflow-hidden w-full max-w-3xl max-h-[95vh] md:max-h-[90vh] shadow-2xl flex flex-col md:flex-row animate-modal-in"
-        onClick={e => e.stopPropagation()}
-      >
-        {/* Left - Image */}
-        <div className="relative md:w-1/2 bg-gray-100 flex-shrink-0 max-h-[40vh] md:max-h-full overflow-hidden">
-          <img src={card.src} alt={card.title} className="w-full h-full object-cover" />
-          <div className="absolute top-3 right-3 flex gap-2">
-            <button
-              onClick={() => setShowSharePanel(!showSharePanel)}
-              className="w-8 h-8 bg-black/30 backdrop-blur-sm rounded-full flex items-center justify-center text-white hover:bg-black/50 transition-colors"
-              title="分享"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-              </svg>
-            </button>
-          </div>
-          {/* Share panel */}
-          {showSharePanel && (
-            <div className="absolute top-12 right-3 bg-white rounded-2xl shadow-2xl p-4 w-52 animate-fade-in z-10">
-              <p className="text-sm font-bold text-gray-700 mb-3">分享到</p>
-              <div className="grid grid-cols-4 gap-3">
-                <button onClick={handleCopyLink} className="flex flex-col items-center gap-1 group">
-                  <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center group-hover:bg-[#fde8eb] transition-colors">
-                    <svg className="w-5 h-5 text-gray-500 group-hover:text-[#e05d6f]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                    </svg>
-                  </div>
-                  <span className="text-xs text-gray-500">复制链接</span>
-                </button>
-                <button onClick={handleShareWechat} className="flex flex-col items-center gap-1 group">
-                  <div className="w-10 h-10 bg-green-50 rounded-full flex items-center justify-center group-hover:bg-green-100 transition-colors">
-                    <svg className="w-5 h-5 text-green-500" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M8.691 2.188C3.891 2.188 0 5.476 0 9.53c0 2.212 1.17 4.203 3.002 5.55a.59.59 0 01.213.665l-.39 1.48c-.019.07-.048.141-.048.213 0 .163.13.295.29.295a.326.326 0 00.167-.054l1.903-1.114a.864.864 0 01.717-.098 10.16 10.16 0 002.837.403c.276 0 .543-.027.811-.05-.857-2.578.157-4.972 1.932-6.446 1.703-1.415 3.882-1.98 5.853-1.838-.576-3.583-4.196-6.348-8.596-6.348zM5.785 5.991c.642 0 1.162.529 1.162 1.18a1.17 1.17 0 01-1.162 1.178A1.17 1.17 0 014.623 7.17c0-.651.52-1.18 1.162-1.18zm5.813 0c.642 0 1.162.529 1.162 1.18a1.17 1.17 0 01-1.162 1.178 1.17 1.17 0 01-1.162-1.178c0-.651.52-1.18 1.162-1.18zm5.34 2.867c-1.797-.052-3.746.512-5.28 1.786-1.72 1.428-2.687 3.72-1.78 6.22.942 2.453 3.666 4.229 6.884 4.229.826 0 1.622-.12 2.361-.336a.722.722 0 01.598.082l1.584.926a.272.272 0 00.14.047c.134 0 .24-.111.24-.247 0-.06-.023-.12-.038-.177l-.327-1.233a.582.582 0 01-.023-.156.49.49 0 01.201-.398C23.024 18.48 24 16.82 24 14.98c0-3.21-2.931-5.837-7.062-6.122zM14.97 13.17c.535 0 .969.44.969.982a.976.976 0 01-.969.983.976.976 0 01-.969-.983c0-.542.434-.982.97-.982zm4.3 0c.535 0 .969.44.969.982a.976.976 0 01-.969.983.976.976 0 01-.969-.983c0-.542.434-.982.969-.982z"/>
-                    </svg>
-                  </div>
-                  <span className="text-xs text-gray-500">微信</span>
-                </button>
-                <button onClick={handleShareWeibo} className="flex flex-col items-center gap-1 group">
-                  <div className="w-10 h-10 bg-red-50 rounded-full flex items-center justify-center group-hover:bg-red-100 transition-colors">
-                    <span className="text-sm font-bold text-red-500">微</span>
-                  </div>
-                  <span className="text-xs text-gray-500">微博</span>
-                </button>
-              </div>
-              {shareCount > 0 && (
-                <p className="text-xs text-gray-400 mt-3 text-center">已分享 {shareCount} 次</p>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Right - Content */}
-        <div className="md:w-1/2 flex flex-col overflow-hidden">
-          {/* Author header */}
-          <div className="flex items-center justify-between p-4 border-b border-gray-100 shrink-0">
-            <div className="flex items-center gap-3">
-              <img src={card.avatar} alt={card.author} className="w-10 h-10 rounded-full bg-gray-200 ring-2 ring-[#f0a0a8]" />
-              <div>
-                <p className="font-semibold text-gray-800 text-sm">{card.author}</p>
-                <p className="text-xs text-gray-400">分享了这张图片</p>
-              </div>
-              {user && card.authorId && user.id !== card.authorId && (
-                <button
-                  onClick={() => toggleFollow(card.authorId!)}
-                  className={cn(
-                    "ml-2 px-3 py-1 rounded-full text-xs font-bold transition-colors",
-                    isFollowing(card.authorId!)
-                      ? "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                      : "bg-[#e05d6f] text-white hover:bg-[#c94d5e]"
-                  )}
-                >
-                  {isFollowing(card.authorId!) ? "已关注" : "+ 关注"}
-                </button>
-              )}
-            </div>
-            <div className="flex items-center gap-1">
-              {user && user.nickname === card.author && (
-                <button
-                  onClick={() => setDeletePostConfirm(true)}
-                  className="px-3 py-1.5 rounded-full text-xs font-medium text-red-500 hover:bg-red-50 transition-colors"
-                >
-                  删除
-                </button>
-              )}
-              <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-          </div>
-
-          {/* Title & tags */}
-          <div className="px-4 pt-4 pb-2 shrink-0">
-            <h2 className="font-bold text-gray-800 text-base mb-2">{card.title}</h2>
-            <div className="flex flex-wrap gap-1.5 mb-1">
-              {card.tags.map(tag => (
-                <span key={tag} className="text-xs bg-[#fde8eb] text-[#e05d6f] px-3 py-1 rounded-full font-medium">
-                  #{tag}
-                </span>
-              ))}
-            </div>
-          </div>
-
-          {deletePostConfirm && (
-            <div className="px-4 pb-2 shrink-0">
-              <div className="bg-red-50 rounded-2xl px-4 py-3">
-                <p className="text-sm text-red-600 mb-2">确定删除这条帖子吗？删除后不可恢复。</p>
-                <div className="flex gap-2">
-                  <button
-                    onClick={async () => {
-                      const ok = await deletePost(card.id);
-                      if (ok) onClose();
-                      setDeletePostConfirm(false);
-                    }}
-                    className="text-xs bg-red-500 text-white px-3 py-1 rounded-full hover:bg-red-600 transition-colors"
-                  >
-                    删除
-                  </button>
-                  <button
-                    onClick={() => setDeletePostConfirm(false)}
-                    className="text-xs bg-gray-200 text-gray-600 px-3 py-1 rounded-full hover:bg-gray-300 transition-colors"
-                  >
-                    取消
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Comments area */}
-          <div ref={commentListRef} className="flex-1 overflow-y-auto px-4 py-2">
-            <p className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-1.5">
-              <span>💬 评论区</span>
-              <span className="text-xs text-gray-400 font-normal">({commentCount})</span>
-            </p>
-            {cardComments.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-8 gap-2">
-                <div className="text-3xl">💭</div>
-                <p className="text-sm text-gray-400">还没有评论，来说点什么吧~</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {cardComments.map(c => (
-                  <div key={c.id}>
-                    {deleteConfirmId === c.id ? (
-                      <div className="flex gap-2.5">
-                        <img src={c.avatar} alt={c.author} className="w-8 h-8 rounded-full bg-gray-100 shrink-0" />
-                        <div className="bg-red-50 rounded-2xl px-4 py-3 flex-1">
-                          <p className="text-sm text-red-600 mb-2">确定删除这条评论吗？</p>
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => handleDeleteComment(c.id)}
-                              className="text-xs bg-red-500 text-white px-3 py-1 rounded-full hover:bg-red-600 transition-colors"
-                            >
-                              删除
-                            </button>
-                            <button
-                              onClick={() => setDeleteConfirmId(null)}
-                              className="text-xs bg-gray-200 text-gray-600 px-3 py-1 rounded-full hover:bg-gray-300 transition-colors"
-                            >
-                              取消
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <CommentItem
-                        comment={c}
-                        currentUsername={user?.username ?? null}
-                        onDelete={(id) => setDeleteConfirmId(id)}
-                        onLikeComment={handleLikeComment}
-                      />
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Share toast */}
-          {shareToast && (
-            <div className="absolute bottom-28 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-sm px-5 py-2.5 rounded-full shadow-lg animate-fade-in z-20">
-              {shareToast}
-            </div>
-          )}
-
-          {/* Bottom action bar */}
-          <div className="border-t border-gray-100 p-3 shrink-0 bg-white">
-            {/* Like / Collect / Share buttons */}
-            <div className="flex items-center gap-2 mb-3">
-              <button
-                onClick={handleLike}
-                className={cn(
-                  "flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium transition-all",
-                  liked
-                    ? "bg-[#fde8eb] text-[#e05d6f]"
-                    : "bg-gray-100 text-gray-600 hover:bg-[#fde8eb] hover:text-[#e05d6f]",
-                )}
-              >
-                <svg className={cn("w-4 h-4 transition-transform", liked && "scale-110")} viewBox="0 0 24 24" fill={liked ? "currentColor" : "none"} stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                </svg>
-                {liked ? likeCount : likeCount}
-              </button>
-              <button
-                onClick={handleCollect}
-                className={cn(
-                  "flex-1 flex items-center justify-center gap-1.5 py-2 rounded-full text-sm font-bold transition-all",
-                  collected
-                    ? "bg-[#d94f60] text-white shadow-md shadow-[#e05d6f]/30"
-                    : "bg-[#e05d6f] text-white hover:bg-[#c94d5e] shadow-md shadow-[#e05d6f]/30",
-                )}
-              >
-                <svg className="w-4 h-4" viewBox="0 0 24 24" fill={collected ? "currentColor" : "none"} stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
-                </svg>
-                {collected ? `已收集 ${collectCount}` : `收集图片 ${collectCount}`}
-              </button>
-              <button
-                onClick={() => setShowSharePanel(!showSharePanel)}
-                className={cn(
-                  "flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium transition-all",
-                  showSharePanel
-                    ? "bg-gray-800 text-white"
-                    : "bg-gray-100 text-gray-600 hover:bg-gray-200",
-                )}
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-                </svg>
-                {shareCount > 0 ? shareCount : "分享"}
-              </button>
-            </div>
-
-            {/* Comment input */}
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <input
-                  type="text"
-                  value={commentText}
-                  onChange={e => setCommentText(e.target.value)}
-                  onKeyDown={e => { if (e.key === "Enter") handleSendComment(); }}
-                  placeholder="说点什么吧..."
-                  maxLength={200}
-                  className="w-full bg-gray-100 rounded-full px-4 py-2.5 pr-16 text-sm outline-none focus:ring-2 focus:ring-[#e05d6f]/30 focus:bg-white text-gray-700 transition-all"
-                />
-                {user && (
-                  <img src={user.avatar} alt="" className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-gray-200" />
-                )}
-              </div>
-              <button
-                onClick={handleSendComment}
-                disabled={!commentText.trim()}
-                className={cn(
-                  "px-5 py-2.5 rounded-full text-sm font-medium transition-all",
-                  commentText.trim()
-                    ? "bg-[#e05d6f] text-white hover:bg-[#c94d5e] shadow-sm"
-                    : "bg-gray-200 text-gray-400 cursor-not-allowed",
-                )}
-              >
-                发送
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
-function SideTopics() {
+/** 侧栏话题 → 顶部导航分类 */
+const topicNavMap: Record<string, string> = {
+  "春日少女系": "壁纸头像",
+  "ins风家居": "家居生活",
+  "美食探店": "美食菜谱",
+  "旅行日记": "旅行摄影",
+  "手绘插画": "动漫插画",
+};
+
+function SideTopics({ onTopicClick }: { onTopicClick: (label: string) => void }) {
   const topics = [
     { icon: "🌸", label: "春日少女系", count: "12.3万图片" },
     { icon: "🏠", label: "ins风家居", count: "8.9万图片" },
@@ -647,7 +231,11 @@ function SideTopics() {
       </h3>
       <div className="space-y-2">
         {topics.map(t => (
-          <button key={t.label} className="w-full flex items-center gap-3 p-2 rounded-xl hover:bg-[#fde8eb] group transition-colors text-left">
+          <button
+            key={t.label}
+            onClick={() => onTopicClick(topicNavMap[t.label] ?? "推荐")}
+            className="w-full flex items-center gap-3 p-2 rounded-xl hover:bg-[#fde8eb] group transition-colors text-left"
+          >
             <span className="text-xl">{t.icon}</span>
             <div>
               <p className="text-sm font-medium text-gray-700 group-hover:text-[#e05d6f]">{t.label}</p>
@@ -723,13 +311,8 @@ export default function HomePage({
   const [loadingMore, setLoadingMore] = useState(false);
   const [total, setTotal] = useState(0);
 
-  const navToCategoryMap: Record<string, string> = {
-    "推荐": "all", "壁纸头像": "wallpaper", "动漫插画": "anime", "时尚穿搭": "fashion",
-    "美食菜谱": "food", "手工DIY": "diy", "家居生活": "home", "美妆造型": "makeup",
-    "旅行摄影": "travel", "古风汉服": "ancient", "萌宠植物": "pet", "文字句子": "quote", "婚纱婚礼": "wedding",
-  };
-
-  const boardKey = navToCategoryMap[activeNav] ?? "all";
+  // 导航为中文标签，后端 board 统一使用英文 key
+  const boardKey = labelToBoard[activeNav] ?? "all";
 
   // 分类/搜索变化时重新加载第一页
   useEffect(() => {
@@ -752,7 +335,7 @@ export default function HomePage({
   const allCards = useMemo(() => {
     const map = new Map<number, ImageCard>();
     apiPosts.forEach(c => map.set(c.id, c));
-    // 用户自己的帖子只在"推荐"或对应分类时显示，并叠加到顶部
+    // 用户自己的帖子只在"推荐"或对应分类时显示
     userPosts.forEach(c => {
       if (boardKey === 'all' || c.category === boardKey) {
         if (!search || c.title.includes(search) || c.tags.some((t: string) => t.includes(search)) || c.author.includes(search)) {
@@ -762,8 +345,6 @@ export default function HomePage({
     });
     return Array.from(map.values());
   }, [userPosts, apiPosts, boardKey, search]);
-
-  const displayCards = allCards;
 
   const handleLoadMore = useCallback(async () => {
     if (loadingMore || !hasMore) return;
@@ -787,7 +368,6 @@ export default function HomePage({
     }
   }, [loadingMore, hasMore, page, boardKey, search, showToast]);
 
-
   return (
     <main className="max-w-screen-xl mx-auto">
       {activeNav === "推荐" && !search && <Banner />}
@@ -802,7 +382,7 @@ export default function HomePage({
             </div>
           )}
 
-          {displayCards.length === 0 ? (
+          {allCards.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-24 gap-4">
               <div className="text-6xl">🌸</div>
               <p className="text-gray-400 text-base">暂时没有找到相关内容～</p>
@@ -815,11 +395,11 @@ export default function HomePage({
             </div>
           ) : (
             <>
-              <MasonryGrid cards={displayCards} onCardClick={setSelectedCard} />
+              <MasonryGrid cards={allCards} onCardClick={setSelectedCard} />
               {hasMore && (
                 <LoadMoreButton onClick={handleLoadMore} loading={loadingMore} />
               )}
-              {!hasMore && displayCards.length > 0 && (
+              {!hasMore && allCards.length > 0 && (
                 <p className="text-center text-gray-300 text-sm pb-10 pt-4">— 已经到底啦 🌸 —</p>
               )}
             </>
@@ -828,7 +408,7 @@ export default function HomePage({
 
         <aside className="hidden xl:block w-60 shrink-0 pt-2">
           <div className="sticky top-28 space-y-4">
-            <SideTopics />
+            <SideTopics onTopicClick={onNavChange} />
             <div className="bg-gradient-to-br from-[#e05d6f] to-[#f0a0a8] rounded-2xl p-4 text-white shadow-md">
               <h3 className="font-bold text-sm mb-1">📱 下载堆糖App</h3>
               <p className="text-xs text-white/80 mb-3">随时随地收集你喜欢的图片</p>
@@ -851,7 +431,7 @@ export default function HomePage({
       <BackToTop />
 
       {selectedCard && (
-        <DetailModal card={selectedCard} onClose={() => setSelectedCard(null)} />
+        <PostDetailModal card={selectedCard} onClose={() => setSelectedCard(null)} />
       )}
     </main>
   );

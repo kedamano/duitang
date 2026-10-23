@@ -2,6 +2,8 @@ export interface ImageCard {
   id: number;
   title: string;
   src: string;
+  /** 帖子的全部图片（src 为第一张，即封面） */
+  images?: string[];
   width: number;
   height: number;
   author: string;
@@ -13,6 +15,7 @@ export interface ImageCard {
   tags: string[];
   description?: string;
   comments?: number;
+  shares?: number;
   is_liked?: boolean;
   is_collected?: boolean;
 }
@@ -75,7 +78,25 @@ export const hotSearches = [
   "可爱壁纸", "汉服", "穿搭", "头像", "插画", "动漫", "蛋糕", "手帐", "旅行", "猫咪"
 ];
 
-export const navCategories = [
-  "推荐", "壁纸头像", "动漫插画", "时尚穿搭", "美食菜谱",
-  "手工DIY", "家居生活", "美妆造型", "旅行摄影", "古风汉服", "萌宠植物", "文字句子", "婚纱婚礼",
-];
+/** 分类导航（"推荐" 为全部，不参与 board 存储） */
+export const navCategories = categories.map(c => c.label);
+
+/** 中文标签 → 后端 board 英文 key */
+export const labelToBoard: Record<string, string> = Object.fromEntries(
+  categories.map(c => [c.label, c.key]),
+);
+
+/** 后端 board 英文 key → 中文标签 */
+export const boardToLabel: Record<string, string> = Object.fromEntries(
+  categories.map(c => [c.key, c.label]),
+);
+
+/** 可发布的画板（排除"推荐"） */
+export const boardOptions = categories.filter(c => c.key !== "all").map(c => c.label);
+
+/** 归一化任意 board 值为英文 key（兼容历史数据存了中文标签的情况） */
+export function toBoardKey(board?: string | null): string {
+  if (!board) return "";
+  if (labelToBoard[board]) return labelToBoard[board];
+  return board;
+}

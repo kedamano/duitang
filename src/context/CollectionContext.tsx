@@ -3,30 +3,7 @@ import { useAuth } from "./AuthContext";
 import { useToast } from "./ToastContext";
 import { api } from "../api";
 import type { ImageCard } from "../data/images";
-
-/** Normalize backend post to ImageCard shape */
-function normalizePost(p: any): ImageCard {
-  const images = Array.isArray(p.images) ? p.images : (typeof p.images === 'string' ? JSON.parse(p.images) : []);
-  const tags = Array.isArray(p.tags) ? p.tags : (typeof p.tags === 'string' ? JSON.parse(p.tags) : []);
-  return {
-    id: p.id,
-    src: images[0] || '',
-    title: p.title,
-    description: p.description || '',
-    author: p.author_nickname || '匿名',
-    authorId: p.author_id,
-    avatar: p.author_avatar || '',
-    tags,
-    category: p.board || 'all',
-    likes: p.likes_count || 0,
-    collects: p.collects_count || 0,
-    comments: p.comments_count || 0,
-    width: 400,
-    height: 300,
-    is_liked: p.is_liked || false,
-    is_collected: p.is_collected || false,
-  };
-}
+import { normalizePost } from "../utils/normalizePost";
 
 export interface Comment {
   id: number;
@@ -40,19 +17,36 @@ export interface Comment {
   created_at: string;
 }
 
+/** 后端评论 → 前端 Comment（统一 liked / likes 字段名） */
+function normalizeComment(c: any): Comment {
+  return {
+    id: c.id,
+    post_id: c.post_id,
+    content: c.content,
+    author_id: c.author_id,
+    author: c.author_nickname || "匿名",
+    avatar: c.author_avatar || "",
+    likes: c.likes_count || 0,
+    liked: !!c.is_liked,
+    created_at: c.created_at,
+  };
+}
+
 interface CollectionContextType {
   comments: Record<number, Comment[]>;
-  likeDeltas: Record<number, number>;
-  collectDeltas: Record<number, number>;
+  commentsLoaded: Record<number, boolean>;
+  loadComments: (postId: number) => Promise<void>;
+  likeCounts: Record<number, number>;
+  collectCounts: Record<number, number>;
   likedIds: Set<number>;
   collectedIds: Set<number>;
-  userPosts: any[];
+  userPosts: ImageCard[];
   isLiked: (id: number) => boolean;
   isCollected: (id: number) => boolean;
   getLikeCount: (id: number, base: number) => number;
   getCollectCount: (id: number, base: number) => number;
-  getCommentCount: (id: number) => number;
-  getShareCount: (id: number) => number;
+  getCommentCount: (id: number, base?: number) => number;
+  getShareCount: (id: number, base?: number) => number;
   toggleLike: (id: number) => void;
   toggleCollect: (id: number) => void;
   addComment: (postId: number, content: string) => void;
@@ -62,9 +56,9 @@ interface CollectionContextType {
   deletePost: (id: number) => Promise<boolean>;
   isFollowing: (id: number) => boolean;
   toggleFollow: (userId: number) => void;
-  getUserPosts: (userId: number) => Promise<any[]>;
-  getMyCollects: () => Promise<any[]>;
-  getMyLikes: () => Promise<any[]>;
+  getUserPosts: (userId: number) => Promise<ImageCard[]>;
+  getMyCollects: () => Promise<ImageCard[]>;
+  getMyLikes: () => Promise<ImageCard[]>;
   addUserPost: (post: any) => void;
   removeUserPost: (postId: number) => void;
 }
@@ -77,13 +71,14 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
   const [likedIds, setLikedIds] = useState<Set<number>>(new Set());
   const [collectedIds, setCollectedIds] = useState<Set<number>>(new Set());
   const [comments, setComments] = useState<Record<number, Comment[]>>({});
-  const [likeDeltas, setLikeDeltas] = useState<Record<number, number>>({});
-  const [collectDeltas, setCollectDeltas] = useState<Record<number, number>>({});
-  const [shareDeltas, setShareDeltas] = useState<Record<number, number>>({});
+  const [commentsLoaded, setCommentsLoaded] = useState<Record<number, boolean>>({});
+  const [likeCounts, setLikeCounts] = useState<Record<number, number>>({});
+  const [collectCounts, setCollectCounts] = useState<Record<number, number>>({});
+  const [shareCounts, setShareCounts] = useState<Record<number, number>>({});
   const [followingIds, setFollowingIds] = useState<Set<number>>(new Set());
   const [userPosts, setUserPosts] = useState<ImageCard[]>([]);
 
-  // 用户登录时，从后端同步收藏和点赞
+  // 用户登录时，从后端同步收藏、点赞、发布与关注
   useEffect(() => {
     if (!token) return;
     Promise.all([
@@ -92,12 +87,12 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
       api.myPosts(),
       api.myFollowing(),
     ]).then(([collectsData, likesData, postsData, followingData]) => {
-      setCollectedIds(new Set(collectsData.posts.map((p: any) => p.id)));
-      setLikedIds(new Set(likesData.posts.map((p: any) => p.id)));
+      setCollectedIds(new Set((collectsData.posts || []).map((p: any) => p.id)));
+      setLikedIds(new Set((likesData.posts || []).map((p: any) => p.id)));
       setUserPosts((postsData.posts || []).map(normalizePost));
       setFollowingIds(new Set(followingData.ids || []));
     }).catch(() => {});
-  }, [token, showToast]);
+  }, [token]);
 
   const isLiked = useCallback((id: number) => likedIds.has(id), [likedIds]);
   const isCollected = useCallback((id: number) => collectedIds.has(id), [collectedIds]);
@@ -116,10 +111,23 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
     } catch { showToast("操作失败，请稍后重试", "error"); }
   }, [token, showToast]);
 
-  const getLikeCount = useCallback((id: number, base: number) => base + (likeDeltas[id] || 0), [likeDeltas]);
-  const getCollectCount = useCallback((id: number, base: number) => base + (collectDeltas[id] || 0), [collectDeltas]);
-  const getCommentCount = useCallback((id: number) => (comments[id] || []).length, [comments]);
-  const getShareCount = useCallback((id: number) => shareDeltas[id] || 0, [shareDeltas]);
+  // 后端返回的是绝对总数，直接覆盖基准值（避免 base + total 造成翻倍虚高）
+  const getLikeCount = useCallback(
+    (id: number, base: number) => likeCounts[id] ?? base,
+    [likeCounts],
+  );
+  const getCollectCount = useCallback(
+    (id: number, base: number) => collectCounts[id] ?? base,
+    [collectCounts],
+  );
+  const getCommentCount = useCallback(
+    (id: number, base = 0) => (commentsLoaded[id] ? (comments[id] || []).length : base),
+    [comments, commentsLoaded],
+  );
+  const getShareCount = useCallback(
+    (id: number, base = 0) => shareCounts[id] ?? base,
+    [shareCounts],
+  );
 
   const toggleLike = useCallback(async (id: number) => {
     if (!token) return;
@@ -130,7 +138,7 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
         if (data.liked) next.add(id); else next.delete(id);
         return next;
       });
-      setLikeDeltas(prev => ({ ...prev, [id]: data.count }));
+      setLikeCounts(prev => ({ ...prev, [id]: data.count }));
     } catch { showToast("操作失败，请稍后重试", "error"); }
   }, [token, showToast]);
 
@@ -143,30 +151,30 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
         if (data.collected) next.add(id); else next.delete(id);
         return next;
       });
-      setCollectDeltas(prev => ({ ...prev, [id]: data.count }));
+      setCollectCounts(prev => ({ ...prev, [id]: data.count }));
     } catch { showToast("操作失败，请稍后重试", "error"); }
+  }, [token, showToast]);
+
+  /** 打开详情时加载该帖评论（原先只靠本次会话内存，刷新即丢） */
+  const loadComments = useCallback(async (postId: number) => {
+    if (!token) return;
+    try {
+      const data = await api.getComments(postId);
+      setComments(prev => ({ ...prev, [postId]: (data.comments || []).map(normalizeComment) }));
+      setCommentsLoaded(prev => ({ ...prev, [postId]: true }));
+    } catch { showToast("评论加载失败", "error"); }
   }, [token, showToast]);
 
   const addComment = useCallback(async (postId: number, content: string) => {
     if (!token) return;
     try {
       const data = await api.addComment(postId, content);
-      const c = data.comment;
-      const normalized: Comment = {
-        id: c.id,
-        post_id: c.post_id,
-        content: c.content,
-        author_id: c.author_id,
-        author: c.author_nickname || '匿名',
-        avatar: c.author_avatar || '',
-        likes: c.likes_count || 0,
-        liked: false,
-        created_at: c.created_at,
-      };
+      const normalized = normalizeComment(data.comment);
       setComments(prev => ({
         ...prev,
         [postId]: [...(prev[postId] || []), normalized],
       }));
+      setCommentsLoaded(prev => ({ ...prev, [postId]: true }));
     } catch { showToast("操作失败，请稍后重试", "error"); }
   }, [token, showToast]);
 
@@ -188,7 +196,7 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
       setComments(prev => ({
         ...prev,
         [postId]: (prev[postId] || []).map(c =>
-          c.id === commentId ? { ...c, is_liked: data.liked, likes_count: data.count } : c
+          c.id === commentId ? { ...c, liked: data.liked, likes: data.count } : c
         ),
       }));
     } catch { showToast("操作失败，请稍后重试", "error"); }
@@ -198,7 +206,7 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
     if (!token) return;
     try {
       const data = await api.sharePost(id);
-      setShareDeltas(prev => ({ ...prev, [id]: data.count }));
+      setShareCounts(prev => ({ ...prev, [id]: data.count }));
     } catch { showToast("分享失败，请稍后重试", "error"); }
   }, [token, showToast]);
 
@@ -215,10 +223,10 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
     }
   }, [token, showToast]);
 
-  const getUserPosts = useCallback(async (userId: number) => {
+  const getUserPosts = useCallback(async (userId: number): Promise<ImageCard[]> => {
     try {
       const data = await api.getPosts({ user_id: userId });
-      return data.posts || [];
+      return (data.posts || []).map(normalizePost);
     } catch { return []; }
   }, []);
 
@@ -228,7 +236,7 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
       const data = await api.myCollects();
       return (data.posts || []).map(normalizePost);
     } catch { return []; }
-  }, [token, showToast]);
+  }, [token]);
 
   const getMyLikes = useCallback(async (): Promise<ImageCard[]> => {
     if (!token) return [];
@@ -236,7 +244,7 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
       const data = await api.myLikes();
       return (data.posts || []).map(normalizePost);
     } catch { return []; }
-  }, [token, showToast]);
+  }, [token]);
 
   const addUserPost = useCallback((post: any) => {
     setUserPosts(prev => [normalizePost(post), ...prev]);
@@ -248,7 +256,8 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
 
   return (
     <CollectionContext.Provider value={{
-      comments, likeDeltas, collectDeltas,
+      comments, commentsLoaded, loadComments,
+      likeCounts, collectCounts,
       likedIds, collectedIds, userPosts,
       isLiked, isCollected, getLikeCount, getCollectCount,
       getCommentCount, getShareCount,

@@ -112,15 +112,45 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_post_collects_user ON post_collects(user_id);
 `);
 
-// 插入初始测试用户
-const adminUser = db.prepare('SELECT id FROM users WHERE username = ?').get('tangyan');
-if (!adminUser) {
+// 轻量迁移：为旧库补齐后加的列
+function ensureColumn(table, column, definition) {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all();
+  if (!cols.some(c => c.name === column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+    console.log(`已为 ${table} 添加 ${column} 列`);
+  }
+}
+ensureColumn('posts', 'sizes', "TEXT DEFAULT '[]'");
+
+// 插入初始用户（含演示账号，便于本地体验；密码统一 123456）
+const seedUsers = [
+  { username: 'tangyan', nickname: '糖小颜', bio: '生活需要一点甜 🍬 | 分享美好日常' },
+  { username: 'tangtu', nickname: '糖小兔', bio: '壁纸收集癖，日更不偷懒 🐰' },
+  { username: 'mochi', nickname: '麻薯小姐', bio: '甜品与穿搭都是本命' },
+  { username: 'lvren', nickname: '旅人阿白', bio: '在路上 · 相机是我的第二双眼睛' },
+  { username: 'gufeng', nickname: '故梦古风', bio: '汉服 / 水墨 / 旧时光' },
+];
+
+seedUsers.forEach((u, i) => {
+  const existing = db.prepare('SELECT id FROM users WHERE username = ?').get(u.username);
+  if (existing) return;
   const hash = bcrypt.hashSync('123456', 10);
-  const avatar = `https://api.dicebear.com/7.x/adventurer/svg?seed=1001&backgroundColor=ffdfbf,ffd5dc,d1d4f9,c0aede,b6e3f4`;
+  const avatar = `https://api.dicebear.com/7.x/adventurer/svg?seed=${i + 1001}&backgroundColor=ffdfbf,ffd5dc,d1d4f9,c0aede,b6e3f4`;
   db.prepare('INSERT INTO users (username, nickname, password_hash, avatar, bio) VALUES (?, ?, ?, ?, ?)').run(
-    'tangyan', '糖小颜', hash, avatar, '生活需要一点甜 🍬 | 分享美好日常'
+    u.username, u.nickname, hash, avatar, u.bio
   );
-  console.log('已创建测试用户: tangyan / 123456');
+});
+
+// 仅默认开发库灌入演示内容；测试库（显式设置 DB_PATH）保持干净
+if (!process.env.DB_PATH) {
+  const postCount = db.prepare('SELECT COUNT(*) AS c FROM posts').get().c;
+  if (postCount === 0) {
+    try {
+      require('./seed-demo').seed(db);
+    } catch (e) {
+      console.warn('演示数据填充跳过:', e.message);
+    }
+  }
 }
 
 console.log('SQLite 数据库已初始化 (node:sqlite)');
