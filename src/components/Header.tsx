@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { cn } from "../utils/cn";
-import { navCategories, hotSearches } from "../data/images";
+import { navCategories, hotSearches, FOLLOW_NAV } from "../data/images";
 import { api } from "../api";
 
 interface SearchUser { id: number; username: string; nickname: string; avatar: string; }
@@ -118,7 +118,11 @@ export default function Header({
     onNavChange(cat);
   };
   const handleSearchChange = (v: string) => {
-    if (v) goHomeIfNeeded();
+    if (v) {
+      goHomeIfNeeded();
+      // 关注流不支持关键词检索：搜索时自动切回推荐
+      if (activeNav === FOLLOW_NAV) onNavChange("推荐");
+    }
     onSearchChange(v);
   };
 

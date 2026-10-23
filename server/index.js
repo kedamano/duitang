@@ -459,6 +459,32 @@ app.get('/api/my/following', authMiddleware, (req, res) => {
   res.json({ ids: rows.map(r => r.id) });
 });
 
+// ─────────────────────────────────────────────
+// 关注流：已关注作者 + 自己的帖子，按时间倒序分页
+// ─────────────────────────────────────────────
+app.get('/api/feed/following', authMiddleware, (req, res) => {
+  const { page = 1, limit = 20 } = req.query;
+  const pageNum = Math.max(1, parseInt(page) || 1);
+  const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 20));
+  const offset = (pageNum - 1) * limitNum;
+
+  const posts = db.prepare(`
+    SELECT p.*, u.nickname as author_nickname, u.avatar as author_avatar
+    FROM posts p JOIN users u ON p.author_id = u.id
+    WHERE p.author_id = ?
+       OR p.author_id IN (SELECT following_id FROM user_follows WHERE follower_id = ?)
+    ORDER BY p.created_at DESC LIMIT ? OFFSET ?
+  `).all(req.user.id, req.user.id, limitNum, offset).map(hydratePost);
+
+  const total = db.prepare(`
+    SELECT COUNT(*) as count FROM posts p
+    WHERE p.author_id = ?
+       OR p.author_id IN (SELECT following_id FROM user_follows WHERE follower_id = ?)
+  `).get(req.user.id, req.user.id).count;
+
+  res.json({ posts, total, page: pageNum, limit: limitNum });
+});
+
 // 搜索用户
 app.get('/api/users', (req, res) => {
   const { q } = req.query;

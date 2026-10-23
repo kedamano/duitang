@@ -78,8 +78,11 @@ export const hotSearches = [
   "可爱壁纸", "汉服", "穿搭", "头像", "插画", "动漫", "蛋糕", "手帐", "旅行", "猫咪"
 ];
 
+/** 关注流标签（非画板，走 /feed/following 接口） */
+export const FOLLOW_NAV = "关注";
+
 /** 分类导航（"推荐" 为全部，不参与 board 存储） */
-export const navCategories = categories.map(c => c.label);
+export const navCategories = [categories[0].label, FOLLOW_NAV, ...categories.slice(1).map(c => c.label)];
 
 /** 中文标签 → 后端 board 英文 key */
 export const labelToBoard: Record<string, string> = Object.fromEntries(

@@ -71,4 +71,16 @@ describe("api client", () => {
     expect(fetchMock.mock.calls[0][0]).toBe("/api/posts/5/share");
     expect(data.count).toBe(1);
   });
+
+  it("getFollowingFeed 拼接分页参数并带 token", async () => {
+    localStorage.setItem("duitang_token", "T2");
+    fetchMock.mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ posts: [], total: 0, page: 2, limit: 20 }) });
+    await api.getFollowingFeed({ page: 2, limit: 20 });
+    const url = fetchMock.mock.calls[0][0] as string;
+    expect(url).toContain("/api/feed/following?");
+    expect(url).toContain("page=2");
+    expect(url).toContain("limit=20");
+    const headers = (fetchMock.mock.calls[0][1].headers) as Record<string, string>;
+    expect(headers["Authorization"]).toBe("Bearer T2");
+  });
 });

@@ -29,6 +29,11 @@ function readSize(size: PostSize | undefined): { w: number; h: number } {
   };
 }
 
+/** 头像缺失时的兜底：与后端注册时同源的 dicebear 生成式头像（按昵称取种子） */
+function fallbackAvatar(nickname: string): string {
+  return `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(nickname)}&backgroundColor=ffdfbf,ffd5dc,d1d4f9,c0aede,b6e3f4`;
+}
+
 /**
  * 后端 post → 前端 ImageCard 的唯一转换入口。
  * 兼容 images/tags/sizes 为字符串或数组，board 为英文 key 或历史中文标签。
@@ -38,6 +43,7 @@ export function normalizePost(p: any): ImageCard {
   const tags = parseJsonArray<string>(p.tags);
   const sizes = parseJsonArray<PostSize>(p.sizes);
   const { w: width, h: height } = readSize(sizes[0]);
+  const author = p.author_nickname || "匿名";
 
   return {
     id: p.id,
@@ -45,9 +51,9 @@ export function normalizePost(p: any): ImageCard {
     images,
     title: p.title ?? "",
     description: p.description || "",
-    author: p.author_nickname || "匿名",
+    author,
     authorId: p.author_id,
-    avatar: p.author_avatar || "",
+    avatar: p.author_avatar || fallbackAvatar(author),
     tags,
     category: toBoardKey(p.board) || "all",
     likes: p.likes_count || 0,

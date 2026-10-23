@@ -48,6 +48,16 @@ describe("normalizePost", () => {
     const card = normalizePost({ id: 1, title: "x", board: "动漫插画", images: [], tags: [] });
     expect(card.category).toBe("anime");
   });
+
+  // 回归：头像为空会让 <img src=""> 重新下载整个页面
+  it("falls back to generated avatar when author avatar is empty", () => {
+    const card = normalizePost({ id: 1, title: "x", images: [], tags: [], author_nickname: "糖小兔", author_avatar: "" });
+    expect(card.avatar).toContain("dicebear.com");
+    expect(card.avatar).not.toBe("");
+    const anon = normalizePost({ id: 2, title: "x", images: [], tags: {} });
+    expect(anon.author).toBe("匿名");
+    expect(anon.avatar).toContain("dicebear.com");
+  });
 });
 
 describe("board label/key maps", () => {

@@ -74,6 +74,14 @@ export const api = {
   // ─── My (continued) ───
   myFollowing: () => request<{ ids: number[] }>('/my/following'),
 
+  // ─── Feed ──
+  getFollowingFeed: (params?: { page?: number; limit?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.page) qs.set('page', String(params.page));
+    if (params?.limit) qs.set('limit', String(params.limit));
+    return request<{ posts: any[]; total: number; page: number; limit: number }>(`/feed/following?${qs}`);
+  },
+
   // ─── Share ───
   sharePost: (id: number) => request<{ shared: boolean; count: number }>(`/posts/${id}/share`, { method: 'POST' }),
   getShareCount: (id: number) => request<{ count: number }>(`/posts/${id}/share`),

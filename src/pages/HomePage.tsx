@@ -6,7 +6,7 @@ import { useToast } from "../context/ToastContext";
 import { api } from "../api";
 import { normalizePost } from "../utils/normalizePost";
 import { PostDetailModal } from "../components/PostDetail";
-import { labelToBoard, type ImageCard } from "../data/images";
+import { labelToBoard, FOLLOW_NAV, type ImageCard } from "../data/images";
 
 // ─── Banner ───────────────────────────────────────────────────────────────────
 function Banner() {
@@ -302,6 +302,7 @@ export default function HomePage({
   search: string; onSearchChange: (v: string) => void;
   activeNav: string; onNavChange: (v: string) => void;
 }) {
+  const { user, setShowLogin } = useAuth();
   const { userPosts } = useCollection();
   const { showToast } = useToast();
   const [apiPosts, setApiPosts] = useState<ImageCard[]>([]);
@@ -310,63 +311,88 @@ export default function HomePage({
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [total, setTotal] = useState(0);
+  const [feedEmptyReason, setFeedEmptyReason] = useState<"none" | "not_logged_in" | "no_following">("none");
 
   // 导航为中文标签，后端 board 统一使用英文 key
+  const isFollowFeed = activeNav === FOLLOW_NAV;
   const boardKey = labelToBoard[activeNav] ?? "all";
+  // 关注流暂不支持关键词检索，搜索条件仅作用于画板/推荐
+  const effectiveSearch = isFollowFeed ? "" : search;
 
-  // 分类/搜索变化时重新加载第一页
+  // 拉取一页数据（关注流与普通流共用）
+  const fetchPage = useCallback(async (pageNum: number) => {
+    if (isFollowFeed) {
+      if (!user) {
+        setFeedEmptyReason("not_logged_in");
+        setApiPosts([]); setTotal(0); setHasMore(false);
+        return;
+      }
+      const data = await api.getFollowingFeed({ limit: 20, page: pageNum });
+      setFeedEmptyReason((data.posts || []).length === 0 && pageNum === 1 ? "no_following" : "none");
+      setTotal(data.total || 0);
+      setHasMore((data.posts || []).length >= 20);
+      return (data.posts || []).map(normalizePost);
+    }
+    const data = await api.getPosts({
+      limit: 20, page: pageNum,
+      board: boardKey !== 'all' ? boardKey : undefined,
+      q: effectiveSearch || undefined,
+    });
+    setTotal(data.total || 0);
+    setHasMore((data.posts || []).length >= 20);
+    return (data.posts || []).map(normalizePost);
+  }, [isFollowFeed, user, boardKey, effectiveSearch]);
+
+  // 分类/搜索/登录态变化时重新加载第一页
   useEffect(() => {
     setPage(1);
     setApiPosts([]);
     setHasMore(true);
+    if (!isFollowFeed) setFeedEmptyReason("none");
     let cancelled = false;
-    api.getPosts({ limit: 20, page: 1, board: boardKey !== 'all' ? boardKey : undefined, q: search || undefined })
-      .then(data => {
-        if (cancelled) return;
-        setApiPosts((data.posts || []).map(normalizePost));
-        setTotal(data.total || 0);
-        setHasMore((data.posts || []).length >= 20);
-      })
+    fetchPage(1)
+      .then(posts => { if (!cancelled && posts) setApiPosts(posts); })
       .catch(() => showToast("加载帖子失败，请刷新重试", "error"));
     return () => { cancelled = true; };
-  }, [activeNav, search, boardKey, showToast]);
+  }, [isFollowFeed, user, activeNav, effectiveSearch, boardKey, fetchPage, showToast]);
 
-  // 合并用户发布(优先)与后端帖子
+  // 合并用户发布(优先)与后端帖子；关注流后端已含自己的帖子，不再叠加
   const allCards = useMemo(() => {
     const map = new Map<number, ImageCard>();
     apiPosts.forEach(c => map.set(c.id, c));
-    // 用户自己的帖子只在"推荐"或对应分类时显示
-    userPosts.forEach(c => {
-      if (boardKey === 'all' || c.category === boardKey) {
-        if (!search || c.title.includes(search) || c.tags.some((t: string) => t.includes(search)) || c.author.includes(search)) {
-          map.set(c.id, c);
+    if (!isFollowFeed) {
+      userPosts.forEach(c => {
+        if (boardKey === 'all' || c.category === boardKey) {
+          if (!effectiveSearch || c.title.includes(effectiveSearch) || c.tags.some((t: string) => t.includes(effectiveSearch)) || c.author.includes(effectiveSearch)) {
+            map.set(c.id, c);
+          }
         }
-      }
-    });
+      });
+    }
     return Array.from(map.values());
-  }, [userPosts, apiPosts, boardKey, search]);
+  }, [userPosts, apiPosts, boardKey, effectiveSearch, isFollowFeed]);
 
   const handleLoadMore = useCallback(async () => {
     if (loadingMore || !hasMore) return;
     setLoadingMore(true);
     const nextPage = page + 1;
     try {
-      const data = await api.getPosts({ limit: 20, page: nextPage, board: boardKey !== 'all' ? boardKey : undefined, q: search || undefined });
-      const next = (data.posts || []).map(normalizePost);
-      setApiPosts(prev => {
-        const map = new Map<number, ImageCard>();
-        prev.forEach((c: ImageCard) => map.set(c.id, c));
-        next.forEach((c: ImageCard) => map.set(c.id, c));
-        return Array.from(map.values());
-      });
+      const next = await fetchPage(nextPage);
+      if (next) {
+        setApiPosts(prev => {
+          const map = new Map<number, ImageCard>();
+          prev.forEach((c: ImageCard) => map.set(c.id, c));
+          next.forEach((c: ImageCard) => map.set(c.id, c));
+          return Array.from(map.values());
+        });
+      }
       setPage(nextPage);
-      setHasMore(next.length >= 20);
     } catch {
       showToast("加载更多失败，请稍后重试", "error");
     } finally {
       setLoadingMore(false);
     }
-  }, [loadingMore, hasMore, page, boardKey, search, showToast]);
+  }, [loadingMore, hasMore, page, fetchPage, showToast]);
 
   return (
     <main className="max-w-screen-xl mx-auto">
@@ -374,7 +400,7 @@ export default function HomePage({
 
       <div className="flex gap-4 px-4 md:px-6">
         <div className="flex-1 min-w-0">
-          {search && (
+          {search && !isFollowFeed && (
             <div className="mb-4 flex items-center gap-2">
               <p className="text-sm text-gray-500">
                 搜索 <span className="text-[#e05d6f] font-semibold">"{search}"</span>，找到 {total} 张图片
@@ -382,7 +408,31 @@ export default function HomePage({
             </div>
           )}
 
-          {allCards.length === 0 ? (
+          {isFollowFeed && allCards.length === 0 && feedEmptyReason === "not_logged_in" ? (
+            <div className="flex flex-col items-center justify-center py-24 gap-4">
+              <div className="text-6xl">🔒</div>
+              <p className="text-gray-400 text-base">登录后即可查看关注内容</p>
+              <button
+                onClick={() => setShowLogin(true)}
+                className="bg-[#e05d6f] text-white text-sm font-bold px-8 py-2.5 rounded-full hover:bg-[#c94d5e] transition-colors"
+              >
+                去登录
+              </button>
+            </div>
+          ) : isFollowFeed && allCards.length === 0 && feedEmptyReason === "no_following" ? (
+            <div className="flex flex-col items-center justify-center py-24 gap-4">
+              <div className="text-6xl">🫶</div>
+              <p className="text-gray-400 text-base">还没有关注任何人，关注 TA 们的更新会出现在这里</p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => onNavChange("推荐")}
+                  className="bg-[#e05d6f] text-white text-sm font-bold px-6 py-2.5 rounded-full hover:bg-[#c94d5e] transition-colors"
+                >
+                  去首页逛逛 →
+                </button>
+              </div>
+            </div>
+          ) : allCards.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-24 gap-4">
               <div className="text-6xl">🌸</div>
               <p className="text-gray-400 text-base">暂时没有找到相关内容～</p>

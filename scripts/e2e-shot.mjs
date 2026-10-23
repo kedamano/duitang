@@ -2,6 +2,8 @@
  * 登录态端到端截图脚本（Chrome DevTools Protocol，无需第三方依赖）
  * 用法: node scripts/e2e-shot.mjs [outDir]
  * 前置: 后端(3005) 与前端(5199) 已启动
+ *       反复跑本脚本会触发 /api/auth 限流(30 次/15 分钟)，请用
+ *       $env:RATE_LIMIT_DISABLED="1" 启动后端
  */
 import { spawn } from "node:child_process";
 import { writeFile } from "node:fs/promises";
@@ -49,6 +51,16 @@ class CDP {
 }
 
 async function main() {
+  // 预检：登录被限流时直接给出可执行的提示，避免后续难排查的 undefined 报错
+  const pre = await fetch(APP + "/api/auth/login", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username: "tangyan", password: "123456" }),
+  });
+  if (pre.status === 429) {
+    throw new Error("登录接口被限流(429)。请用 $env:RATE_LIMIT_DISABLED=\"1\" 重启后端后重试。");
+  }
+  if (!pre.ok) throw new Error("预检登录失败 status=" + pre.status + "，请确认前后端已启动");
+
   const chrome = spawn(CHROME, [
     "--headless=new", "--disable-gpu", "--no-first-run",
     `--remote-debugging-port=${PORT}`, "--window-size=1440,1000", "about:blank",
@@ -158,6 +170,79 @@ async function main() {
     text = await cdp.eval("document.body.innerText");
     check("搜索「汉服」返回结果", text.includes("找到") && !text.includes("暂时没有找到"));
     await shotPng("search.png");
+
+    // ── 关注流（已登录且有关注）──
+    await open("#/");
+    const clickNav = label => cdp.eval(`(() => {
+      const b = [...document.querySelectorAll('nav button')].find(x => x.textContent.trim() === ${JSON.stringify(label)});
+      if (!b) return 'missing'; b.click(); return 'clicked';
+    })()`);
+    check("导航存在「关注」标签", (await clickNav("关注")) === "clicked");
+    // 等待关注流真正渲染（开发服务器冷启动时模块转译较慢）
+    let feedReady = false;
+    for (let i = 0; i < 12 && !feedReady; i++) {
+      await sleep(1000);
+      text = await cdp.eval("document.body.innerText");
+      feedReady = !text.includes("加载中") && (text.includes("粉色少女心壁纸") || text.includes("还没有关注任何人") || text.includes("登录后即可查看"));
+    }
+    check("关注流渲染出帖子", feedReady && !text.includes("还没有关注任何人") && !text.includes("登录后即可查看") && text.length > 200);
+    const feedTitles = await cdp.eval(`JSON.stringify([...document.querySelectorAll('main .group p.font-medium')].slice(0,6).map(e=>e.textContent.trim()))`);
+    console.log("  关注流前几条:", feedTitles);
+    await shotPng("feed-following.png");
+
+    // ── 关注标签下输入搜索：应自动切回推荐并出结果 ──
+    await cdp.eval(`(() => {
+      const i = document.querySelector('input[placeholder="搜索你感兴趣的内容..."]');
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+      setter.call(i, '蛋糕'); i.dispatchEvent(new Event('input', { bubbles: true }));
+    })()`);
+    await sleep(2200);
+    text = await cdp.eval("document.body.innerText");
+    const activeNavNow = await cdp.eval(`(() => {
+      const b = [...document.querySelectorAll('nav button')].find(x => getComputedStyle(x).borderBottomColor.includes('224, 93, 111'));
+      return b ? b.textContent.trim() : 'none';
+    })()`);
+    check("关注标签下搜索自动切回推荐", activeNavNow === "推荐", "当前高亮=" + activeNavNow);
+    check("切回后搜索出结果", text.includes("找到") && !text.includes("暂时没有找到"));
+    await shotPng("feed-search-redirect.png");
+    // 清空搜索，恢复关注标签状态供后续检查
+    await cdp.eval(`(() => {
+      const i = document.querySelector('input[placeholder="搜索你感兴趣的内容..."]');
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+      setter.call(i, ''); i.dispatchEvent(new Event('input', { bubbles: true }));
+    })()`);
+    await sleep(800);
+
+    // ── 关注流（未登录引导态）──
+    await cdp.eval("localStorage.removeItem('duitang_token')");
+    await open("#/");
+    await clickNav("关注");
+    let logoutReady = false;
+    for (let i = 0; i < 12 && !logoutReady; i++) {
+      await sleep(1000);
+      text = await cdp.eval("document.body.innerText");
+      logoutReady = text.includes("登录后即可查看关注内容");
+    }
+    check("未登录点关注显示登录引导", logoutReady);
+    await shotPng("feed-loggedout.png");
+
+    // ── 关注流（已登录但无关注 → 空状态）──
+    await cdp.eval(`(async () => {
+      const r = await fetch('/api/auth/register', { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ username: 'nofol_' + Date.now(), password: '123456', nickname: '路人' }) });
+      const d = await r.json();
+      localStorage.setItem('duitang_token', d.token);
+    })()`);
+    await open("#/");
+    await clickNav("关注");
+    let emptyReady = false;
+    for (let i = 0; i < 12 && !emptyReady; i++) {
+      await sleep(1000);
+      text = await cdp.eval("document.body.innerText");
+      emptyReady = text.includes("还没有关注任何人");
+    }
+    check("无关注时显示空状态与去首页入口", emptyReady && text.includes("去首页逛逛"));
+    await shotPng("feed-empty.png");
 
     ws.close();
     console.log(fails ? `\n${fails} 项失败` : "\n全部通过");

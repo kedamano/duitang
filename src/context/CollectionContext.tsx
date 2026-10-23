@@ -19,13 +19,14 @@ export interface Comment {
 
 /** 后端评论 → 前端 Comment（统一 liked / likes 字段名） */
 function normalizeComment(c: any): Comment {
+  const author = c.author_nickname || "匿名";
   return {
     id: c.id,
     post_id: c.post_id,
     content: c.content,
     author_id: c.author_id,
-    author: c.author_nickname || "匿名",
-    avatar: c.author_avatar || "",
+    author,
+    avatar: c.author_avatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(author)}&backgroundColor=ffdfbf,ffd5dc,d1d4f9,c0aede,b6e3f4`,
     likes: c.likes_count || 0,
     liked: !!c.is_liked,
     created_at: c.created_at,
