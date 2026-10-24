@@ -79,19 +79,23 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
   const [followingIds, setFollowingIds] = useState<Set<number>>(new Set());
   const [userPosts, setUserPosts] = useState<ImageCard[]>([]);
 
-  // 用户登录时，从后端同步收藏、点赞、发布与关注
+  // 用户登录时同步互动状态；登出时清空，避免卡片仍显示"已赞/已收藏"
   useEffect(() => {
-    if (!token) return;
+    if (!token) {
+      setLikedIds(new Set());
+      setCollectedIds(new Set());
+      setFollowingIds(new Set());
+      setUserPosts([]);
+      return;
+    }
     Promise.all([
-      api.myCollects(),
-      api.myLikes(),
+      api.myInteractions(),
       api.myPosts(),
-      api.myFollowing(),
-    ]).then(([collectsData, likesData, postsData, followingData]) => {
-      setCollectedIds(new Set((collectsData.posts || []).map((p: any) => p.id)));
-      setLikedIds(new Set((likesData.posts || []).map((p: any) => p.id)));
+    ]).then(([interactions, postsData]) => {
+      setLikedIds(new Set(interactions.liked || []));
+      setCollectedIds(new Set(interactions.collected || []));
+      setFollowingIds(new Set(interactions.following || []));
       setUserPosts((postsData.posts || []).map(normalizePost));
-      setFollowingIds(new Set(followingData.ids || []));
     }).catch(() => {});
   }, [token]);
 

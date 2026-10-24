@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { api } from "./index";
+import { api, AuthExpiredError, AUTH_EXPIRED_EVENT } from "./index";
 
 // 单元测试:验证 api 封装正确拼接 URL / 携带 token / 处理错误
 describe("api client", () => {
@@ -82,5 +82,49 @@ describe("api client", () => {
     expect(url).toContain("limit=20");
     const headers = (fetchMock.mock.calls[0][1].headers) as Record<string, string>;
     expect(headers["Authorization"]).toBe("Bearer T2");
+  });
+
+  // 回归：token 过期时界面仍是"已登录"但所有操作失败，必须主动登出并通知全局
+  it("非登录接口返回 401 时清除凭证并派发过期事件", async () => {
+    localStorage.setItem("duitang_token", "EXPIRED");
+    const listener = vi.fn();
+    window.addEventListener(AUTH_EXPIRED_EVENT, listener);
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 401, json: async () => ({ error: "未登录" }) });
+
+    await expect(api.likePost(1)).rejects.toBeInstanceOf(AuthExpiredError);
+    expect(localStorage.getItem("duitang_token")).toBeNull();
+    expect(listener).toHaveBeenCalledTimes(1);
+    window.removeEventListener(AUTH_EXPIRED_EVENT, listener);
+  });
+
+  it("登录接口的 401 不触发登出（密码错误）", async () => {
+    const listener = vi.fn();
+    window.addEventListener(AUTH_EXPIRED_EVENT, listener);
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 401, json: async () => ({ error: "用户名或密码错误" }) });
+
+    await expect(api.login({ username: "u", password: "bad" })).rejects.toThrow("用户名或密码错误");
+    expect(listener).not.toHaveBeenCalled();
+    window.removeEventListener(AUTH_EXPIRED_EVENT, listener);
+  });
+
+  it("my/interactions 走轻量接口", async () => {
+    localStorage.setItem("duitang_token", "T3");
+    fetchMock.mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ liked: [1], collected: [2], following: [3] }) });
+    const data = await api.myInteractions();
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/my/interactions");
+    expect(data.collected).toEqual([2]);
+  });
+
+  // 回归：冷启动恢复会话时 token 若已过期，不该立刻弹登录框打扰用户
+  it("会话恢复接口 401 只清凭证、不派发过期事件", async () => {
+    localStorage.setItem("duitang_token", "STALE");
+    const listener = vi.fn();
+    window.addEventListener(AUTH_EXPIRED_EVENT, listener);
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 401, json: async () => ({ error: "未登录" }) });
+
+    await expect(api.me()).rejects.toBeInstanceOf(AuthExpiredError);
+    expect(localStorage.getItem("duitang_token")).toBeNull();
+    expect(listener).not.toHaveBeenCalled();
+    window.removeEventListener(AUTH_EXPIRED_EVENT, listener);
   });
 });

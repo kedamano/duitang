@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
-import { api } from "../api";
+import { api, AUTH_EXPIRED_EVENT } from "../api";
+import { useToast } from "./ToastContext";
 
 export interface User {
   id: number;
@@ -30,6 +31,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const { showToast } = useToast();
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(() => localStorage.getItem("duitang_token"));
   const [loading, setLoading] = useState(false);
@@ -61,6 +63,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       })
       .finally(() => setLoading(false));
   }, [token]);
+
+  // 任意接口返回 401 时（token 过期/被吊销），统一登出并引导重新登录
+  useEffect(() => {
+    const onExpired = () => {
+      setUser(null);
+      setToken(null);
+      setShowLogin(true);
+      showToast("登录已过期，请重新登录", "error");
+    };
+    window.addEventListener(AUTH_EXPIRED_EVENT, onExpired);
+    return () => window.removeEventListener(AUTH_EXPIRED_EVENT, onExpired);
+  }, [showToast]);
 
   const login = useCallback(async (username: string, password: string): Promise<boolean> => {
     try {

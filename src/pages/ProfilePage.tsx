@@ -28,6 +28,8 @@ function MiniCard({ card, onCardClick }: { card: ImageCard; onCardClick?: (card:
         <img
           src={card.src}
           alt={card.title}
+          loading="lazy"
+          decoding="async"
           className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
         />
         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-300" />

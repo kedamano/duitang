@@ -10,8 +10,9 @@
 - **独立分享页**：`/#/pin/<id>` 直达某条帖子，可被搜索引擎外分享
 - **发布**：拖拽 / 点选上传图片（最多 9 张）、AI 生成图片（Pollinations，经 Vite 代理）、画板与标签选择
 - **关注流**：导航「关注」标签展示已关注作者与自己的帖子（时间倒序、分页）；未登录显示登录引导，无关注显示空状态与去首页入口；关注标签下搜索会自动切回推荐
-- **个人主页**：我的发布 / 收集 / 喜欢三个分组、编辑资料（头像上传、昵称、简介）、查看他人主页与关注
-- **账号**：用户名密码注册登录，JWT（7 天）持久会话
+- **个人主页**：我的发布 / 收集 / 喜欢三个分组（服务端分页）、编辑资料（头像上传、昵称、简介）、查看他人主页与关注
+- **账号**：用户名密码注册登录，JWT（7 天）持久会话；token 失效时自动登出并引导重新登录
+- **体验**：首屏骨架屏（不再闪现空状态）、搜索防抖 300ms、列表图片懒加载
 
 ## 快速开始
 
@@ -55,9 +56,9 @@ scripts/
 ## 测试与构建
 
 ```bash
-npm test              # 前端 vitest（27 用例）
+npm test              # 前端 vitest（35 用例）
 npm run build         # 前端生产构建（vite-plugin-singlefile → dist/index.html）
-cd server && npm test # 后端 mocha + supertest（35 用例，独立测试库）
+cd server && npm test # 后端 mocha + supertest（44 用例，独立测试库）
 npx tsc --noEmit      # 类型检查
 node scripts/smoke-e2e.mjs [http://127.0.0.1:3001]  # 对运行中后端的端到端冒烟
 ```
@@ -74,6 +75,7 @@ node scripts/verify-feed.mjs            # 关注流页面与接口一致性校�
 
 - **画板（board）统一存英文 key**（`wallpaper/anime/...`）；后端兼容中文标签入参与查询并自动归一化，旧库数据由 `database.js` 启动时迁移。
 - **图片尺寸**：发布时前端测量真实宽高随 `sizes` 提交，列表/详情原样返回，用于瀑布流列高分配；历史数据缺省回落 400×300。
+- **互动状态**：列表接口（`/posts`、`/feed/following`、`/my/*`）会为登录用户附带 `is_liked` / `is_collected`；登录时另用轻量接口 `/my/interactions` 同步 ID 集合，不再拉取完整帖子体。
 - **点赞/收藏/分享计数**接口返回的是**绝对总数**，前端直接覆盖基准值，不做增量叠加。
 - 上传与静态资源经 `/uploads` 由后端提供；开发环境 Vite 代理 `/api` 与 `/uploads` 到后端。
 - 生产部署：`npm run build` 产出单文件 `dist/index.html`，配合 `server/.env`（参考 `.env.example`，务必更换 `JWT_SECRET`、设置 `FRONTEND_ORIGIN`）。
@@ -83,5 +85,4 @@ node scripts/verify-feed.mjs            # 关注流页面与接口一致性校�
 - 消息通知（谁点赞/评论/关注了我）
 - 画板分组页与标签聚合页
 - 帖子编辑、图片九宫格详情页大图预览
-- 服务端分页的个人主页收集/喜欢列表
 - 关注流支持关键词检索

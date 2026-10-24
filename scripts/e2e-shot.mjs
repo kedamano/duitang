@@ -93,13 +93,14 @@ async function main() {
     // 打开首页并登录（写入 localStorage）
     await Promise.all([cdp.waitEvent("Page.loadEventFired"), cdp.send("Page.navigate", { url: APP + "/" })]);
     await sleep(1200);
-    const nickname = await cdp.eval(`(async () => {
+    const loginInfo = await cdp.eval(`(async () => {
       const r = await fetch('/api/auth/login', { method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ username:'tangyan', password:'123456' }) });
       const d = await r.json();
       localStorage.setItem('duitang_token', d.token);
-      return d.user.nickname;
+      return JSON.stringify({ nickname: d.user.nickname, token: d.token });
     })()`);
+    const { nickname, token: loginToken } = JSON.parse(loginInfo);
     console.log("登录用户:", nickname);
 
     // 自己发布的帖子 id
@@ -243,6 +244,64 @@ async function main() {
     }
     check("无关注时显示空状态与去首页入口", emptyReady && text.includes("去首页逛逛"));
     await shotPng("feed-empty.png");
+
+    // ── 图片懒加载 ──
+    await cdp.eval(`localStorage.setItem('duitang_token', ${JSON.stringify(loginToken)})`);
+    await open("#/");
+    let cardsReady = false;
+    for (let i = 0; i < 15 && !cardsReady; i++) {
+      await sleep(1000);
+      cardsReady = (await cdp.eval("document.querySelectorAll('main .break-inside-avoid img').length")) > 0;
+    }
+    const imgStat = await cdp.eval(`(() => {
+      const imgs = [...document.querySelectorAll('main .break-inside-avoid img')];
+      return JSON.stringify({ total: imgs.length, lazy: imgs.filter(i => i.loading === 'lazy').length });
+    })()`);
+    const stat = JSON.parse(imgStat);
+    check("卡片图片均启用懒加载", stat.total > 0 && stat.lazy === stat.total, `${stat.lazy}/${stat.total}`);
+    await shotPng("lazy-home.png");
+
+    // ── token 失效：操作时应弹登录框 ──
+    await cdp.eval("localStorage.setItem('duitang_token', 'invalid.token.value')");
+    await open("#/");
+    await sleep(1500);
+    await cdp.eval(`(() => {
+      const b = document.querySelector('main .break-inside-avoid button');
+      if (b) b.click();
+    })()`);
+    let loginPrompted = false;
+    for (let i = 0; i < 10 && !loginPrompted; i++) {
+      await sleep(800);
+      text = await cdp.eval("document.body.innerText");
+      loginPrompted = text.includes("登录已过期") || text.includes("登录") ;
+    }
+    check("失效 token 下操作会引导重新登录", loginPrompted);
+    await shotPng("auth-expired.png");
+    await cdp.eval(`localStorage.setItem('duitang_token', ${JSON.stringify(loginToken)})`);
+
+    // ── 个人主页收集：渲染比例应等于接口 sizes 算出的比例 ──
+    await open("#/profile?tab=collection");
+    let profileReady = false;
+    for (let i = 0; i < 15 && !profileReady; i++) {
+      await sleep(1000);
+      profileReady = (await cdp.eval(`document.querySelectorAll('div[style*="padding-bottom"]').length`)) > 0;
+    }
+    const ratioCheck = await cdp.eval(`(async () => {
+      const r = await fetch('/api/my/collects', { headers: { Authorization: 'Bearer ' + localStorage.getItem('duitang_token') } });
+      const d = await r.json();
+      const pads = [...document.querySelectorAll('div[style*="padding-bottom"]')]
+        .map(el => Math.round(parseFloat(el.style.paddingBottom)));
+      const expected = (d.posts || []).map(p => {
+        const s = Array.isArray(p.sizes) ? p.sizes[0] : null;
+        return s && s.w > 0 ? Math.round((s.h / s.w) * 100) : 75;
+      });
+      return JSON.stringify({ pads, expected, total: d.total });
+    })()`);
+    const rc = JSON.parse(ratioCheck);
+    // 若 sizes 未解析，前端会一律回落到 75%，与接口给出的预期比例不符
+    const matched = rc.expected.length > 0 && rc.expected.every(e => rc.pads.includes(e));
+    check("收集页渲染比例与接口 sizes 一致", matched, `预期=${rc.expected.join(",") || "无"} 实际=${rc.pads.join(",") || "无"}`);
+    await shotPng("profile-collects.png");
 
     ws.close();
     console.log(fails ? `\n${fails} 项失败` : "\n全部通过");

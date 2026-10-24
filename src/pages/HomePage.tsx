@@ -7,6 +7,7 @@ import { api } from "../api";
 import { normalizePost } from "../utils/normalizePost";
 import { PostDetailModal } from "../components/PostDetail";
 import { labelToBoard, FOLLOW_NAV, type ImageCard } from "../data/images";
+import { useDebouncedValue } from "../utils/useDebouncedValue";
 
 // ─── Banner ───────────────────────────────────────────────────────────────────
 function Banner() {
@@ -96,6 +97,8 @@ function Card({ card, onClick }: { card: ImageCard; onClick: () => void }) {
         <img
           src={card.src}
           alt={card.title}
+          loading="lazy"
+          decoding="async"
           onLoad={() => setImgLoaded(true)}
           className={cn(
             "absolute inset-0 w-full h-full object-cover transition-all duration-500",
@@ -136,7 +139,7 @@ function Card({ card, onClick }: { card: ImageCard; onClick: () => void }) {
         <p className="text-sm font-medium text-gray-800 line-clamp-2 leading-snug mb-2">{card.title}</p>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5">
-            <img src={card.avatar} alt={card.author} className="w-5 h-5 rounded-full bg-gray-200" />
+            <img src={card.avatar} alt={card.author} loading="lazy" decoding="async" className="w-5 h-5 rounded-full bg-gray-200" />
             <span className="text-xs text-gray-400 truncate max-w-[80px]">{card.author}</span>
           </div>
           <button
@@ -199,6 +202,23 @@ function MasonryGrid({ cards, onCardClick }: { cards: ImageCard[]; onCardClick: 
         <div key={ci} className="flex-1 flex flex-col gap-3 md:gap-4">
           {col.map(card => (
             <Card key={card.id} card={card} onClick={() => onCardClick(card)} />
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── 首屏骨架屏 ───────────────────────────────────────────────────────────────
+/** 首屏加载时占位，避免"暂时没有找到相关内容"在数据回来前闪一下 */
+function MasonrySkeleton() {
+  const heights = [220, 300, 180, 260, 200, 320, 240, 190, 280, 210, 170, 250];
+  return (
+    <div className="flex gap-3 md:gap-4 items-start" data-testid="masonry-skeleton" aria-hidden="true">
+      {[0, 1, 2, 3].map(col => (
+        <div key={col} className="flex-1 flex flex-col gap-3 md:gap-4">
+          {heights.filter((_, i) => i % 4 === col).map((h, i) => (
+            <div key={i} className="rounded-2xl bg-gray-200/70 animate-pulse" style={{ height: h }} />
           ))}
         </div>
       ))}
@@ -311,6 +331,7 @@ export default function HomePage({
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [total, setTotal] = useState(0);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [feedEmptyReason, setFeedEmptyReason] = useState<"none" | "not_logged_in" | "no_following">("none");
 
   // 导航为中文标签，后端 board 统一使用英文 key
@@ -318,6 +339,8 @@ export default function HomePage({
   const boardKey = labelToBoard[activeNav] ?? "all";
   // 关注流暂不支持关键词检索，搜索条件仅作用于画板/推荐
   const effectiveSearch = isFollowFeed ? "" : search;
+  // 输入框即时响应，只有请求跟着防抖（避免每个按键都打一次后端）
+  const debouncedSearch = useDebouncedValue(effectiveSearch, 300);
 
   // 拉取一页数据（关注流与普通流共用）
   const fetchPage = useCallback(async (pageNum: number) => {
@@ -336,25 +359,27 @@ export default function HomePage({
     const data = await api.getPosts({
       limit: 20, page: pageNum,
       board: boardKey !== 'all' ? boardKey : undefined,
-      q: effectiveSearch || undefined,
+      q: debouncedSearch || undefined,
     });
     setTotal(data.total || 0);
     setHasMore((data.posts || []).length >= 20);
     return (data.posts || []).map(normalizePost);
-  }, [isFollowFeed, user, boardKey, effectiveSearch]);
+  }, [isFollowFeed, user, boardKey, debouncedSearch]);
 
   // 分类/搜索/登录态变化时重新加载第一页
   useEffect(() => {
     setPage(1);
     setApiPosts([]);
     setHasMore(true);
+    setInitialLoading(true);
     if (!isFollowFeed) setFeedEmptyReason("none");
     let cancelled = false;
     fetchPage(1)
       .then(posts => { if (!cancelled && posts) setApiPosts(posts); })
-      .catch(() => showToast("加载帖子失败，请刷新重试", "error"));
+      .catch(() => showToast("加载帖子失败，请刷新重试", "error"))
+      .finally(() => { if (!cancelled) setInitialLoading(false); });
     return () => { cancelled = true; };
-  }, [isFollowFeed, user, activeNav, effectiveSearch, boardKey, fetchPage, showToast]);
+  }, [isFollowFeed, user, activeNav, debouncedSearch, boardKey, fetchPage, showToast]);
 
   // 合并用户发布(优先)与后端帖子；关注流后端已含自己的帖子，不再叠加
   const allCards = useMemo(() => {
@@ -408,7 +433,9 @@ export default function HomePage({
             </div>
           )}
 
-          {isFollowFeed && allCards.length === 0 && feedEmptyReason === "not_logged_in" ? (
+          {initialLoading && allCards.length === 0 ? (
+            <MasonrySkeleton />
+          ) : isFollowFeed && allCards.length === 0 && feedEmptyReason === "not_logged_in" ? (
             <div className="flex flex-col items-center justify-center py-24 gap-4">
               <div className="text-6xl">🔒</div>
               <p className="text-gray-400 text-base">登录后即可查看关注内容</p>

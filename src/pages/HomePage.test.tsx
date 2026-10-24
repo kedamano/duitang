@@ -9,6 +9,8 @@ import * as apiModule from "../api";
 import { FOLLOW_NAV } from "../data/images";
 
 vi.mock("../api", () => ({
+  AUTH_EXPIRED_EVENT: "duitang:auth-expired",
+  AuthExpiredError: class extends Error {},
   api: {
     me: vi.fn(),
     getPosts: vi.fn().mockResolvedValue({ posts: [], total: 0, page: 1, limit: 20 }),
@@ -16,6 +18,7 @@ vi.mock("../api", () => ({
     myCollects: vi.fn().mockResolvedValue({ posts: [] }),
     myLikes: vi.fn().mockResolvedValue({ posts: [] }),
     myPosts: vi.fn().mockResolvedValue({ posts: [] }),
+    myInteractions: vi.fn().mockResolvedValue({ liked: [], collected: [], following: [] }),
     myFollowing: vi.fn().mockResolvedValue({ ids: [] }),
     getComments: vi.fn().mockResolvedValue({ comments: [] }),
     searchUsers: vi.fn().mockResolvedValue({ users: [] }),
@@ -84,5 +87,20 @@ describe("HomePage 关注流", () => {
     await waitFor(() => expect(apiModule.api.getPosts).toHaveBeenCalled());
     expect((apiModule.api.getPosts as any).mock.calls[0][0].board).toBe("anime");
     expect(apiModule.api.getFollowingFeed).not.toHaveBeenCalled();
+  });
+
+  // 回归：首屏数据未返回时不应闪现"暂时没有找到相关内容"
+  it("加载中显示骨架屏而非空状态提示", async () => {
+    let resolvePosts: (v: unknown) => void = () => {};
+    (apiModule.api.getPosts as any).mockReturnValue(new Promise(r => { resolvePosts = r; }));
+
+    renderHome("推荐");
+    expect(screen.getByTestId("masonry-skeleton")).toBeInTheDocument();
+    expect(screen.queryByText(/暂时没有找到相关内容/)).not.toBeInTheDocument();
+
+    resolvePosts({ posts: [], total: 0, page: 1, limit: 20 });
+    await waitFor(() => expect(screen.queryByTestId("masonry-skeleton")).not.toBeInTheDocument());
+    // 数据回来确实是空的，这时才允许显示空状态
+    expect(await screen.findByText(/暂时没有找到相关内容/)).toBeInTheDocument();
   });
 });

@@ -1,5 +1,21 @@
 const API_BASE = '/api';
 
+/** 登录态失效时派发的全局事件，由 AuthContext 监听并弹出登录框 */
+export const AUTH_EXPIRED_EVENT = 'duitang:auth-expired';
+
+/** 这些端点的 401 表示"账号或密码错误"，不应触发登出 */
+const CREDENTIAL_PATHS = ['/auth/login', '/auth/register'];
+
+/** 这些端点是静默恢复会话用的，401 时只清凭证、不弹登录框打扰用户 */
+const SILENT_401_PATHS = ['/auth/me'];
+
+export class AuthExpiredError extends Error {
+  constructor() {
+    super('登录已过期，请重新登录');
+    this.name = 'AuthExpiredError';
+  }
+}
+
 async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
   const token = localStorage.getItem('duitang_token');
   const headers: Record<string, string> = {
@@ -11,11 +27,29 @@ async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
   }
 
   const res = await fetch(API_BASE + url, { ...options, headers });
+
+  // token 过期 / 被吊销：清掉本地凭证并通知全局，避免界面仍是"已登录"但操作全失败
+  if (res.status === 401 && !CREDENTIAL_PATHS.some(p => url.startsWith(p))) {
+    localStorage.removeItem('duitang_token');
+    if (!SILENT_401_PATHS.some(p => url.startsWith(p))) {
+      window.dispatchEvent(new CustomEvent(AUTH_EXPIRED_EVENT));
+    }
+    throw new AuthExpiredError();
+  }
+
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
     throw new Error(err.error || `HTTP ${res.status}`);
   }
   return res.json();
+}
+
+/** my/* 列表的分页参数（后端默认 100，供个人主页一次展示） */
+function pageQuery(params?: { page?: number; limit?: number }): string {
+  const qs = new URLSearchParams();
+  if (params?.page) qs.set('page', String(params.page));
+  if (params?.limit) qs.set('limit', String(params.limit));
+  return qs.toString();
 }
 
 export const api = {
@@ -67,12 +101,19 @@ export const api = {
   searchUsers: (q: string) => request<{ users: any[] }>(`/users?q=${encodeURIComponent(q)}`),
 
   // ─── My ───
-  myCollects: () => request<{ posts: any[] }>('/my/collects'),
-  myLikes: () => request<{ posts: any[] }>('/my/likes'),
-  myPosts: () => request<{ posts: any[] }>('/my/posts'),
+  myCollects: (params?: { page?: number; limit?: number }) =>
+    request<{ posts: any[]; total: number; page: number; limit: number }>(`/my/collects?${pageQuery(params)}`),
+  myLikes: (params?: { page?: number; limit?: number }) =>
+    request<{ posts: any[]; total: number; page: number; limit: number }>(`/my/likes?${pageQuery(params)}`),
+  myPosts: (params?: { page?: number; limit?: number }) =>
+    request<{ posts: any[]; total: number; page: number; limit: number }>(`/my/posts?${pageQuery(params)}`),
 
   // ─── My (continued) ───
   myFollowing: () => request<{ ids: number[] }>('/my/following'),
+
+  /** 点赞/收藏/关注的 ID 集合（轻量，登录时同步用，免拉完整帖子体） */
+  myInteractions: () =>
+    request<{ liked: number[]; collected: number[]; following: number[] }>('/my/interactions'),
 
   // ─── Feed ──
   getFollowingFeed: (params?: { page?: number; limit?: number }) => {

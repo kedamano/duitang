@@ -10,6 +10,8 @@ import * as apiModule from "../api";
 import type { ImageCard } from "../data/images";
 
 vi.mock("../api", () => ({
+  AUTH_EXPIRED_EVENT: "duitang:auth-expired",
+  AuthExpiredError: class extends Error {},
   api: {
     me: vi.fn(),
     login: vi.fn(),
@@ -17,6 +19,7 @@ vi.mock("../api", () => ({
     myCollects: vi.fn().mockResolvedValue({ posts: [] }),
     myLikes: vi.fn().mockResolvedValue({ posts: [] }),
     myPosts: vi.fn().mockResolvedValue({ posts: [] }),
+    myInteractions: vi.fn().mockResolvedValue({ liked: [], collected: [], following: [] }),
     myFollowing: vi.fn().mockResolvedValue({ ids: [] }),
     getComments: vi.fn(),
     addComment: vi.fn(),

@@ -182,16 +182,46 @@ function hydratePost(post) {
   return post;
 }
 
+/** 统一的分页参数解析（limit 上限 100） */
+function parsePage(req, defaultLimit = 20) {
+  const pageNum = Math.max(1, parseInt(req.query.page) || 1);
+  const limitNum = Math.min(100, Math.max(1, parseInt(req.query.limit) || defaultLimit));
+  return { pageNum, limitNum, offset: (pageNum - 1) * limitNum };
+}
+
+/** 从请求头解析当前用户（公开接口里可选） */
+function optionalUser(req) {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) return null;
+  try { return jwt.verify(token, JWT_SECRET); } catch { return null; }
+}
+
+/**
+ * 为一批帖子补上当前用户的 is_liked / is_collected。
+ * 用两次 IN 查询批量取，避免逐帖 COUNT 造成的 N+1。
+ */
+function attachInteractions(posts, req) {
+  if (!posts.length) return posts;
+  const user = optionalUser(req);
+  if (!user) return posts;
+  const ids = posts.map(p => p.id);
+  const ph = ids.map(() => '?').join(',');
+  const byId = new Map(posts.map(p => [p.id, p]));
+  const liked = db.prepare(`SELECT post_id FROM post_likes WHERE user_id = ? AND post_id IN (${ph})`).all(user.id, ...ids);
+  liked.forEach(r => { const p = byId.get(r.post_id); if (p) p.is_liked = true; });
+  const collected = db.prepare(`SELECT post_id FROM post_collects WHERE user_id = ? AND post_id IN (${ph})`).all(user.id, ...ids);
+  collected.forEach(r => { const p = byId.get(r.post_id); if (p) p.is_collected = true; });
+  return posts;
+}
+
 // 帖子列表（分页）
 app.get('/api/posts', (req, res) => {
-  const { page = 1, limit = 20, board, user_id, q } = req.query;
-  const pageNum = Math.max(1, parseInt(page) || 1);
-  const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 20));
-  const offset = (pageNum - 1) * limitNum;
+  const { board, user_id, q } = req.query;
+  const { pageNum, limitNum, offset } = parsePage(req);
   const boardKey = normalizeBoard(board);
 
   let sql = 'SELECT p.*, u.nickname as author_nickname, u.avatar as author_avatar FROM posts p JOIN users u ON p.author_id = u.id WHERE 1=1';
-  let countSql = 'SELECT COUNT(*) as count FROM posts p WHERE 1=1';
+  let countSql = 'SELECT COUNT(*) as count FROM posts p JOIN users u ON p.author_id = u.id WHERE 1=1';
   const params = [];
   const countParams = [];
   if (boardKey) {
@@ -204,16 +234,16 @@ app.get('/api/posts', (req, res) => {
     params.push(uid); countParams.push(uid);
   }
   if (q) {
-    // 标题、描述、标签模糊匹配
-    sql += ' AND (p.title LIKE ? OR p.description LIKE ? OR p.tags LIKE ?)';
-    countSql += ' AND (p.title LIKE ? OR p.description LIKE ? OR p.tags LIKE ?)';
+    // 标题、描述、标签、作者昵称模糊匹配（与前端本地筛选口径保持一致）
+    const cond = ' AND (p.title LIKE ? OR p.description LIKE ? OR p.tags LIKE ? OR u.nickname LIKE ?)';
+    sql += cond; countSql += cond;
     const kw = '%' + q + '%';
-    params.push(kw, kw, kw); countParams.push(kw, kw, kw);
+    params.push(kw, kw, kw, kw); countParams.push(kw, kw, kw, kw);
   }
   sql += ' ORDER BY p.created_at DESC LIMIT ? OFFSET ?';
   params.push(limitNum, offset);
 
-  const posts = db.prepare(sql).all(...params).map(hydratePost);
+  const posts = attachInteractions(db.prepare(sql).all(...params).map(hydratePost), req);
   const total = db.prepare(countSql).get(...countParams).count;
   res.json({ posts, total, page: pageNum, limit: limitNum });
 });
@@ -423,34 +453,48 @@ app.get('/api/users/:id/profile', (req, res) => {
   res.json({ user: publicUser(user), stats: { followers, following, collects, posts }, is_following });
 });
 
-// 我的收藏
+// 我的收藏（分页，默认 100 条以便个人主页一次展示）
 app.get('/api/my/collects', authMiddleware, (req, res) => {
-  const collects = db.prepare('SELECT p.*, u.nickname as author_nickname, u.avatar as author_avatar FROM post_collects pc JOIN posts p ON pc.post_id = p.id JOIN users u ON p.author_id = u.id WHERE pc.user_id = ? ORDER BY pc.created_at DESC').all(req.user.id);
-  collects.forEach(post => {
-    try { post.images = JSON.parse(post.images); } catch { post.images = []; }
-    try { post.tags = JSON.parse(post.tags); } catch { post.tags = []; }
-  });
-  res.json({ posts: collects });
+  const { pageNum, limitNum, offset } = parsePage(req, 100);
+  const base = 'FROM post_collects pc JOIN posts p ON pc.post_id = p.id JOIN users u ON p.author_id = u.id WHERE pc.user_id = ?';
+  const posts = attachInteractions(db.prepare(
+    `SELECT p.*, u.nickname as author_nickname, u.avatar as author_avatar ${base} ORDER BY pc.created_at DESC LIMIT ? OFFSET ?`
+  ).all(req.user.id, limitNum, offset).map(hydratePost), req);
+  const total = db.prepare(`SELECT COUNT(*) as count ${base}`).get(req.user.id).count;
+  res.json({ posts, total, page: pageNum, limit: limitNum });
 });
 
-// 我的点赞
+// 我的点赞（分页）
 app.get('/api/my/likes', authMiddleware, (req, res) => {
-  const likes = db.prepare('SELECT p.*, u.nickname as author_nickname, u.avatar as author_avatar FROM post_likes pl JOIN posts p ON pl.post_id = p.id JOIN users u ON p.author_id = u.id WHERE pl.user_id = ? ORDER BY pl.created_at DESC').all(req.user.id);
-  likes.forEach(post => {
-    try { post.images = JSON.parse(post.images); } catch { post.images = []; }
-    try { post.tags = JSON.parse(post.tags); } catch { post.tags = []; }
-  });
-  res.json({ posts: likes });
+  const { pageNum, limitNum, offset } = parsePage(req, 100);
+  const base = 'FROM post_likes pl JOIN posts p ON pl.post_id = p.id JOIN users u ON p.author_id = u.id WHERE pl.user_id = ?';
+  const posts = attachInteractions(db.prepare(
+    `SELECT p.*, u.nickname as author_nickname, u.avatar as author_avatar ${base} ORDER BY pl.created_at DESC LIMIT ? OFFSET ?`
+  ).all(req.user.id, limitNum, offset).map(hydratePost), req);
+  const total = db.prepare(`SELECT COUNT(*) as count ${base}`).get(req.user.id).count;
+  res.json({ posts, total, page: pageNum, limit: limitNum });
 });
 
-// 我的发布
+// 我的发布（分页）
 app.get('/api/my/posts', authMiddleware, (req, res) => {
-  const posts = db.prepare('SELECT p.*, u.nickname as author_nickname, u.avatar as author_avatar FROM posts p JOIN users u ON p.author_id = u.id WHERE p.author_id = ? ORDER BY p.created_at DESC').all(req.user.id);
-  posts.forEach(post => {
-    try { post.images = JSON.parse(post.images); } catch { post.images = []; }
-    try { post.tags = JSON.parse(post.tags); } catch { post.tags = []; }
-  });
-  res.json({ posts });
+  const { pageNum, limitNum, offset } = parsePage(req, 100);
+  const base = 'FROM posts p JOIN users u ON p.author_id = u.id WHERE p.author_id = ?';
+  const posts = attachInteractions(db.prepare(
+    `SELECT p.*, u.nickname as author_nickname, u.avatar as author_avatar ${base} ORDER BY p.created_at DESC LIMIT ? OFFSET ?`
+  ).all(req.user.id, limitNum, offset).map(hydratePost), req);
+  const total = db.prepare(`SELECT COUNT(*) as count ${base}`).get(req.user.id).count;
+  res.json({ posts, total, page: pageNum, limit: limitNum });
+});
+
+/**
+ * 当前用户的互动 ID 集合（轻量）。
+ * 登录时用它同步点赞/收藏/关注状态，替代拉取两份完整帖子体。
+ */
+app.get('/api/my/interactions', authMiddleware, (req, res) => {
+  const liked = db.prepare('SELECT post_id FROM post_likes WHERE user_id = ?').all(req.user.id).map(r => r.post_id);
+  const collected = db.prepare('SELECT post_id FROM post_collects WHERE user_id = ?').all(req.user.id).map(r => r.post_id);
+  const following = db.prepare('SELECT following_id FROM user_follows WHERE follower_id = ?').all(req.user.id).map(r => r.following_id);
+  res.json({ liked, collected, following });
 });
 
 // 我的关注列表
@@ -463,18 +507,15 @@ app.get('/api/my/following', authMiddleware, (req, res) => {
 // 关注流：已关注作者 + 自己的帖子，按时间倒序分页
 // ─────────────────────────────────────────────
 app.get('/api/feed/following', authMiddleware, (req, res) => {
-  const { page = 1, limit = 20 } = req.query;
-  const pageNum = Math.max(1, parseInt(page) || 1);
-  const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 20));
-  const offset = (pageNum - 1) * limitNum;
+  const { pageNum, limitNum, offset } = parsePage(req);
 
-  const posts = db.prepare(`
+  const posts = attachInteractions(db.prepare(`
     SELECT p.*, u.nickname as author_nickname, u.avatar as author_avatar
     FROM posts p JOIN users u ON p.author_id = u.id
     WHERE p.author_id = ?
        OR p.author_id IN (SELECT following_id FROM user_follows WHERE follower_id = ?)
     ORDER BY p.created_at DESC LIMIT ? OFFSET ?
-  `).all(req.user.id, req.user.id, limitNum, offset).map(hydratePost);
+  `).all(req.user.id, req.user.id, limitNum, offset).map(hydratePost), req);
 
   const total = db.prepare(`
     SELECT COUNT(*) as count FROM posts p

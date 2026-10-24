@@ -8,6 +8,8 @@ import Header from "../components/Header";
 import * as apiModule from "../api";
 
 vi.mock("../api", () => ({
+  AUTH_EXPIRED_EVENT: "duitang:auth-expired",
+  AuthExpiredError: class extends Error {},
   api: {
     searchUsers: vi.fn(),
     me: vi.fn(),
@@ -16,6 +18,7 @@ vi.mock("../api", () => ({
     myCollects: vi.fn(),
     myLikes: vi.fn(),
     myPosts: vi.fn(),
+    myInteractions: vi.fn().mockResolvedValue({ liked: [], collected: [], following: [] }),
     myFollowing: vi.fn(),
   },
 }));
