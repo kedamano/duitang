@@ -56,6 +56,18 @@ export default function PublishPage() {
   const [publishing, setPublishing] = useState(false);
   const [showAiGen, setShowAiGen] = useState(false);
   const [dragActive, setDragActive] = useState(false);
+  const [myAlbums, setMyAlbums] = useState<{ id: number; title: string; post_count: number }[]>([]);
+  const [albumId, setAlbumId] = useState<number | null>(null);
+
+  // 拉取我的专辑，供发布时选择归入
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    api.myAlbums()
+      .then(d => { if (!cancelled) setMyAlbums(d.albums || []); })
+      .catch(() => { /* 专辑加载失败不影响发布 */ });
+    return () => { cancelled = true; };
+  }, [user]);
 
   // 进入页面时恢复草稿（仅文字信息，图片受 localStorage 配额限制不做持久化）
   useEffect(() => {
@@ -219,6 +231,10 @@ export default function PublishPage() {
         variants,
       });
       addUserPost(result.post);
+      // 归入专辑（可选，失败不阻断发布）
+      if (albumId && result.post?.id) {
+        try { await api.addPostToAlbum(albumId, result.post.id); } catch { /* 忽略 */ }
+      }
       try { localStorage.removeItem(DRAFT_KEY); } catch { /* 忽略 */ }
       setPublishing(false);
       showToast("发布成功", "success");
@@ -391,6 +407,26 @@ export default function PublishPage() {
             ))}
           </div>
         </div>
+
+        {/* Album（可选）*/}
+        {myAlbums.length > 0 && (
+          <div className="mb-5">
+            <label htmlFor="publish-album" className="text-sm font-semibold text-gray-700 mb-2 block">
+              归入专辑 <span className="text-gray-400 font-normal">（可选）</span>
+            </label>
+            <select
+              id="publish-album"
+              value={albumId ?? ""}
+              onChange={e => setAlbumId(e.target.value ? Number(e.target.value) : null)}
+              className="w-full sm:w-64 px-3 py-2 rounded-xl border border-gray-200 text-sm bg-white focus:outline-none focus:border-[#e05d6f]"
+            >
+              <option value="">不归入专辑</option>
+              {myAlbums.map(a => (
+                <option key={a.id} value={a.id}>{a.title}</option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {/* Tags */}
         <div className="mb-5">

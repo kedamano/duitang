@@ -115,6 +115,27 @@ export const api = {
   /** 清空全部通知 */
   clearNotifications: () => request<{ ok: boolean; deleted: number }>('/notifications', { method: 'DELETE' }),
 
+  // ─── Albums ───
+  getUserAlbums: (userId: number, params?: { page?: number; limit?: number }) =>
+    request<{ albums: any[]; total: number; page: number; limit: number }>(`/users/${userId}/albums?${pageQuery(params)}`),
+  getAlbum: (id: number, params?: { page?: number; limit?: number }) =>
+    request<{ album: any; owner: any; posts: any[]; total: number; page: number; limit: number; owned_by_me: boolean }>(
+      `/albums/${id}?${pageQuery(params)}`,
+    ),
+  createAlbum: (data: { title: string; description?: string; is_public?: boolean }) =>
+    request<{ album: any }>('/albums', { method: 'POST', body: JSON.stringify(data) }),
+  updateAlbum: (id: number, data: { title?: string; description?: string; is_public?: boolean }) =>
+    request<{ album: any }>(`/albums/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteAlbum: (id: number) => request<{ ok: boolean }>(`/albums/${id}`, { method: 'DELETE' }),
+  addPostToAlbum: (albumId: number, postId: number) =>
+    request<{ ok: boolean; count: number }>(`/albums/${albumId}/posts`, {
+      method: 'POST',
+      body: JSON.stringify({ post_id: postId }),
+    }),
+  removePostFromAlbum: (albumId: number, postId: number) =>
+    request<{ ok: boolean; count: number }>(`/albums/${albumId}/posts/${postId}`, { method: 'DELETE' }),
+  myAlbums: () => request<{ albums: any[] }>('/my/albums'),
+
   // ─── Follow lists ───
   getFollowers: (userId: number, params?: { page?: number; limit?: number }) =>
     request<{ users: any[]; total: number; page: number; limit: number }>(`/users/${userId}/followers?${pageQuery(params)}`),
@@ -125,7 +146,12 @@ export const api = {
   likePost: (id: number) => request<{ liked: boolean; count: number }>(`/posts/${id}/like`, { method: 'POST' }),
 
   // ─── Collects ───
-  collectPost: (id: number) => request<{ collected: boolean; count: number }>(`/posts/${id}/collect`, { method: 'POST' }),
+  /** 收藏；传 albumId 则同时收进该专辑 */
+  collectPost: (id: number, albumId?: number) =>
+    request<{ collected: boolean; count: number; added_to_album?: boolean }>(`/posts/${id}/collect`, {
+      method: 'POST',
+      body: JSON.stringify(albumId ? { album_id: albumId } : {}),
+    }),
 
   // ─── Comments ───
   getComments: (postId: number, params?: { page?: number; limit?: number }) => {

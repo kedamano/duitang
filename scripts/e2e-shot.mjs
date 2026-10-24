@@ -951,6 +951,74 @@ async function main() {
     await cdp.eval(`fetch('/api/posts/${thread.pid}', { method: 'DELETE', headers: { Authorization: 'Bearer ' + localStorage.getItem('duitang_token') } })`);
     await sleep(300);
 
+    // ── 专辑功能 ──
+    const albumSetup = JSON.parse(await cdp.eval(`(async () => {
+      const token = localStorage.getItem('duitang_token');
+      const h = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token };
+      const created = await (await fetch('/api/albums', { method: 'POST', headers: h,
+        body: JSON.stringify({ title: 'E2E 专辑', description: '自动化验证用' }) })).json();
+      const albumId = created.album.id;
+      await fetch('/api/albums/' + albumId + '/posts', { method: 'POST', headers: h,
+        body: JSON.stringify({ post_id: ${ownPostId} }) });
+      return JSON.stringify({ albumId, title: created.album.title });
+    })()`));
+
+    await open("#/album/" + albumSetup.albumId);
+    let albumReady = false;
+    for (let i = 0; i < 15 && !albumReady; i++) {
+      await sleep(800);
+      albumReady = (await cdp.eval(`document.querySelectorAll('main .break-inside-avoid').length`)) > 0;
+    }
+    const albumInfo = JSON.parse(await cdp.eval(`(() => {
+      const h1 = document.querySelector('main h1');
+      return JSON.stringify({
+        title: h1 ? h1.textContent.trim() : '',
+        cards: document.querySelectorAll('main .break-inside-avoid').length,
+      });
+    })()`));
+    check("专辑页展示标题与内部图片", albumInfo.title.includes("E2E 专辑") && albumInfo.cards > 0, JSON.stringify(albumInfo));
+    await shotPng("album-page.png");
+
+    // 个人主页「我的专辑」分组
+    await open("#/profile?tab=albums");
+    let albumTabReady = false;
+    for (let i = 0; i < 15 && !albumTabReady; i++) {
+      await sleep(700);
+      albumTabReady = await cdp.eval(`!!document.querySelector('[data-testid="album-grid"]')`);
+    }
+    const albumTab = await cdp.eval(`(() => {
+      const grid = document.querySelector('[data-testid="album-grid"]');
+      return JSON.stringify({ hasGrid: !!grid, text: grid ? grid.textContent.slice(0, 60) : '' });
+    })()`);
+    check("个人主页有「我的专辑」并能列出专辑", albumTabReady && albumTab.includes("E2E 专辑"), albumTab);
+    await shotPng("profile-albums.png");
+
+    // 详情页「收进专辑」弹窗
+    await open("#/pin/" + ownPostId);
+    let collectBtnReady = false;
+    for (let i = 0; i < 15 && !collectBtnReady; i++) {
+      await sleep(700);
+      collectBtnReady = await cdp.eval(`!!document.querySelector('button[aria-label="收进专辑"]')`);
+    }
+    await cdp.eval(`document.querySelector('button[aria-label="收进专辑"]')?.click()`);
+    let pickerOpen = false;
+    for (let i = 0; i < 10 && !pickerOpen; i++) {
+      await sleep(600);
+      pickerOpen = await cdp.eval(`!!document.querySelector('[data-testid="album-picker"]')`);
+    }
+    const pickerHasAlbum = await cdp.eval(`(() => {
+      const p = document.querySelector('[data-testid="album-picker"]');
+      return p ? p.textContent.includes('E2E 专辑') : false;
+    })()`);
+    check("详情页可打开「收进专辑」并列出专辑", collectBtnReady && pickerOpen && pickerHasAlbum, `btn=${collectBtnReady} open=${pickerOpen} listed=${pickerHasAlbum}`);
+    await shotPng("album-picker.png");
+    await cdp.eval(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))`);
+    await sleep(400);
+
+    // 清理验证专辑
+    await cdp.eval(`fetch('/api/albums/${albumSetup.albumId}', { method: 'DELETE', headers: { Authorization: 'Bearer ' + localStorage.getItem('duitang_token') } })`);
+    await sleep(300);
+
     ws.close();
     console.log(fails ? `\n${fails} 项失败` : "\n全部通过");
     process.exitCode = fails ? 1 : 0;

@@ -520,6 +520,12 @@ app.post('/api/posts/:id/collect', authMiddleware, (req, res) => {
   const post = db.prepare('SELECT id, author_id, collects_count FROM posts WHERE id = ?').get(postId);
   if (!post) return res.status(404).json({ error: '帖子不存在' });
 
+  // 可选：收藏的同时收进指定专辑（只允许自己的专辑）
+  const albumId = parseInt(req.body?.album_id);
+  const album = albumId
+    ? db.prepare('SELECT id, user_id FROM albums WHERE id = ?').get(albumId)
+    : null;
+
   const existing = db.prepare('SELECT 1 FROM post_collects WHERE user_id = ? AND post_id = ?').get(userId, postId);
   if (existing) {
     db.prepare('DELETE FROM post_collects WHERE user_id = ? AND post_id = ?').run(userId, postId);
@@ -530,7 +536,13 @@ app.post('/api/posts/:id/collect', authMiddleware, (req, res) => {
     db.prepare('INSERT INTO post_collects (user_id, post_id) VALUES (?, ?)').run(userId, postId);
     db.prepare('UPDATE posts SET collects_count = collects_count + 1 WHERE id = ?').run(postId);
     addNotification({ userId: post.author_id, actorId: userId, type: 'collect', postId });
-    res.json({ collected: true, count: post.collects_count + 1 });
+
+    let addedToAlbum = false;
+    if (album && album.user_id === userId) {
+      db.prepare('INSERT OR IGNORE INTO album_posts (album_id, post_id) VALUES (?, ?)').run(album.id, postId);
+      addedToAlbum = true;
+    }
+    res.json({ collected: true, count: post.collects_count + 1, added_to_album: addedToAlbum });
   }
 });
 
@@ -935,6 +947,153 @@ app.patch('/api/users/me/notify-prefs', authMiddleware, (req, res) => {
   }
   db.prepare('UPDATE users SET notify_prefs = ? WHERE id = ?').run(JSON.stringify(clean), req.user.id);
   res.json({ prefs: clean });
+});
+
+// ─────────────────────────────────────────────
+// 专辑（用户自建收藏夹）
+// ─────────────────────────────────────────────
+
+/** 某用户的专辑列表（本人可见私密，他人只看公开） */
+app.get('/api/users/:id/albums', (req, res) => {
+  const userId = parseInt(req.params.id);
+  const user = db.prepare('SELECT id FROM users WHERE id = ?').get(userId);
+  if (!user) return res.status(404).json({ error: '用户不存在' });
+
+  const me = optionalUser(req);
+  const isSelf = me && me.id === userId;
+  const { pageNum, limitNum, offset } = parsePage(req, 50);
+  const where = isSelf ? 'a.user_id = ?' : 'a.user_id = ? AND a.is_public = 1';
+
+  const albums = db.prepare(`
+    SELECT a.*,
+      (SELECT COUNT(*) FROM album_posts ap WHERE ap.album_id = a.id) AS post_count,
+      (SELECT ap.post_id FROM album_posts ap WHERE ap.album_id = a.id ORDER BY ap.created_at DESC LIMIT 1) AS cover_post_id
+    FROM albums a WHERE ${where}
+    ORDER BY a.created_at DESC LIMIT ? OFFSET ?
+  `).all(userId, limitNum, offset);
+
+  for (const album of albums) {
+    let cover = '';
+    if (album.cover_post_id) {
+      const p = db.prepare('SELECT images, thumbs FROM posts WHERE id = ?').get(album.cover_post_id);
+      if (p) {
+        try { cover = JSON.parse(p.thumbs || '[]')[0] || JSON.parse(p.images || '[]')[0] || ''; } catch { cover = ''; }
+      }
+    }
+    album.cover = cover;
+    album.is_public = !!album.is_public;
+    delete album.cover_post_id;
+  }
+
+  const total = db.prepare(`SELECT COUNT(*) AS c FROM albums a WHERE ${where}`).get(userId).c;
+  res.json({ albums, total, page: pageNum, limit: limitNum });
+});
+
+/** 专辑详情（分页返回内部帖子） */
+app.get('/api/albums/:id', (req, res) => {
+  const album = db.prepare('SELECT * FROM albums WHERE id = ?').get(req.params.id);
+  if (!album) return res.status(404).json({ error: '专辑不存在' });
+
+  const me = optionalUser(req);
+  const isSelf = me && me.id === album.user_id;
+  if (!album.is_public && !isSelf) return res.status(403).json({ error: '该专辑为私密' });
+
+  const owner = db.prepare('SELECT id, username, nickname, avatar FROM users WHERE id = ?').get(album.user_id);
+  const { pageNum, limitNum, offset } = parsePage(req, 24);
+
+  const posts = attachInteractions(db.prepare(`
+    SELECT p.*, u.nickname AS author_nickname, u.avatar AS author_avatar
+    FROM album_posts ap JOIN posts p ON ap.post_id = p.id JOIN users u ON p.author_id = u.id
+    WHERE ap.album_id = ? ORDER BY ap.created_at DESC LIMIT ? OFFSET ?
+  `).all(album.id, limitNum, offset).map(hydratePost), req);
+
+  const total = db.prepare('SELECT COUNT(*) AS c FROM album_posts WHERE album_id = ?').get(album.id).c;
+  res.json({
+    album: { ...album, is_public: !!album.is_public },
+    owner,
+    posts, total, page: pageNum, limit: limitNum,
+    owned_by_me: !!isSelf,
+  });
+});
+
+/** 创建专辑 */
+app.post('/api/albums', authMiddleware, (req, res) => {
+  const { title, description, is_public } = req.body || {};
+  if (!title || !String(title).trim()) return res.status(400).json({ error: '专辑名称必填' });
+  const info = db.prepare('INSERT INTO albums (user_id, title, description, is_public) VALUES (?, ?, ?, ?)')
+    .run(
+      req.user.id,
+      String(title).trim().slice(0, 40),
+      String(description || '').slice(0, 200),
+      is_public === false ? 0 : 1,
+    );
+  const album = db.prepare('SELECT * FROM albums WHERE id = ?').get(info.lastInsertRowid);
+  res.json({ album: { ...album, is_public: !!album.is_public, post_count: 0 } });
+});
+
+/** 编辑专辑（改名 / 描述 / 公开性） */
+app.patch('/api/albums/:id', authMiddleware, (req, res) => {
+  const album = db.prepare('SELECT * FROM albums WHERE id = ?').get(req.params.id);
+  if (!album) return res.status(404).json({ error: '专辑不存在' });
+  if (album.user_id !== req.user.id) return res.status(403).json({ error: '无权限' });
+
+  const { title, description, is_public } = req.body || {};
+  if (title !== undefined && !String(title).trim()) return res.status(400).json({ error: '专辑名称不能为空' });
+
+  db.prepare('UPDATE albums SET title = ?, description = ?, is_public = ? WHERE id = ?').run(
+    title !== undefined ? String(title).trim().slice(0, 40) : album.title,
+    description !== undefined ? String(description).slice(0, 200) : album.description,
+    is_public !== undefined ? (is_public ? 1 : 0) : album.is_public,
+    album.id,
+  );
+  const updated = db.prepare('SELECT * FROM albums WHERE id = ?').get(album.id);
+  res.json({ album: { ...updated, is_public: !!updated.is_public } });
+});
+
+/** 删除专辑 */
+app.delete('/api/albums/:id', authMiddleware, (req, res) => {
+  const album = db.prepare('SELECT * FROM albums WHERE id = ?').get(req.params.id);
+  if (!album) return res.status(404).json({ error: '专辑不存在' });
+  if (album.user_id !== req.user.id) return res.status(403).json({ error: '无权限' });
+  db.prepare('DELETE FROM albums WHERE id = ?').run(album.id);
+  res.json({ ok: true });
+});
+
+/** 收进专辑 */
+app.post('/api/albums/:id/posts', authMiddleware, (req, res) => {
+  const album = db.prepare('SELECT * FROM albums WHERE id = ?').get(req.params.id);
+  if (!album) return res.status(404).json({ error: '专辑不存在' });
+  if (album.user_id !== req.user.id) return res.status(403).json({ error: '无权限' });
+
+  const postId = parseInt(req.body?.post_id);
+  if (!postId) return res.status(400).json({ error: '缺少 post_id' });
+  if (!db.prepare('SELECT 1 FROM posts WHERE id = ?').get(postId)) {
+    return res.status(404).json({ error: '帖子不存在' });
+  }
+
+  db.prepare('INSERT OR IGNORE INTO album_posts (album_id, post_id) VALUES (?, ?)').run(album.id, postId);
+  const count = db.prepare('SELECT COUNT(*) AS c FROM album_posts WHERE album_id = ?').get(album.id).c;
+  res.json({ ok: true, count });
+});
+
+/** 移出专辑 */
+app.delete('/api/albums/:id/posts/:postId', authMiddleware, (req, res) => {
+  const album = db.prepare('SELECT * FROM albums WHERE id = ?').get(req.params.id);
+  if (!album) return res.status(404).json({ error: '专辑不存在' });
+  if (album.user_id !== req.user.id) return res.status(403).json({ error: '无权限' });
+  db.prepare('DELETE FROM album_posts WHERE album_id = ? AND post_id = ?').run(album.id, parseInt(req.params.postId));
+  const count = db.prepare('SELECT COUNT(*) AS c FROM album_posts WHERE album_id = ?').get(album.id).c;
+  res.json({ ok: true, count });
+});
+
+/** 我的专辑（收藏时选择用，轻量） */
+app.get('/api/my/albums', authMiddleware, (req, res) => {
+  const albums = db.prepare(`
+    SELECT a.id, a.title, a.is_public,
+      (SELECT COUNT(*) FROM album_posts ap WHERE ap.album_id = a.id) AS post_count
+    FROM albums a WHERE a.user_id = ? ORDER BY a.created_at DESC
+  `).all(req.user.id);
+  res.json({ albums: albums.map(a => ({ ...a, is_public: !!a.is_public })) });
 });
 
 // 我的收藏（分页，默认 100 条以便个人主页一次展示）

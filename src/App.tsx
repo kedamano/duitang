@@ -13,6 +13,7 @@ import ProfilePage from "./pages/ProfilePage";
 import PostDetailPage from "./pages/PostDetailPage";
 import TagPage from "./pages/TagPage";
 import BoardPage from "./pages/BoardPage";
+import AlbumPage from "./pages/AlbumPage";
 import { SEARCH_EVENT } from "./utils/searchEvent";
 
 function AppContent() {
@@ -56,6 +57,7 @@ function AppContent() {
         <Route path="/pin/:id" element={<PostDetailPage />} />
         <Route path="/tag/:tag" element={<TagPage />} />
         <Route path="/board/:key" element={<BoardPage />} />
+        <Route path="/album/:id" element={<AlbumPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
 

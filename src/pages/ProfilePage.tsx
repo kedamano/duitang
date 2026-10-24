@@ -9,9 +9,10 @@ import { PostDetailModal } from "../components/PostDetail";
 import FollowListModal from "../components/FollowListModal";
 import { normalizePost } from "../utils/normalizePost";
 import { Icon } from "../components/Icons";
+import CreateAlbumModal from "../components/CreateAlbumModal";
 import type { ImageCard } from "../data/images";
 
-type Tab = "posts" | "collection" | "likes";
+type Tab = "posts" | "collection" | "likes" | "albums";
 
 const LIST_PAGE_SIZE = 24;
 
@@ -199,7 +200,7 @@ export default function ProfilePage() {
   const navigate = useNavigate();
   const tabParam = searchParams.get("tab");
   const [activeTab, setActiveTab] = useState<Tab>(
-    (tabParam === "collection" ? "collection" : tabParam === "likes" ? "likes" : "posts") as Tab
+    (tabParam === "collection" ? "collection" : tabParam === "likes" ? "likes" : tabParam === "albums" ? "albums" : "posts") as Tab
   );
   const [bio, setBio] = useState(user?.bio ?? "");
   const [selectedCard, setSelectedCard] = useState<ImageCard | null>(null);
@@ -213,6 +214,9 @@ export default function ProfilePage() {
   const [targetPosts, setTargetPosts] = useState<ImageCard[]>([]);
   const [showEditPanel, setShowEditPanel] = useState(false);
   const [editingBio, setEditingBio] = useState(false);
+  const [albums, setAlbums] = useState<any[]>([]);
+  const [albumsLoading, setAlbumsLoading] = useState(false);
+  const [showCreateAlbum, setShowCreateAlbum] = useState(false);
   const targetUserId = searchParams.get("user");
   const isViewingOther = !!targetUserId && targetUserId !== String(user?.id ?? -1);
 
@@ -223,8 +227,22 @@ export default function ProfilePage() {
   useEffect(() => {
     if (tabParam === "collection") setActiveTab("collection");
     else if (tabParam === "likes") setActiveTab("likes");
+    else if (tabParam === "albums") setActiveTab("albums");
     else setActiveTab("posts");
   }, [tabParam]);
+
+  // 专辑列表（本人看全部含私密，他人只看公开）
+  useEffect(() => {
+    const userId = isViewingOther ? parseInt(targetUserId || "", 10) : user?.id;
+    if (!userId) { setAlbums([]); return; }
+    let cancelled = false;
+    setAlbumsLoading(true);
+    api.getUserAlbums(userId)
+      .then(d => { if (!cancelled) setAlbums(d.albums || []); })
+      .catch(() => { if (!cancelled) setAlbums([]); })
+      .finally(() => { if (!cancelled) setAlbumsLoading(false); });
+    return () => { cancelled = true; };
+  }, [user?.id, isViewingOther, targetUserId, showCreateAlbum]);
 
   // 收集/喜欢分页加载（服务端默认只返回前 100 条，这里显式分页避免静默截断）
   useEffect(() => {
@@ -326,11 +344,15 @@ export default function ProfilePage() {
   const profilePosts = isViewingOther ? targetPosts : userPosts;
 
   const tabs: { key: Tab; label: string; count: number }[] = isViewingOther
-    ? [{ key: "posts", label: "TA的发布", count: targetPosts.length }]
+    ? [
+      { key: "posts", label: "TA的发布", count: targetPosts.length },
+      { key: "albums", label: "TA的专辑", count: albums.length },
+    ]
     : [
       { key: "posts", label: "我的发布", count: userPosts.length },
       { key: "collection", label: "我的收集", count: collectTotal },
       { key: "likes", label: "我的喜欢", count: likesTotal },
+      { key: "albums", label: "我的专辑", count: albums.length },
     ];
 
   const currentCards = activeTab === "posts" ? profilePosts : activeTab === "collection" ? myCollects : myLikes;
@@ -482,7 +504,63 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        {/* Posts grid */}
+        {/* 专辑列表 */}
+        {activeTab === "albums" ? (
+          <div className="mt-4">
+            {!isViewingOther && (
+              <div className="flex justify-end mb-3">
+                <button
+                  onClick={() => setShowCreateAlbum(true)}
+                  className="px-4 py-2 rounded-full bg-[#e05d6f] text-white text-sm font-medium hover:bg-[#c94d5e] transition-colors flex items-center gap-1.5"
+                >
+                  <Icon name="plus" className="w-4 h-4" /> 新建专辑
+                </button>
+              </div>
+            )}
+            {albumsLoading ? (
+              <div className="py-16 text-center text-sm text-gray-400">加载中...</div>
+            ) : albums.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-20 gap-3">
+                <Icon name="folder" className="w-12 h-12 text-gray-300" />
+                <p className="text-gray-400 text-sm">
+                  {isViewingOther ? "TA 还没有创建专辑" : "还没有专辑，创建一个来收藏喜欢的图吧"}
+                </p>
+                {!isViewingOther && (
+                  <button onClick={() => setShowCreateAlbum(true)} className="text-sm text-[#e05d6f] hover:underline font-medium flex items-center gap-1">
+                    新建专辑 <Icon name="arrowRight" className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3" data-testid="album-grid">
+                {albums.map(album => (
+                  <button
+                    key={album.id}
+                    onClick={() => navigate(`/album/${album.id}`)}
+                    className="group text-left bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-lg transition-all hover:-translate-y-0.5"
+                  >
+                    <div className="relative aspect-[4/3] bg-gray-100 overflow-hidden">
+                      {album.cover ? (
+                        <img src={album.cover} alt="" loading="lazy" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-gray-300">
+                          <Icon name="folder" className="w-8 h-8" />
+                        </div>
+                      )}
+                      {!album.is_public && (
+                        <span className="absolute top-2 right-2 text-[10px] bg-black/50 text-white px-1.5 py-0.5 rounded-full">私密</span>
+                      )}
+                    </div>
+                    <div className="p-3">
+                      <p className="text-sm font-medium text-gray-800 truncate">{album.title}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">{album.post_count} 张图片</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-4">
           {currentCards.length > 0 ? (
             currentCards.map(card => (
@@ -516,6 +594,7 @@ export default function ProfilePage() {
             </div>
           )}
         </div>
+        )}
 
         {currentCards.length > 0 && (activeTab === "collection" || activeTab === "likes") &&
           currentCards.length < (activeTab === "collection" ? collectTotal : likesTotal) && (
@@ -530,7 +609,7 @@ export default function ProfilePage() {
             </div>
           )}
 
-        {currentCards.length > 0 &&
+        {activeTab !== "albums" && currentCards.length > 0 &&
           !((activeTab === "collection" || activeTab === "likes") &&
             currentCards.length < (activeTab === "collection" ? collectTotal : likesTotal)) && (
             <p className="text-center text-gray-300 text-sm py-8 flex items-center justify-center gap-1.5">
@@ -541,6 +620,11 @@ export default function ProfilePage() {
 
       {/* 编辑资料（头像 / 昵称 / 简介）*/}
       {showEditPanel && !isViewingOther && <EditPanelWrapper onClose={() => setShowEditPanel(false)} />}
+
+      {/* 新建专辑 */}
+      {showCreateAlbum && (
+        <CreateAlbumModal onClose={() => setShowCreateAlbum(false)} />
+      )}
 
       {/* 粉丝 / 关注列表 */}
       {followModal && profileUser && (

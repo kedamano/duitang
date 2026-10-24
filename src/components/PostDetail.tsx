@@ -8,6 +8,7 @@ import { normalizePost } from "../utils/normalizePost";
 import { renderContentWithMentions } from "../utils/mention";
 import EditPostModal from "./EditPostModal";
 import ImageLightbox from "./ImageLightbox";
+import AlbumPickerModal from "./AlbumPickerModal";
 import { Icon } from "./Icons";
 
 // ─── Comment row ──────────────────────────────────────────────────────────────
@@ -631,9 +632,10 @@ export { CommentList };
 
 // ─── Bottom action bar (like / collect / share + composer) ────────────────────
 export function DetailActionBar({ card }: { card: ImageCard }) {
-  const { liked, collected, likeCount, collectCount, handleLike, handleCollect } = usePostActions(card);
+  const { liked, collected, likeCount, collectCount, handleLike, handleCollect, requireAuth } = usePostActions(card);
   const { getShareCount } = useCollection();
   const [showShare, setShowShare] = useState(false);
+  const [showAlbumPicker, setShowAlbumPicker] = useState(false);
   const [toast, setToast] = useState("");
   const shareCount = getShareCount(card.id, card.shares ?? 0);
 
@@ -669,6 +671,14 @@ export function DetailActionBar({ card }: { card: ImageCard }) {
           {collected ? `已收集 ${collectCount}` : `收集图片 ${collectCount}`}
         </button>
         <button
+          onClick={() => { if (!requireAuth()) setShowAlbumPicker(true); }}
+          aria-label="收进专辑"
+          className="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium bg-gray-100 text-gray-600 hover:bg-[#fde8eb] hover:text-[#e05d6f] transition-all"
+        >
+          <Icon name="folder" className="w-4 h-4" />
+          专辑
+        </button>
+        <button
           onClick={() => setShowShare(!showShare)}
           className={cn(
             "flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium transition-all",
@@ -701,6 +711,10 @@ export function DetailActionBar({ card }: { card: ImageCard }) {
       )}
 
       <CommentComposer card={card} />
+
+      {showAlbumPicker && (
+        <AlbumPickerModal postId={card.id} onClose={() => setShowAlbumPicker(false)} />
+      )}
     </div>
   );
 }

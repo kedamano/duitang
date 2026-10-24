@@ -119,6 +119,31 @@ db.exec(`
   );
 `);
 
+// 专辑（用户自建收藏夹）
+db.exec(`
+  CREATE TABLE IF NOT EXISTS albums (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT DEFAULT '',
+    is_public INTEGER NOT NULL DEFAULT 1,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+`);
+
+// 专辑与帖子的关联（同一张图可进多个专辑）
+db.exec(`
+  CREATE TABLE IF NOT EXISTS album_posts (
+    album_id INTEGER NOT NULL,
+    post_id INTEGER NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (album_id, post_id),
+    FOREIGN KEY (album_id) REFERENCES albums(id) ON DELETE CASCADE,
+    FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE
+  );
+`);
+
 // 创建索引
 db.exec(`
   CREATE INDEX IF NOT EXISTS idx_posts_author ON posts(author_id);
@@ -129,6 +154,8 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_user_follows_follower ON user_follows(follower_id);
   CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, created_at DESC);
   CREATE INDEX IF NOT EXISTS idx_notifications_unread ON notifications(user_id, is_read);
+  CREATE INDEX IF NOT EXISTS idx_albums_user ON albums(user_id, created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_album_posts_album ON album_posts(album_id, created_at DESC);
 `);
 
 // 轻量迁移：为旧库补齐后加的列
