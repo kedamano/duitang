@@ -6,6 +6,7 @@ import { MasonryGrid, MasonrySkeleton } from "../components/MasonryGrid";
 import { PostDetailModal } from "../components/PostDetail";
 import { useToast } from "../context/ToastContext";
 import { cn } from "../utils/cn";
+import { Icon } from "../components/Icons";
 import type { ImageCard } from "../data/images";
 
 const PAGE_SIZE = 20;
@@ -75,9 +76,9 @@ export default function TagPage() {
         <div className="flex items-center gap-2 mb-1">
           <button
             onClick={() => navigate("/")}
-            className="text-sm text-gray-400 hover:text-[#e05d6f] transition-colors"
+            className="text-sm text-gray-400 hover:text-[#e05d6f] transition-colors flex items-center gap-1"
           >
-            ← 返回首页
+            <Icon name="arrowLeft" className="w-4 h-4" /> 返回首页
           </button>
         </div>
         <h1 className="text-2xl font-extrabold text-gray-800">
@@ -111,13 +112,13 @@ export default function TagPage() {
         <MasonrySkeleton />
       ) : cards.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-24 gap-4">
-          <div className="text-6xl">🏷️</div>
+          <Icon name="tag" className="w-14 h-14 text-gray-300" />
           <p className="text-gray-400 text-base">还没有打了「{tag}」标签的图片</p>
           <button
             onClick={() => navigate("/")}
-            className="bg-[#e05d6f] text-white text-sm font-bold px-6 py-2.5 rounded-full hover:bg-[#c94d5e] transition-colors"
+            className="bg-[#e05d6f] text-white text-sm font-bold px-6 py-2.5 rounded-full hover:bg-[#c94d5e] transition-colors flex items-center gap-1.5"
           >
-            去首页逛逛 →
+            去首页逛逛 <Icon name="arrowRight" className="w-4 h-4" />
           </button>
         </div>
       ) : (
@@ -135,7 +136,9 @@ export default function TagPage() {
             </div>
           )}
           {!hasMore && (
-            <p className="text-center text-gray-300 text-sm pb-10 pt-4">— 已经到底啦 🌸 —</p>
+            <p className="text-center text-gray-300 text-sm pb-10 pt-4 flex items-center justify-center gap-1.5">
+              — 已经到底啦 <Icon name="flower" className="w-4 h-4 inline" /> —
+            </p>
           )}
         </>
       )}

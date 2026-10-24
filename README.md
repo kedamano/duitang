@@ -45,7 +45,7 @@ npm run dev
 ```
 src/                前端
   api/              fetch 封装（JWT 头、错误规范化）
-  components/       Header / 登录注册弹窗 / AI 生图弹窗 / PostDetail(共享详情组件) / MasonryGrid / NotificationBell / NotifyPrefsModal / EditPostModal / FollowListModal / ImageLightbox
+  components/       Header / 登录注册弹窗 / AI 生图弹窗 / PostDetail(共享详情组件) / MasonryGrid / NotificationBell / NotifyPrefsModal / EditPostModal / FollowListModal / ImageLightbox / Icons(统一 SVG 图标库)
   context/          Auth / Collection(点赞收藏评论关注) / Toast
   pages/            HomePage / PublishPage / ProfilePage / PostDetailPage / TagPage / BoardPage
   utils/            normalizePost（后端→前端唯一转换入口）、mention（@解析与高亮）、searchEvent、useDebouncedValue、formatTime、cn

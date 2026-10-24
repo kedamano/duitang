@@ -8,6 +8,7 @@ import { normalizePost } from "../utils/normalizePost";
 import { renderContentWithMentions } from "../utils/mention";
 import EditPostModal from "./EditPostModal";
 import ImageLightbox from "./ImageLightbox";
+import { Icon } from "./Icons";
 
 // ─── Comment row ──────────────────────────────────────────────────────────────
 /** 回复行（楼中楼内层） */
@@ -759,12 +760,12 @@ export function DetailContent({
 
       <div className="flex-1 overflow-y-auto px-4 py-2">
         <p className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-1.5">
-          <span>💬 评论区</span>
+          <Icon name="comment" className="w-4 h-4 text-gray-500" /> 评论区
           <span className="text-xs text-gray-400 font-normal">({commentCount})</span>
         </p>
         {cardComments.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 gap-2">
-            <div className="text-3xl">💭</div>
+            <Icon name="bubble" className="w-8 h-8 text-gray-300" />
             <p className="text-sm text-gray-400">还没有评论，来说点什么吧~</p>
           </div>
         ) : (

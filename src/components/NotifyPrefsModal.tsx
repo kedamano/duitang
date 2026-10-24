@@ -2,17 +2,18 @@ import { useEffect, useState } from "react";
 import { api } from "../api";
 import { useToast } from "../context/ToastContext";
 import { cn } from "../utils/cn";
+import { Icon } from "./Icons";
 
 type PrefsValue = boolean | "followers";
 
-const TYPE_LABELS: { key: string; label: string; desc: string; emoji: string }[] = [
-  { key: "like", label: "点赞", desc: "有人赞了你的帖子", emoji: "❤️" },
-  { key: "collect", label: "收藏", desc: "有人收藏了你的帖子", emoji: "📌" },
-  { key: "comment", label: "评论", desc: "有人评论了你的帖子", emoji: "💬" },
-  { key: "comment_like", label: "赞评论", desc: "有人赞了你的评论", emoji: "👍" },
-  { key: "reply", label: "回复", desc: "有人回复了你的评论", emoji: "↩️" },
-  { key: "follow", label: "关注", desc: "有人关注了你", emoji: "🫶" },
-  { key: "mention", label: "@ 提醒", desc: "有人在评论中提到你", emoji: "🔔" },
+const TYPE_LABELS: { key: string; label: string; desc: string; icon: string }[] = [
+  { key: "like", label: "点赞", desc: "有人赞了你的帖子", icon: "heart" },
+  { key: "collect", label: "收藏", desc: "有人收藏了你的帖子", icon: "bookmark" },
+  { key: "comment", label: "评论", desc: "有人评论了你的帖子", icon: "comment" },
+  { key: "comment_like", label: "赞评论", desc: "有人赞了你的评论", icon: "thumbsUp" },
+  { key: "reply", label: "回复", desc: "有人回复了你的评论", icon: "reply" },
+  { key: "follow", label: "关注", desc: "有人关注了你", icon: "hand" },
+  { key: "mention", label: "@ 提醒", desc: "有人在评论中提到你", icon: "bell" },
 ];
 
 /** 通知偏好设置：按类型开关，或限定「仅关注的人」 */
@@ -83,7 +84,7 @@ export default function NotifyPrefsModal({ onClose }: { onClose: () => void }) {
             <div className="py-10 text-center text-sm text-gray-400">加载中...</div>
           ) : loadFailed ? (
             <div className="py-10 text-center">
-              <div className="text-3xl mb-2">⚠️</div>
+              <Icon name="warning" className="w-8 h-8 mx-auto mb-2 text-amber-500" />
               <p className="text-sm text-gray-400">设置加载失败，请关闭后重试</p>
             </div>
           ) : (
@@ -93,7 +94,7 @@ export default function NotifyPrefsModal({ onClose }: { onClose: () => void }) {
               const followersOnly = value === "followers";
               return (
                 <div key={t.key} className="flex items-center gap-3 py-3 border-b border-gray-50 last:border-0">
-                  <span className="text-lg">{t.emoji}</span>
+                  <Icon name={t.icon} className="w-5 h-5 text-gray-500 shrink-0" />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm text-gray-700">{t.label}</p>
                     <p className="text-xs text-gray-400 truncate">

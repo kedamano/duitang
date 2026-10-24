@@ -8,6 +8,7 @@ import { cn } from "../utils/cn";
 import { PostDetailModal } from "../components/PostDetail";
 import FollowListModal from "../components/FollowListModal";
 import { normalizePost } from "../utils/normalizePost";
+import { Icon } from "../components/Icons";
 import type { ImageCard } from "../data/images";
 
 type Tab = "posts" | "collection" | "likes";
@@ -299,7 +300,7 @@ export default function ProfilePage() {
     return (
       <div className="min-h-screen bg-[#f8f8f8] flex items-center justify-center">
         <div className="text-center">
-          <div className="text-6xl mb-4">🔒</div>
+          <Icon name="lock" className="w-14 h-14 mx-auto mb-4 text-gray-300" />
           <h2 className="text-xl font-bold text-gray-800 mb-2">请先登录</h2>
           <p className="text-gray-400 text-sm mb-6">登录后查看个人主页</p>
           <button onClick={() => setShowLogin(true)} className="bg-[#e05d6f] text-white font-bold text-sm px-8 py-3 rounded-full hover:bg-[#c94d5e] transition-colors">
@@ -489,7 +490,12 @@ export default function ProfilePage() {
             ))
           ) : (
             <div className="col-span-full flex flex-col items-center justify-center py-20 gap-3">
-              <div className="text-5xl">{activeTab === "collection" ? "📌" : activeTab === "likes" ? "❤️" : "📝"}</div>
+              <div className="text-5xl">
+              <Icon
+                name={activeTab === "collection" ? "bookmark" : activeTab === "likes" ? "heart" : "edit"}
+                className="w-12 h-12 text-gray-300"
+              />
+            </div>
               <p className="text-gray-400 text-sm">
                 {activeTab === "collection"
                   ? "还没有收集内容哦，去首页逛逛吧～"
@@ -498,13 +504,13 @@ export default function ProfilePage() {
                   : "还没有发布内容哦～"}
               </p>
               {activeTab === "posts" && !isViewingOther && (
-                <button onClick={() => navigate("/publish")} className="text-sm text-[#e05d6f] hover:underline font-medium">
-                  去发布第一篇 →
+                <button onClick={() => navigate("/publish")} className="text-sm text-[#e05d6f] hover:underline font-medium flex items-center gap-1">
+                  去发布第一篇 <Icon name="arrowRight" className="w-4 h-4" />
                 </button>
               )}
               {(activeTab === "collection" || activeTab === "likes") && (
-                <button onClick={() => navigate("/")} className="text-sm text-[#e05d6f] hover:underline font-medium">
-                  去首页逛逛 →
+                <button onClick={() => navigate("/")} className="text-sm text-[#e05d6f] hover:underline font-medium flex items-center gap-1">
+                  去首页逛逛 <Icon name="arrowRight" className="w-4 h-4" />
                 </button>
               )}
             </div>
@@ -527,7 +533,9 @@ export default function ProfilePage() {
         {currentCards.length > 0 &&
           !((activeTab === "collection" || activeTab === "likes") &&
             currentCards.length < (activeTab === "collection" ? collectTotal : likesTotal)) && (
-            <p className="text-center text-gray-300 text-sm py-8">— 已经到底啦 🌸 —</p>
+            <p className="text-center text-gray-300 text-sm py-8 flex items-center justify-center gap-1.5">
+              — 已经到底啦 <Icon name="flower" className="w-4 h-4 inline" /> —
+            </p>
           )}
       </div>
 

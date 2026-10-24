@@ -169,8 +169,8 @@ const BOARD_LABEL_TO_KEY = {
 
 // 插入初始用户（含演示账号，便于本地体验；密码统一 123456）
 const seedUsers = [
-  { username: 'tangyan', nickname: '糖小颜', bio: '生活需要一点甜 🍬 | 分享美好日常' },
-  { username: 'tangtu', nickname: '糖小兔', bio: '壁纸收集癖，日更不偷懒 🐰' },
+  { username: 'tangyan', nickname: '糖小颜', bio: '生活需要一点甜 | 分享美好日常' },
+  { username: 'tangtu', nickname: '糖小兔', bio: '壁纸收集癖，日更不偷懒' },
   { username: 'mochi', nickname: '麻薯小姐', bio: '甜品与穿搭都是本命' },
   { username: 'lvren', nickname: '旅人阿白', bio: '在路上 · 相机是我的第二双眼睛' },
   { username: 'gufeng', nickname: '故梦古风', bio: '汉服 / 水墨 / 旧时光' },

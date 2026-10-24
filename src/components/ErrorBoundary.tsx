@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
+import { Icon } from "./Icons";
 
 interface Props { children: ReactNode; }
 interface State { error: Error | null; }
@@ -24,7 +25,7 @@ export class ErrorBoundary extends Component<Props, State> {
       return (
         <div className="min-h-screen flex items-center justify-center bg-[#f8f8f8] p-4">
           <div className="bg-white rounded-3xl shadow-xl p-8 max-w-md w-full text-center">
-            <div className="text-5xl mb-3">😵</div>
+            <Icon name="dizzy" className="w-12 h-12 mx-auto mb-3 text-gray-300" />
             <h2 className="text-xl font-bold text-gray-800 mb-2">页面出错了</h2>
             <p className="text-sm text-gray-500 mb-4 break-all">{this.state.error.message}</p>
             <div className="flex gap-3 justify-center">

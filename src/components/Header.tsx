@@ -6,6 +6,7 @@ import { navCategories, hotSearches, FOLLOW_NAV } from "../data/images";
 import { api } from "../api";
 import NotificationBell from "./NotificationBell";
 import NotifyPrefsModal from "./NotifyPrefsModal";
+import { Icon } from "./Icons";
 
 interface SearchUser { id: number; username: string; nickname: string; avatar: string; }
 
@@ -61,7 +62,9 @@ function SearchBar({
       </div>
       {focused && value && users.length > 0 && (
         <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-xl border border-gray-100 p-2 z-50 animate-fade-in">
-          <p className="text-xs text-gray-400 px-2 pt-1.5 pb-2 font-medium">👤 搜索用户</p>
+          <p className="text-xs text-gray-400 px-2 pt-1.5 pb-2 font-medium flex items-center gap-1">
+            <Icon name="user" className="w-3.5 h-3.5" /> 搜索用户
+          </p>
           {users.map(u => (
             <button
               key={u.id}
@@ -79,7 +82,9 @@ function SearchBar({
       )}
       {focused && !value && (
         <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-xl border border-gray-100 p-4 z-50 animate-fade-in">
-          <p className="text-xs text-gray-400 mb-2 font-medium">🔥 热门搜索</p>
+          <p className="text-xs text-gray-400 mb-2 font-medium flex items-center gap-1">
+            <Icon name="fire" className="w-3.5 h-3.5 text-[#e05d6f]" /> 热门搜索
+          </p>
           <div className="flex flex-wrap gap-2">
             {hotSearches.map(s => (
               <button

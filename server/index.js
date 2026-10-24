@@ -1072,7 +1072,7 @@ app.use((err, req, res, next) => {
 
 if (require.main === module) {
   app.listen(PORT, () => {
-    logger.info(`🚀 Duitang API running on http://localhost:${PORT}`);
+    logger.info(`Duitang API running on http://localhost:${PORT}`);
   });
 }
 

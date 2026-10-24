@@ -9,6 +9,7 @@ import { PostDetailModal } from "../components/PostDetail";
 import { labelToBoard, FOLLOW_NAV, type ImageCard } from "../data/images";
 import { useDebouncedValue } from "../utils/useDebouncedValue";
 import { MasonryGrid, MasonrySkeleton } from "../components/MasonryGrid";
+import { Icon } from "../components/Icons";
 
 // ─── Banner ───────────────────────────────────────────────────────────────────
 function Banner() {
@@ -38,8 +39,9 @@ function Banner() {
           <div className="flex-1 px-8 md:px-12">
             <h2 className="text-white font-extrabold text-xl md:text-3xl mb-1 drop-shadow-sm">{s.title}</h2>
             <p className="text-white/80 text-sm md:text-base mb-4">{s.sub}</p>
-            <button className="bg-white text-[#e05d6f] font-bold text-sm px-5 py-2 rounded-full hover:shadow-lg transition-shadow">
-              立即探索 →
+            <button className="bg-white text-[#e05d6f] font-bold text-sm px-5 py-2 rounded-full hover:shadow-lg transition-shadow flex items-center gap-1.5">
+              立即探索
+              <Icon name="arrowRight" className="w-4 h-4" />
             </button>
           </div>
           <div className="w-1/3 h-full overflow-hidden hidden sm:block opacity-70">
@@ -75,16 +77,16 @@ const topicNavMap: Record<string, string> = {
 
 function SideTopics({ onTopicClick }: { onTopicClick: (label: string) => void }) {
   const topics = [
-    { icon: "🌸", label: "春日少女系", count: "12.3万图片" },
-    { icon: "🏠", label: "ins风家居", count: "8.9万图片" },
-    { icon: "🍜", label: "美食探店", count: "6.7万图片" },
-    { icon: "✈️", label: "旅行日记", count: "15.2万图片" },
-    { icon: "🎨", label: "手绘插画", count: "9.4万图片" },
+    { icon: "flower", label: "春日少女系", count: "12.3万图片" },
+    { icon: "home", label: "ins风家居", count: "8.9万图片" },
+    { icon: "bowl", label: "美食探店", count: "6.7万图片" },
+    { icon: "plane", label: "旅行日记", count: "15.2万图片" },
+    { icon: "palette", label: "手绘插画", count: "9.4万图片" },
   ];
   return (
     <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
       <h3 className="font-bold text-gray-800 text-sm mb-3 flex items-center gap-1">
-        <span>🔥</span> 热门话题
+        <Icon name="fire" className="w-4 h-4 text-[#e05d6f]" /> 热门话题
       </h3>
       <div className="space-y-2">
         {topics.map(t => (
@@ -93,7 +95,7 @@ function SideTopics({ onTopicClick }: { onTopicClick: (label: string) => void })
             onClick={() => onTopicClick(topicNavMap[t.label] ?? "推荐")}
             className="w-full flex items-center gap-3 p-2 rounded-xl hover:bg-[#fde8eb] group transition-colors text-left"
           >
-            <span className="text-xl">{t.icon}</span>
+            <Icon name={t.icon} className="w-5 h-5 text-gray-500 group-hover:text-[#e05d6f] shrink-0" />
             <div>
               <p className="text-sm font-medium text-gray-700 group-hover:text-[#e05d6f]">{t.label}</p>
               <p className="text-xs text-gray-400">{t.count}</p>
@@ -274,7 +276,7 @@ export default function HomePage({
             <MasonrySkeleton />
           ) : isFollowFeed && allCards.length === 0 && feedEmptyReason === "not_logged_in" ? (
             <div className="flex flex-col items-center justify-center py-24 gap-4">
-              <div className="text-6xl">🔒</div>
+              <Icon name="lock" className="w-14 h-14 text-gray-300" />
               <p className="text-gray-400 text-base">登录后即可查看关注内容</p>
               <button
                 onClick={() => setShowLogin(true)}
@@ -285,20 +287,21 @@ export default function HomePage({
             </div>
           ) : isFollowFeed && allCards.length === 0 && feedEmptyReason === "no_following" ? (
             <div className="flex flex-col items-center justify-center py-24 gap-4">
-              <div className="text-6xl">🫶</div>
+              <Icon name="hand" className="w-14 h-14 text-gray-300" />
               <p className="text-gray-400 text-base">还没有关注任何人，关注 TA 们的更新会出现在这里</p>
               <div className="flex gap-3">
                 <button
                   onClick={() => onNavChange("推荐")}
-                  className="bg-[#e05d6f] text-white text-sm font-bold px-6 py-2.5 rounded-full hover:bg-[#c94d5e] transition-colors"
+                  className="bg-[#e05d6f] text-white text-sm font-bold px-6 py-2.5 rounded-full hover:bg-[#c94d5e] transition-colors flex items-center gap-1.5"
                 >
-                  去首页逛逛 →
+                  去首页逛逛
+                  <Icon name="arrowRight" className="w-4 h-4" />
                 </button>
               </div>
             </div>
           ) : allCards.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-24 gap-4">
-              <div className="text-6xl">🌸</div>
+              <Icon name="flower" className="w-14 h-14 text-gray-300" />
               <p className="text-gray-400 text-base">暂时没有找到相关内容～</p>
               <button
                 onClick={() => { onSearchChange(""); onNavChange("推荐"); }}
@@ -314,7 +317,9 @@ export default function HomePage({
                 <LoadMoreButton onClick={handleLoadMore} loading={loadingMore} />
               )}
               {!hasMore && allCards.length > 0 && (
-                <p className="text-center text-gray-300 text-sm pb-10 pt-4">— 已经到底啦 🌸 —</p>
+                <p className="text-center text-gray-300 text-sm pb-10 pt-4 flex items-center justify-center gap-1.5">
+                  — 已经到底啦 <Icon name="flower" className="w-4 h-4 inline" /> —
+                </p>
               )}
             </>
           )}
@@ -324,7 +329,9 @@ export default function HomePage({
           <div className="sticky top-28 space-y-4">
             <SideTopics onTopicClick={onNavChange} />
             <div className="bg-gradient-to-br from-[#e05d6f] to-[#f0a0a8] rounded-2xl p-4 text-white shadow-md">
-              <h3 className="font-bold text-sm mb-1">📱 下载堆糖App</h3>
+              <h3 className="font-bold text-sm mb-1 flex items-center gap-1.5">
+                <Icon name="phone" className="w-4 h-4" /> 下载堆糖App
+              </h3>
               <p className="text-xs text-white/80 mb-3">随时随地收集你喜欢的图片</p>
               <button className="w-full bg-white text-[#e05d6f] font-bold text-xs py-2 rounded-full hover:shadow-md transition-shadow">
                 立即下载

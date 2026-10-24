@@ -219,7 +219,7 @@ export default function AiImageGenModal({ open, onClose, onConfirm }: Props) {
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                 </svg>
-                ✨ 开始生成
+                开始生成
               </span>
             )}
           </button>
@@ -294,7 +294,14 @@ export default function AiImageGenModal({ open, onClose, onConfirm }: Props) {
                         </svg>
                         保存中...
                       </span>
-                    ) : "✅ 使用此图片"}
+                    ) : (
+                      <span className="flex items-center justify-center gap-1.5">
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                        使用此图片
+                      </span>
+                    )}
                   </button>
                 </div>
               )}
@@ -303,7 +310,12 @@ export default function AiImageGenModal({ open, onClose, onConfirm }: Props) {
 
           {/* Tips */}
           <div className="bg-gradient-to-r from-violet-50 to-pink-50 rounded-2xl p-4 text-xs text-violet-600 border border-violet-100">
-            <p className="font-semibold mb-1.5">💡 创作小技巧</p>
+            <p className="font-semibold mb-1.5 flex items-center gap-1">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 18h6M10 22h4M12 2a7 7 0 00-4 12.74V17a2 2 0 002 2h4a2 2 0 002-2v-2.26A7 7 0 0012 2z" />
+              </svg>
+              创作小技巧
+            </p>
             <ul className="space-y-1 text-violet-500">
               <li>• 描述越具体，效果越好：场景、色调、光线、情绪</li>
               <li>• 可以加入风格参考：例如"宫崎骏风格"、"赛博朋克"</li>

@@ -4,6 +4,7 @@ import { api } from "../api";
 import { useAuth } from "../context/AuthContext";
 import { cn } from "../utils/cn";
 import { formatRelativeTime } from "../utils/formatTime";
+import { Icon, IconBadge } from "./Icons";
 
 interface Notice {
   id: number;
@@ -28,14 +29,14 @@ const TYPE_TEXT: Record<string, string> = {
   follow: "关注了你",
 };
 
-const TYPE_ICON: Record<string, { emoji: string; className: string }> = {
-  like: { emoji: "❤️", className: "bg-rose-50 text-rose-500" },
-  collect: { emoji: "📌", className: "bg-amber-50 text-amber-600" },
-  comment: { emoji: "💬", className: "bg-sky-50 text-sky-600" },
-  comment_like: { emoji: "👍", className: "bg-indigo-50 text-indigo-600" },
-  reply: { emoji: "↩️", className: "bg-teal-50 text-teal-600" },
-  mention: { emoji: "🔔", className: "bg-pink-50 text-pink-600" },
-  follow: { emoji: "🫶", className: "bg-pink-50 text-pink-600" },
+const TYPE_ICON: Record<string, { icon: string; className: string }> = {
+  like: { icon: "heart", className: "bg-rose-50 text-rose-500" },
+  collect: { icon: "bookmark", className: "bg-amber-50 text-amber-600" },
+  comment: { icon: "comment", className: "bg-sky-50 text-sky-600" },
+  comment_like: { icon: "thumbsUp", className: "bg-indigo-50 text-indigo-600" },
+  reply: { icon: "reply", className: "bg-teal-50 text-teal-600" },
+  mention: { icon: "bell", className: "bg-pink-50 text-pink-600" },
+  follow: { icon: "hand", className: "bg-pink-50 text-pink-600" },
 };
 
 /** 顶部通知铃铛：未读角标 + 下拉面板 */
@@ -225,12 +226,12 @@ export default function NotificationBell() {
             <div className="py-10 text-center text-sm text-gray-400">加载中...</div>
           ) : items.length === 0 ? (
             <div className="py-12 text-center">
-              <div className="text-4xl mb-2">🔔</div>
+              <Icon name="bell" className="w-10 h-10 mx-auto mb-2 text-gray-300" />
               <p className="text-sm text-gray-400">还没有新消息</p>
             </div>
           ) : (
             items.map(n => {
-              const icon = TYPE_ICON[n.type] || { emoji: "🔔", className: "bg-gray-50 text-gray-500" };
+              const icon = TYPE_ICON[n.type] || { icon: "bell", className: "bg-gray-50 text-gray-500" };
               return (
                 <button
                   key={n.id}
@@ -257,9 +258,7 @@ export default function NotificationBell() {
                   {n.post_cover && n.type !== "follow" && (
                     <img src={n.post_cover} alt="" loading="lazy" className="w-11 h-11 rounded-lg object-cover bg-gray-100 shrink-0" />
                   )}
-                  <span className={cn("w-6 h-6 rounded-full flex items-center justify-center text-xs shrink-0", icon.className)}>
-                    {icon.emoji}
-                  </span>
+                  <IconBadge name={icon.icon} className={icon.className} />
                 </button>
               );
             })

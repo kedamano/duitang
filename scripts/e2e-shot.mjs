@@ -122,7 +122,7 @@ async function main() {
     const shotPng = async name => {
       const { data } = await cdp.send("Page.captureScreenshot", { format: "png" });
       await writeFile(join(OUT, name), Buffer.from(data, "base64"));
-      console.log("  📷", name);
+      console.log("  [截图]", name);
     };
 
     // ── 个人主页（登录态）──

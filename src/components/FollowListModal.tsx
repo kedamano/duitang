@@ -4,6 +4,7 @@ import { api } from "../api";
 import { useAuth } from "../context/AuthContext";
 import { useCollection } from "../context/CollectionContext";
 import { cn } from "../utils/cn";
+import { Icon } from "./Icons";
 
 interface FollowUser {
   id: number;
@@ -98,7 +99,7 @@ export default function FollowListModal({
             <div className="py-12 text-center text-sm text-gray-400">加载中...</div>
           ) : users.length === 0 ? (
             <div className="py-14 text-center">
-              <div className="text-4xl mb-2">{mode === "followers" ? "👥" : "🫶"}</div>
+              <Icon name={mode === "followers" ? "users" : "hand"} className="w-10 h-10 mx-auto mb-2 text-gray-300" />
               <p className="text-sm text-gray-400">
                 {mode === "followers" ? "还没有粉丝" : "还没有关注任何人"}
               </p>

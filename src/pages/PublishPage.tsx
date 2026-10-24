@@ -7,6 +7,7 @@ import { api } from "../api";
 import { cn } from "../utils/cn";
 import { labelToBoard, boardOptions } from "../data/images";
 import AiImageGenModal from "../components/AiImageGenModal";
+import { Icon } from "../components/Icons";
 
 /** 与后端 multer 限制保持一致 */
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
@@ -105,7 +106,7 @@ export default function PublishPage() {
     return (
       <div className="min-h-screen bg-[#f8f8f8] flex items-center justify-center">
         <div className="text-center">
-          <div className="text-6xl mb-4">🔒</div>
+          <Icon name="lock" className="w-14 h-14 mx-auto mb-4 text-gray-300" />
           <h2 className="text-xl font-bold text-gray-800 mb-2">请先登录</h2>
           <p className="text-gray-400 text-sm mb-6">登录后才能发布内容哦</p>
           <button onClick={() => setShowLogin(true)} className="bg-[#e05d6f] text-white font-bold text-sm px-8 py-3 rounded-full hover:bg-[#c94d5e] transition-colors">
@@ -278,7 +279,7 @@ export default function PublishPage() {
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
               </svg>
-              ✨ AI 生成图片
+              AI 生成图片
             </button>
           </div>
 
@@ -425,12 +426,14 @@ export default function PublishPage() {
 
         {/* Tips */}
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-sm text-amber-700">
-          <p className="font-semibold mb-2">💡 发布小贴士</p>
+          <p className="font-semibold mb-2 flex items-center gap-1">
+            <Icon name="bulb" className="w-4 h-4" /> 发布小贴士
+          </p>
           <ul className="list-disc list-inside text-amber-600 space-y-1 text-xs">
             <li>上传清晰的图片，封面图会吸引更多糖友关注</li>
             <li>标题简洁有力，描述详细有温度</li>
             <li>选择合适的画板和标签，让更多人发现你的内容</li>
-            <li>使用 ✨ AI 生成图片功能快速创作专属内容！</li>
+            <li>使用 AI 生成图片功能快速创作专属内容！</li>
           </ul>
         </div>
       </div>

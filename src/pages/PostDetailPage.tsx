@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { api } from "../api";
 import { normalizePost } from "../utils/normalizePost";
 import { DetailImage, DetailContent, ShareButton } from "../components/PostDetail";
+import { Icon } from "../components/Icons";
 import type { ImageCard } from "../data/images";
 
 /** 独立详情页：分享链接 /#/pin/<id> 打开后可直达该帖 */
@@ -48,7 +49,7 @@ export default function PostDetailPage() {
   if (status !== "ready" || !card) {
     return (
       <div className="min-h-[70vh] flex flex-col items-center justify-center gap-4">
-        <div className="text-6xl">{status === "error" ? "⚠️" : "🫥"}</div>
+        <Icon name={status === "error" ? "warning" : "face"} className="w-14 h-14 text-gray-300" />
         <p className="text-gray-500 font-medium">
           {status === "error" ? "加载失败，请检查后端服务是否启动" : "这条内容不存在或已被删除"}
         </p>

@@ -7,6 +7,7 @@ import { PostDetailModal } from "../components/PostDetail";
 import { useToast } from "../context/ToastContext";
 import { boardToLabel, categories, type ImageCard } from "../data/images";
 import { cn } from "../utils/cn";
+import { Icon } from "../components/Icons";
 
 const PAGE_SIZE = 20;
 
@@ -71,8 +72,8 @@ export default function BoardPage() {
   return (
     <main className="max-w-screen-xl mx-auto px-4 md:px-6 py-6">
       <div className="mb-5">
-        <button onClick={() => navigate("/")} className="text-sm text-gray-400 hover:text-[#e05d6f] transition-colors">
-          ← 返回首页
+        <button onClick={() => navigate("/")} className="text-sm text-gray-400 hover:text-[#e05d6f] transition-colors flex items-center gap-1">
+          <Icon name="arrowLeft" className="w-4 h-4" /> 返回首页
         </button>
         <h1 className="text-2xl font-extrabold text-gray-800 mt-1">{label}</h1>
         <p className="text-sm text-gray-400 mt-1">
@@ -100,13 +101,13 @@ export default function BoardPage() {
         <MasonrySkeleton />
       ) : cards.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-24 gap-4">
-          <div className="text-6xl">🗂️</div>
+          <Icon name="folder" className="w-14 h-14 text-gray-300" />
           <p className="text-gray-400 text-base">这个画板还没有内容</p>
           <button
             onClick={() => navigate("/")}
-            className="bg-[#e05d6f] text-white text-sm font-bold px-6 py-2.5 rounded-full hover:bg-[#c94d5e] transition-colors"
+            className="bg-[#e05d6f] text-white text-sm font-bold px-6 py-2.5 rounded-full hover:bg-[#c94d5e] transition-colors flex items-center gap-1.5"
           >
-            去首页逛逛 →
+            去首页逛逛 <Icon name="arrowRight" className="w-4 h-4" />
           </button>
         </div>
       ) : (
@@ -123,7 +124,9 @@ export default function BoardPage() {
               </button>
             </div>
           ) : (
-            <p className="text-center text-gray-300 text-sm pb-10 pt-4">— 已经到底啦 🌸 —</p>
+            <p className="text-center text-gray-300 text-sm pb-10 pt-4 flex items-center justify-center gap-1.5">
+              — 已经到底啦 <Icon name="flower" className="w-4 h-4 inline" /> —
+            </p>
           )}
         </>
       )}
