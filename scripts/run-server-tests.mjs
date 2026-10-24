@@ -33,7 +33,22 @@ let passed = 0;
 let failed = 0;
 const failures = [];
 
+/**
+ * 删除旧的测试库，保证每次运行都是干净环境。
+ * 各测试文件的 DB_PATH 命名不完全等于文件名，这里按文件里声明的实际路径清理。
+ */
+function cleanTestDb(file) {
+  const src = fs.readFileSync(path.join(testDir, file), "utf8");
+  const m = src.match(/DB_PATH\s*=\s*(?:path\.join\(__dirname,\s*|require\('path'\)\.join\(__dirname,\s*)'([^']+)'/);
+  const dbName = m ? m[1] : file.replace(/\.test\.js$/, ".sqlite");
+  const base = path.join(testDir, dbName);
+  for (const suffix of ["", "-shm", "-wal"]) {
+    try { fs.unlinkSync(base + suffix); } catch { /* 不存在则忽略 */ }
+  }
+}
+
 for (const file of files) {
+  cleanTestDb(file);
   const started = Date.now();
   const res = spawnSync(
     isWin ? "npx.cmd" : "npx",

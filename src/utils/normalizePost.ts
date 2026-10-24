@@ -35,12 +35,19 @@ function fallbackAvatar(nickname: string): string {
 }
 
 /** 由变体数组拼出 srcset：每项 `url widthw`，宽度为 0 时忽略 */
-function buildSrcset(variants: { url: string; width: number }[]): string {
+function buildSrcset(variants: { url: string; width: number; sign?: string | null }[]): string {
   return variants
     .filter(v => typeof v.url === "string" && v.url && v.width > 0)
     .sort((a, b) => a.width - b.width)
-    .map(v => `${v.url} ${v.width}w`)
+    .map(v => `${withSign(v.url, v.sign)} ${v.width}w`)
     .join(", ");
+}
+
+/** 拼防盗链签名：/uploads/x.jpg + sign → /uploads/x.jpg?sign=xxx */
+export function withSign(url: string, sign?: string | null): string {
+  if (!url || !sign) return url;
+  if (!url.startsWith("/uploads/")) return url;
+  return `${url}?sign=${encodeURIComponent(sign)}`;
 }
 
 /**
@@ -53,22 +60,33 @@ export function normalizePost(p: any): ImageCard {
   const tags = parseJsonArray<string>(p.tags);
   const sizes = parseJsonArray<PostSize>(p.sizes);
   const variants = parseJsonArray<{ url: string; width: number }[]>(p.images_variants);
+  const imageSigns = parseJsonArray<string | null>(p.image_signs);
+  const variantSigns = parseJsonArray<{ url: string; width: number; sign?: string | null }[]>(p.variant_signs);
   const { w: width, h: height } = readSize(sizes[0]);
   const author = p.author_nickname || "匿名";
 
   // 变体缺失时，用"原图 + 缩略图"兜底，保证 srcset 仍有意义
-  const finalVariants = variants.length === images.length
+  const rawFinal = variants.length === images.length
     ? variants
     : images.map((img, i) => [{ url: thumbs[i] || img, width: thumbs[i] && thumbs[i] !== img ? 400 : 0 }, { url: img, width }]);
+
+  // 附加服务端下发的防盗链签名
+  const finalVariants = rawFinal.map((list, i) => {
+    const signs = variantSigns[i] || [];
+    return list.map((v, j) => ({ ...v, sign: signs[j]?.sign ?? null }));
+  });
+
   const firstVariants = finalVariants[0] || [];
   const srcset = buildSrcset(firstVariants);
+  const signedImages = images.map((img, i) => withSign(img, imageSigns[i] ?? null));
+  const signedThumbs = thumbs.map((t, i) => withSign(t, imageSigns[i] ?? null));
 
   return {
     id: p.id,
-    src: images[0] || "",
-    images,
-    thumbs,
-    thumb: thumbs[0] || images[0] || "",
+    src: signedImages[0] || "",
+    images: signedImages,
+    thumbs: signedThumbs,
+    thumb: signedThumbs[0] || signedImages[0] || "",
     variants: finalVariants,
     srcset: srcset || undefined,
     title: p.title ?? "",

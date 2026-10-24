@@ -1,3 +1,8 @@
+import type {
+  Album, AlbumDetail, AlbumList, AuthResult, CommentList, NotificationList,
+  NotifyPrefs, Post, PostList, Report, Trending, UploadResult, User, UserBrief, UserStats,
+} from "../types/api";
+
 const API_BASE = '/api';
 
 /** 登录态失效时派发的全局事件，由 AuthContext 监听并弹出登录框 */
@@ -55,10 +60,10 @@ function pageQuery(params?: { page?: number; limit?: number }): string {
 export const api = {
   // ─── Auth ───
   register: (data: { username: string; nickname?: string; password: string }) =>
-    request<{ token: string; user: any }>('/auth/register', { method: 'POST', body: JSON.stringify(data) }),
+    request<AuthResult>('/auth/register', { method: 'POST', body: JSON.stringify(data) }),
   login: (data: { username: string; password: string }) =>
-    request<{ token: string; user: any }>('/auth/login', { method: 'POST', body: JSON.stringify(data) }),
-  me: () => request<{ user: any; stats: any }>('/auth/me'),
+    request<AuthResult>('/auth/login', { method: 'POST', body: JSON.stringify(data) }),
+  me: () => request<{ user: User; stats: UserStats }>('/auth/me'),
 
   // ─── Posts ───
   getPosts: (params?: { page?: number; limit?: number; board?: string; user_id?: number; q?: string; tag?: string }) => {
@@ -69,9 +74,9 @@ export const api = {
     if (params?.user_id) qs.set('user_id', String(params.user_id));
     if (params?.q) qs.set('q', params.q);
     if (params?.tag) qs.set('tag', params.tag);
-    return request<{ posts: any[]; total: number; page: number; limit: number }>(`/posts?${qs}`);
+    return request<PostList>(`/posts?${qs}`);
   },
-  getPost: (id: number) => request<{ post: any }>(`/posts/${id}`),
+  getPost: (id: number) => request<{ post: Post }>(`/posts/${id}`),
   createPost: (data: {
     title: string;
     description: string;
@@ -84,34 +89,28 @@ export const api = {
     thumbs?: string[];
     /** 与 images 一一对应的尺寸变体（每项按宽度升序），用于响应式加载 */
     variants?: { url: string; width: number }[][];
-  }) => request<{ post: any }>('/posts', { method: 'POST', body: JSON.stringify(data) }),
+  }) => request<{ post: Post }>('/posts', { method: 'POST', body: JSON.stringify(data) }),
   /** 编辑帖子（仅作者本人；只传要改的字段） */
   updatePost: (id: number, data: { title?: string; description?: string; board?: string; tags?: string[] }) =>
-    request<{ post: any }>(`/posts/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    request<{ post: Post }>(`/posts/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deletePost: (id: number) => request(`/posts/${id}`, { method: 'DELETE' }),
 
   // ─── Tags ───
   getTags: (limit = 30) => request<{ tags: { tag: string; count: number }[] }>(`/tags?limit=${limit}`),
 
   /** 首页聚合：热搜 / 热门话题 / 热门作者 / 新人 */
-  getTrending: () =>
-    request<{
-      searches: { tag: string; count: number }[];
-      tags: { tag: string; count: number }[];
-      authors: any[];
-      new_users: any[];
-    }>('/trending'),
+  getTrending: () => request<Trending>('/trending'),
 
   // ─── Notifications ───
   getNotifications: (params?: { page?: number; limit?: number }) => {
     const qs = new URLSearchParams();
     if (params?.page) qs.set('page', String(params.page));
     if (params?.limit) qs.set('limit', String(params.limit));
-    return request<{ notifications: any[]; total: number; unread: number; page: number; limit: number }>(`/notifications?${qs}`);
+    return request<NotificationList>(`/notifications?${qs}`);
   },
   /** SSE 实时通知流地址（EventSource 不能自定义请求头，token 走 query） */
   notificationStreamUrl: (token: string) => `${API_BASE}/notifications/stream?token=${encodeURIComponent(token)}`,
-  getNotifyPrefs: () => request<{ prefs: Record<string, boolean | "followers">; types: string[] }>('/users/me/notify-prefs'),
+  getNotifyPrefs: () => request<NotifyPrefs>('/users/me/notify-prefs'),
   updateNotifyPrefs: (prefs: Record<string, boolean | "followers">) =>
     request<{ prefs: Record<string, boolean | "followers"> }>('/users/me/notify-prefs', { method: 'PATCH', body: JSON.stringify({ prefs }) }),
   getUnreadCount: () => request<{ count: number }>('/notifications/unread'),
@@ -133,22 +132,20 @@ export const api = {
   myBlocks: () => request<{ ids: number[] }>('/my/blocks'),
   /** 管理员：举报队列 */
   adminReports: (status: "pending" | "resolved" | "rejected" = "pending") =>
-    request<{ reports: any[]; total: number }>(`/admin/reports?status=${status}`),
+    request<{ reports: Report[]; total: number }>(`/admin/reports?status=${status}`),
   /** 管理员：处理举报 */
   resolveReport: (id: number, action: "delete" | "reject") =>
     request<{ ok: boolean }>(`/admin/reports/${id}/resolve`, { method: 'POST', body: JSON.stringify({ action }) }),
 
   // ─── Albums ───
   getUserAlbums: (userId: number, params?: { page?: number; limit?: number }) =>
-    request<{ albums: any[]; total: number; page: number; limit: number }>(`/users/${userId}/albums?${pageQuery(params)}`),
+    request<AlbumList>(`/users/${userId}/albums?${pageQuery(params)}`),
   getAlbum: (id: number, params?: { page?: number; limit?: number }) =>
-    request<{ album: any; owner: any; posts: any[]; total: number; page: number; limit: number; owned_by_me: boolean }>(
-      `/albums/${id}?${pageQuery(params)}`,
-    ),
+    request<AlbumDetail>(`/albums/${id}?${pageQuery(params)}`),
   createAlbum: (data: { title: string; description?: string; is_public?: boolean }) =>
-    request<{ album: any }>('/albums', { method: 'POST', body: JSON.stringify(data) }),
+    request<{ album: Album }>('/albums', { method: 'POST', body: JSON.stringify(data) }),
   updateAlbum: (id: number, data: { title?: string; description?: string; is_public?: boolean }) =>
-    request<{ album: any }>(`/albums/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    request<{ album: Album }>(`/albums/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteAlbum: (id: number) => request<{ ok: boolean }>(`/albums/${id}`, { method: 'DELETE' }),
   addPostToAlbum: (albumId: number, postId: number) =>
     request<{ ok: boolean; count: number }>(`/albums/${albumId}/posts`, {
@@ -157,7 +154,7 @@ export const api = {
     }),
   removePostFromAlbum: (albumId: number, postId: number) =>
     request<{ ok: boolean; count: number }>(`/albums/${albumId}/posts/${postId}`, { method: 'DELETE' }),
-  myAlbums: () => request<{ albums: any[] }>('/my/albums'),
+  myAlbums: () => request<{ albums: Album[] }>('/my/albums'),
 
   // ─── Drafts ───
   getMyDraft: () => request<{ draft: any | null; updated_at?: string }>('/my/draft'),
@@ -167,9 +164,13 @@ export const api = {
 
   // ─── Follow lists ───
   getFollowers: (userId: number, params?: { page?: number; limit?: number }) =>
-    request<{ users: any[]; total: number; page: number; limit: number }>(`/users/${userId}/followers?${pageQuery(params)}`),
+    request<{ users: (UserBrief & { is_following: boolean })[]; total: number; page: number; limit: number }>(
+      `/users/${userId}/followers?${pageQuery(params)}`,
+    ),
   getFollowing: (userId: number, params?: { page?: number; limit?: number }) =>
-    request<{ users: any[]; total: number; page: number; limit: number }>(`/users/${userId}/following?${pageQuery(params)}`),
+    request<{ users: (UserBrief & { is_following: boolean })[]; total: number; page: number; limit: number }>(
+      `/users/${userId}/following?${pageQuery(params)}`,
+    ),
 
   // ─── Likes ───
   likePost: (id: number) => request<{ liked: boolean; count: number }>(`/posts/${id}/like`, { method: 'POST' }),
@@ -187,7 +188,7 @@ export const api = {
     const qs = new URLSearchParams();
     if (params?.page) qs.set('page', String(params.page));
     if (params?.limit) qs.set('limit', String(params.limit));
-    return request<{ comments: any[]; total: number; total_all?: number; page: number; limit: number }>(`/posts/${postId}/comments?${qs}`);
+    return request<CommentList>(`/posts/${postId}/comments?${qs}`);
   },
   addComment: (postId: number, content: string, parentId?: number) =>
     request<{ comment: any }>(`/posts/${postId}/comments`, {
@@ -198,23 +199,20 @@ export const api = {
     const qs = new URLSearchParams();
     if (params?.page) qs.set('page', String(params.page));
     if (params?.limit) qs.set('limit', String(params.limit));
-    return request<{ comments: any[]; total: number; page: number; limit: number }>(`/comments/${commentId}/replies?${qs}`);
+    return request<CommentList>(`/comments/${commentId}/replies?${qs}`);
   },
   deleteComment: (id: number) => request(`/comments/${id}`, { method: 'DELETE' }),
   likeComment: (id: number) => request<{ liked: boolean; count: number }>(`/comments/${id}/like`, { method: 'POST' }),
 
   // ─── Users ───
-  getUserProfile: (id: number) => request<{ user: any; stats: any; is_following: boolean }>(`/users/${id}/profile`),
+  getUserProfile: (id: number) => request<{ user: User; stats: UserStats; is_following: boolean }>(`/users/${id}/profile`),
   followUser: (id: number) => request<{ following: boolean }>(`/users/${id}/follow`, { method: 'POST' }),
-  searchUsers: (q: string) => request<{ users: any[] }>(`/users?q=${encodeURIComponent(q)}`),
+  searchUsers: (q: string) => request<{ users: UserBrief[] }>(`/users?q=${encodeURIComponent(q)}`),
 
   // ─── My ───
-  myCollects: (params?: { page?: number; limit?: number }) =>
-    request<{ posts: any[]; total: number; page: number; limit: number }>(`/my/collects?${pageQuery(params)}`),
-  myLikes: (params?: { page?: number; limit?: number }) =>
-    request<{ posts: any[]; total: number; page: number; limit: number }>(`/my/likes?${pageQuery(params)}`),
-  myPosts: (params?: { page?: number; limit?: number }) =>
-    request<{ posts: any[]; total: number; page: number; limit: number }>(`/my/posts?${pageQuery(params)}`),
+  myCollects: (params?: { page?: number; limit?: number }) => request<PostList>(`/my/collects?${pageQuery(params)}`),
+  myLikes: (params?: { page?: number; limit?: number }) => request<PostList>(`/my/likes?${pageQuery(params)}`),
+  myPosts: (params?: { page?: number; limit?: number }) => request<PostList>(`/my/posts?${pageQuery(params)}`),
 
   // ─── My (continued) ───
   myFollowing: () => request<{ ids: number[] }>('/my/following'),
@@ -228,7 +226,7 @@ export const api = {
     const qs = new URLSearchParams();
     if (params?.page) qs.set('page', String(params.page));
     if (params?.limit) qs.set('limit', String(params.limit));
-    return request<{ posts: any[]; total: number; page: number; limit: number }>(`/feed/following?${qs}`);
+    return request<PostList>(`/feed/following?${qs}`);
   },
 
   // ─── Share ───
@@ -237,13 +235,13 @@ export const api = {
 
   // ─── Self update ───
   updateMe: (data: { nickname?: string; bio?: string; avatar?: string }) =>
-    request<{ user: any }>('/users/me', { method: 'PATCH', body: JSON.stringify(data) }),
+    request<{ user: User }>('/users/me', { method: 'PATCH', body: JSON.stringify(data) }),
 
   // ─── Upload ───
-  /** 上传图片：返回原图、尺寸变体与真实宽高 */
+  /** 上传图片：返回原图、尺寸变体、水印副本与真实宽高 */
   upload: (file: File) => {
     const fd = new FormData();
     fd.append('file', file);
-    return request<{ url: string; thumb?: string; mid?: string; variants?: { url: string; width: number }[]; width?: number; height?: number }>('/upload', { method: 'POST', body: fd });
+    return request<UploadResult>('/upload', { method: 'POST', body: fd });
   },
 };

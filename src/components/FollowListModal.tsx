@@ -5,15 +5,9 @@ import { useAuth } from "../context/AuthContext";
 import { useCollection } from "../context/CollectionContext";
 import { cn } from "../utils/cn";
 import { Icon } from "./Icons";
+import type { UserBrief } from "../types/api";
 
-interface FollowUser {
-  id: number;
-  username: string;
-  nickname: string;
-  avatar: string;
-  bio: string;
-  is_following: boolean;
-}
+type FollowUser = UserBrief & { bio?: string; is_following: boolean };
 
 const PAGE_SIZE = 20;
 

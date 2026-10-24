@@ -3,13 +3,7 @@ import { api } from "../api";
 import { useToast } from "../context/ToastContext";
 import { Icon } from "./Icons";
 import { cn } from "../utils/cn";
-
-interface Album {
-  id: number;
-  title: string;
-  is_public: boolean;
-  post_count: number;
-}
+import type { Album } from "../types/api";
 
 /** 选择专辑弹窗：把当前帖子收进某个专辑，或现场新建一个 */
 export default function AlbumPickerModal({

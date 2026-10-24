@@ -21,7 +21,9 @@
 - **个人主页**：我的发布 / 收集 / 喜欢 / **我的专辑**四个分组（服务端分页 + 加载更多）、编辑资料（头像上传、昵称、简介）、粉丝与关注列表可点击查看、查看他人主页与关注
 - **账号**：用户名密码注册登录，JWT（7 天）持久会话；token 失效时自动登出并引导重新登录
 - **体验**：首屏骨架屏（不再闪现空状态）、搜索防抖 300ms、列表图片懒加载 + **srcset 响应式选档**（400/800/原图）、发布页草稿自动保存与恢复、上传前 10MB 体积预检、评论区按页加载、**热搜来自真实搜索统计**
-- **工程**：`npm run verify` 一键跑完类型检查/前后端单测/构建，附 GitHub Actions 配置；后端测试用 `npm run test:server` **逐文件独立进程**运行（避免共享 sqlite 连接导致的原生崩溃与数据串库）
+- **工程**：`npm run verify` 一键跑完 OpenAPI 生成/类型检查/前后端单测/构建，附 GitHub Actions 配置；后端测试用 `npm run test:server` **逐文件独立进程**运行（避免共享 sqlite 连接导致的原生崩溃与数据串库），每次运行前清理旧测试库
+- **接口契约**：`docs/openapi.json` 由 `node scripts/gen-openapi.mjs` 从路由元数据生成（53 个接口），`src/types/api.ts` 是与之对应的前端共享类型；两者的一致性由 `src/types/api.test.ts` 守护
+- **防盗链与水印**：上传时生成 400/800 两档变体与带站点水印的副本（`_wm.jpg`）；开启 `UPLOAD_HOTLINK_PROTECT=1` 后图片需带 HMAC 签名访问，签名由服务端按文件名实时下发（带过期时间，不入库）
 
 ## 快速开始
 
@@ -58,6 +60,7 @@ server/             后端
   index.js          Express 路由（auth/posts/likes/collects/comments/follows/feed/notifications/tags/trending/albums/reports/blocks/draft/upload）
   database.js       node:sqlite 建表 + 轻量迁移（列补齐、中文 board → 英文 key）
   sensitive-words.js 敏感词表与打码（可用 SENSITIVE_WORDS 覆盖）
+  upload-guard.js   上传防盗链（HMAC 签名 / Referer 校验）与水印生成
   seed-demo.js      演示数据（30 帖 / 5 用户 / 评论 / 关注），仅默认库且空表时执行
   backfill-thumbs.js 为历史上传图片补生成尺寸变体（400/800）并回填 thumbs / images_variants
   uploads/          图片上传目录（magic bytes 校验，仅 JPG/PNG/WebP/GIF）
@@ -66,7 +69,11 @@ scripts/
   e2e-shot.mjs      浏览器端端到端（CDP，截图 + 断言）
   verify-feed.mjs   关注流页面与接口一致性校验
   verify-all.mjs    一键跑全部质量关卡（npm run verify）
+  run-server-tests.mjs  后端测试隔离运行器（逐文件独立进程）
+  gen-openapi.mjs   生成 docs/openapi.json
 .github/workflows/ci.yml  CI 配置（安装依赖 → npm run verify）
+docs/
+  openapi.json      OpenAPI 3.0 规范（自动生成）
 ```
 
 ## 测试与构建
@@ -115,6 +122,5 @@ node scripts/verify-feed.mjs            # 关注流页面与接口一致性校�
 
 - 图片上传后生成更多档位（如 1200/1600）与 WebP/AVIF 格式
 - 评论支持富文本 / 图片 / 表情
-- 上传防盗链与水印
-- OpenAPI 文档 + 前后端共享类型（后端目前是纯 JS）
+- 对象存储 + CDN 替换本地磁盘
 - E2E 脚本按功能拆分（当前为单个大脚本）

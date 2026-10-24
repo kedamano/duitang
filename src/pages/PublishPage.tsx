@@ -9,6 +9,7 @@ import { labelToBoard, boardOptions } from "../data/images";
 import AiImageGenModal from "../components/AiImageGenModal";
 import RichTextEditor from "../components/RichTextEditor";
 import { isRichTextEmpty } from "../utils/richText";
+import type { Album } from "../types/api";
 import { Icon } from "../components/Icons";
 
 /** 与后端 multer 限制保持一致 */
@@ -58,7 +59,7 @@ export default function PublishPage() {
   const [publishing, setPublishing] = useState(false);
   const [showAiGen, setShowAiGen] = useState(false);
   const [dragActive, setDragActive] = useState(false);
-  const [myAlbums, setMyAlbums] = useState<{ id: number; title: string; post_count: number }[]>([]);
+  const [myAlbums, setMyAlbums] = useState<Album[]>([]);
   const [albumId, setAlbumId] = useState<number | null>(null);
   // 拖拽排序时记录源下标
   const [dragIndex, setDragIndex] = useState<number | null>(null);

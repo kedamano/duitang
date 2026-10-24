@@ -11,6 +11,7 @@ const pino = require('pino');
 const pinoHttp = require('pino-http');
 const sanitizeHtml = require('sanitize-html');
 const { maskSensitive } = require('./sensitive-words');
+const { signFile, hotlinkGuard, applyWatermark } = require('./upload-guard');
 
 const db = require('./database');
 
@@ -34,6 +35,8 @@ if (FRONTEND_ORIGIN) {
   app.use(cors({ origin: /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/, credentials: true }));
 }
 app.use(express.json({ limit: '50mb' }));
+// 防盗链中间件放在静态服务之前
+app.use('/uploads', hotlinkGuard);
 app.use('/uploads', express.static(UPLOAD_DIR));
 
 // 基础限流:全局限流 + 认证接口更严
@@ -171,7 +174,8 @@ async function makeVariants(filePath, originalWidth) {
     const out = filePath.replace(ext, `_w${width}.jpg`);
     const img = await Jimp.read(filePath);
     await img.resize(width, Jimp.AUTO).quality(82).writeAsync(out);
-    return { url: `/uploads/${path.basename(out)}`, width };
+    const name = path.basename(out);
+    return { url: `/uploads/${name}`, width, sign: signFile(name) };
   };
   for (const width of VARIANT_WIDTHS) {
     try {
@@ -208,12 +212,29 @@ app.post('/api/upload', authMiddleware, upload.single('file'), async (req, res) 
     req.log?.warn?.({ err: e.message }, '图片尺寸变体生成失败，回落原图');
   }
 
+  // 水印副本（可选）：叠字后的图片另存为 _wm.jpg，原图保持干净
+  let watermarked = null;
+  let watermarkedSign = null;
+  try {
+    const wmFile = await applyWatermark(req.file.path);
+    if (wmFile) {
+      watermarked = `/uploads/${wmFile}`;
+      watermarkedSign = signFile(wmFile);
+    }
+  } catch (e) {
+    req.log?.warn?.({ err: e.message }, '水印生成失败，跳过');
+  }
+
   res.json({
     url,
     // 兼容旧字段：thumb 指向最小档，缺失时回落原图
     thumb: variants.length ? variants[0].url : url,
     mid: variants.length > 1 ? variants[1].url : url,
     variants,
+    watermarked,
+    watermarked_sign: watermarkedSign,
+    // 防盗链签名（前端拼到图片地址上）
+    sign: signFile(req.file.filename),
     width, height,
   });
 });
@@ -240,6 +261,14 @@ function hydratePost(post) {
   try { post.sizes = JSON.parse(post.sizes || '[]'); } catch { post.sizes = []; }
   try { post.thumbs = JSON.parse(post.thumbs || '[]'); } catch { post.thumbs = []; }
   try { post.images_variants = JSON.parse(post.images_variants || '[]'); } catch { post.images_variants = []; }
+  // 动态附加防盗链签名（不入库，按文件名实时计算）
+  const signOf = url => {
+    if (typeof url !== 'string' || !url.startsWith('/uploads/')) return null;
+    return signFile(path.basename(url));
+  };
+  post.image_signs = (post.images || []).map(signOf);
+  post.variant_signs = (post.images_variants || []).map(list =>
+    (list || []).map(v => ({ ...v, sign: signOf(v.url) })));
   return post;
 }
 
@@ -479,7 +508,7 @@ app.post('/api/posts', authMiddleware, (req, res) => {
   const thumbStr = JSON.stringify(
     Array.isArray(thumbs) && thumbs.length === finalImages.length ? thumbs : finalImages
   );
-  // 尺寸变体与 images 一一对应，每项为按宽度升序的 {url,width}；缺失时回落单档
+  // 尺寸变体与 images 一一对应，每项为按宽度升序的 {url,width,sign}；缺失时回落单档
   const variantStr = JSON.stringify(finalImages.map((img, i) => {
     const provided = Array.isArray(variants) ? variants[i] : null;
     if (Array.isArray(provided) && provided.length) {
