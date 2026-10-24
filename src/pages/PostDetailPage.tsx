@@ -78,7 +78,11 @@ export default function PostDetailPage() {
 
       <div className="bg-white rounded-3xl overflow-hidden shadow-sm border border-gray-100 flex flex-col md:flex-row md:min-h-[70vh]">
         <DetailImage card={card} overlay={<ShareButton card={card} />} />
-        <DetailContent card={card} onClose={() => navigate("/")} />
+        <DetailContent
+          card={card}
+          onClose={() => navigate("/")}
+          onCardUpdate={post => setCard(prev => (prev ? { ...prev, ...normalizePost(post) } : prev))}
+        />
       </div>
     </main>
   );

@@ -4,6 +4,7 @@ import { useAuth } from "../context/AuthContext";
 import { cn } from "../utils/cn";
 import { navCategories, hotSearches, FOLLOW_NAV } from "../data/images";
 import { api } from "../api";
+import NotificationBell from "./NotificationBell";
 
 interface SearchUser { id: number; username: string; nickname: string; avatar: string; }
 
@@ -178,6 +179,7 @@ export default function Header({
         <div className="flex items-center gap-2 shrink-0 ml-1">
           {user ? (
             <>
+              <NotificationBell />
               {/* Publish button */}
               <button
                 onClick={handlePublish}

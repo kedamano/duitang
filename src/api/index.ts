@@ -61,13 +61,14 @@ export const api = {
   me: () => request<{ user: any; stats: any }>('/auth/me'),
 
   // ─── Posts ───
-  getPosts: (params?: { page?: number; limit?: number; board?: string; user_id?: number; q?: string }) => {
+  getPosts: (params?: { page?: number; limit?: number; board?: string; user_id?: number; q?: string; tag?: string }) => {
     const qs = new URLSearchParams();
     if (params?.page) qs.set('page', String(params.page));
     if (params?.limit) qs.set('limit', String(params.limit));
     if (params?.board) qs.set('board', params.board);
     if (params?.user_id) qs.set('user_id', String(params.user_id));
     if (params?.q) qs.set('q', params.q);
+    if (params?.tag) qs.set('tag', params.tag);
     return request<{ posts: any[]; total: number; page: number; limit: number }>(`/posts?${qs}`);
   },
   getPost: (id: number) => request<{ post: any }>(`/posts/${id}`),
@@ -80,7 +81,28 @@ export const api = {
     /** 与 images 一一对应的真实宽高，用于瀑布流错落布局 */
     sizes?: { w: number; h: number }[];
   }) => request<{ post: any }>('/posts', { method: 'POST', body: JSON.stringify(data) }),
+  /** 编辑帖子（仅作者本人；只传要改的字段） */
+  updatePost: (id: number, data: { title?: string; description?: string; board?: string; tags?: string[] }) =>
+    request<{ post: any }>(`/posts/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deletePost: (id: number) => request(`/posts/${id}`, { method: 'DELETE' }),
+
+  // ─── Tags ───
+  getTags: (limit = 30) => request<{ tags: { tag: string; count: number }[] }>(`/tags?limit=${limit}`),
+
+  // ─── Notifications ───
+  getNotifications: (params?: { page?: number; limit?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.page) qs.set('page', String(params.page));
+    if (params?.limit) qs.set('limit', String(params.limit));
+    return request<{ notifications: any[]; total: number; unread: number; page: number; limit: number }>(`/notifications?${qs}`);
+  },
+  getUnreadCount: () => request<{ count: number }>('/notifications/unread'),
+  /** 不传 ids 即全部标记已读 */
+  markNotificationsRead: (ids?: number[]) =>
+    request<{ ok: boolean; unread: number }>('/notifications/read', {
+      method: 'POST',
+      body: JSON.stringify(ids ? { ids } : {}),
+    }),
 
   // ─── Likes ───
   likePost: (id: number) => request<{ liked: boolean; count: number }>(`/posts/${id}/like`, { method: 'POST' }),

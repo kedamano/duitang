@@ -61,6 +61,7 @@ interface CollectionContextType {
   getMyCollects: () => Promise<ImageCard[]>;
   getMyLikes: () => Promise<ImageCard[]>;
   addUserPost: (post: any) => void;
+  updateUserPost: (post: any) => void;
   removeUserPost: (postId: number) => void;
 }
 
@@ -254,6 +255,12 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
     setUserPosts(prev => [normalizePost(post), ...prev]);
   }, []);
 
+  /** 编辑保存后同步本地列表，避免回到首页还看到旧标题 */
+  const updateUserPost = useCallback((post: any) => {
+    const updated = normalizePost(post);
+    setUserPosts(prev => prev.map(p => (p.id === updated.id ? { ...p, ...updated } : p)));
+  }, []);
+
   const removeUserPost = useCallback((postId: number) => {
     setUserPosts(prev => prev.filter(p => p.id !== postId));
   }, []);
@@ -267,7 +274,7 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
       getCommentCount, getShareCount,
       toggleLike, toggleCollect, addComment, deleteComment, likeComment, sharePost, deletePost,
       isFollowing, toggleFollow,
-      getUserPosts, getMyCollects, getMyLikes, addUserPost, removeUserPost,
+      getUserPosts, getMyCollects, getMyLikes, addUserPost, updateUserPost, removeUserPost,
     }}>
       {children}
     </CollectionContext.Provider>

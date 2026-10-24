@@ -196,6 +196,35 @@ function optionalUser(req) {
   try { return jwt.verify(token, JWT_SECRET); } catch { return null; }
 }
 
+// ─────────────────────────────────────────────
+// 消息通知
+// ─────────────────────────────────────────────
+/**
+ * 写入一条通知。自己不通知自己。
+ * like/collect/follow/comment_like 这类"可取消"的操作做去重，
+ * 避免反复点赞产生重复消息；评论每条都算独立消息。
+ */
+function addNotification({ userId, actorId, type, postId = 0, commentId = 0 }) {
+  if (!userId || userId === actorId) return;
+  const dedupable = type !== 'comment';
+  if (dedupable) {
+    const existing = db.prepare(
+      'SELECT id FROM notifications WHERE user_id = ? AND actor_id = ? AND type = ? AND post_id = ? AND comment_id = ?'
+    ).get(userId, actorId, type, postId, commentId);
+    if (existing) return;
+  }
+  db.prepare(
+    'INSERT INTO notifications (user_id, actor_id, type, post_id, comment_id) VALUES (?, ?, ?, ?, ?)'
+  ).run(userId, actorId, type, postId, commentId);
+}
+
+/** 取消操作时撤回对应通知 */
+function removeNotification({ userId, actorId, type, postId = 0, commentId = 0 }) {
+  db.prepare(
+    'DELETE FROM notifications WHERE user_id = ? AND actor_id = ? AND type = ? AND post_id = ? AND comment_id = ?'
+  ).run(userId, actorId, type, postId, commentId);
+}
+
 /**
  * 为一批帖子补上当前用户的 is_liked / is_collected。
  * 用两次 IN 查询批量取，避免逐帖 COUNT 造成的 N+1。
@@ -216,7 +245,7 @@ function attachInteractions(posts, req) {
 
 // 帖子列表（分页）
 app.get('/api/posts', (req, res) => {
-  const { board, user_id, q } = req.query;
+  const { board, user_id, q, tag } = req.query;
   const { pageNum, limitNum, offset } = parsePage(req);
   const boardKey = normalizeBoard(board);
 
@@ -232,6 +261,12 @@ app.get('/api/posts', (req, res) => {
     sql += ' AND p.author_id = ?'; countSql += ' AND p.author_id = ?';
     const uid = parseInt(user_id);
     params.push(uid); countParams.push(uid);
+  }
+  if (tag) {
+    // tags 以 JSON 数组字符串存储，带引号匹配可避免 "猫" 命中 "猫咪"
+    sql += ' AND p.tags LIKE ?'; countSql += ' AND p.tags LIKE ?';
+    const kw = `%"${tag}"%`;
+    params.push(kw); countParams.push(kw);
   }
   if (q) {
     // 标题、描述、标签、作者昵称模糊匹配（与前端本地筛选口径保持一致）
@@ -289,6 +324,31 @@ app.post('/api/posts', authMiddleware, (req, res) => {
   res.json({ post });
 });
 
+// 编辑帖子（仅作者本人）
+app.put('/api/posts/:id', authMiddleware, (req, res) => {
+  const postId = parseInt(req.params.id);
+  const post = db.prepare('SELECT * FROM posts WHERE id = ?').get(postId);
+  if (!post) return res.status(404).json({ error: '帖子不存在' });
+  if (post.author_id !== req.user.id) return res.status(403).json({ error: '无权限编辑' });
+
+  const { title, description, board, tags } = req.body;
+  if (title !== undefined && (!title || !title.trim())) return res.status(400).json({ error: '标题不能为空' });
+
+  // 只更新请求里显式给出的字段，未传的保持原值
+  const next = {
+    title: title !== undefined ? title.trim() : post.title,
+    description: description !== undefined ? String(description) : post.description,
+    board: board !== undefined ? normalizeBoard(board) : post.board,
+    tags: tags !== undefined ? JSON.stringify((tags || []).slice(0, 5)) : post.tags,
+  };
+  db.prepare('UPDATE posts SET title = ?, description = ?, board = ?, tags = ? WHERE id = ?')
+    .run(next.title, next.description, next.board, next.tags, postId);
+
+  const updated = db.prepare('SELECT p.*, u.nickname as author_nickname, u.avatar as author_avatar FROM posts p JOIN users u ON p.author_id = u.id WHERE p.id = ?').get(postId);
+  hydratePost(updated);
+  res.json({ post: updated });
+});
+
 // 删除帖子
 app.delete('/api/posts/:id', authMiddleware, (req, res) => {
   const post = db.prepare('SELECT * FROM posts WHERE id = ?').get(req.params.id);
@@ -296,6 +356,8 @@ app.delete('/api/posts/:id', authMiddleware, (req, res) => {
   if (post.author_id !== req.user.id) return res.status(403).json({ error: '无权限删除' });
 
   db.prepare('DELETE FROM posts WHERE id = ?').run(req.params.id);
+  // 帖子没了，相关通知也失去意义
+  db.prepare('DELETE FROM notifications WHERE post_id = ?').run(req.params.id);
   res.json({ ok: true });
 });
 
@@ -305,17 +367,19 @@ app.delete('/api/posts/:id', authMiddleware, (req, res) => {
 app.post('/api/posts/:id/like', authMiddleware, (req, res) => {
   const postId = parseInt(req.params.id);
   const userId = req.user.id;
-  const post = db.prepare('SELECT id, likes_count FROM posts WHERE id = ?').get(postId);
+  const post = db.prepare('SELECT id, author_id, likes_count FROM posts WHERE id = ?').get(postId);
   if (!post) return res.status(404).json({ error: '帖子不存在' });
 
   const existing = db.prepare('SELECT 1 FROM post_likes WHERE user_id = ? AND post_id = ?').get(userId, postId);
   if (existing) {
     db.prepare('DELETE FROM post_likes WHERE user_id = ? AND post_id = ?').run(userId, postId);
     db.prepare('UPDATE posts SET likes_count = likes_count - 1 WHERE id = ?').run(postId);
+    removeNotification({ userId: post.author_id, actorId: userId, type: 'like', postId });
     res.json({ liked: false, count: post.likes_count - 1 });
   } else {
     db.prepare('INSERT INTO post_likes (user_id, post_id) VALUES (?, ?)').run(userId, postId);
     db.prepare('UPDATE posts SET likes_count = likes_count + 1 WHERE id = ?').run(postId);
+    addNotification({ userId: post.author_id, actorId: userId, type: 'like', postId });
     res.json({ liked: true, count: post.likes_count + 1 });
   }
 });
@@ -326,17 +390,19 @@ app.post('/api/posts/:id/like', authMiddleware, (req, res) => {
 app.post('/api/posts/:id/collect', authMiddleware, (req, res) => {
   const postId = parseInt(req.params.id);
   const userId = req.user.id;
-  const post = db.prepare('SELECT id, collects_count FROM posts WHERE id = ?').get(postId);
+  const post = db.prepare('SELECT id, author_id, collects_count FROM posts WHERE id = ?').get(postId);
   if (!post) return res.status(404).json({ error: '帖子不存在' });
 
   const existing = db.prepare('SELECT 1 FROM post_collects WHERE user_id = ? AND post_id = ?').get(userId, postId);
   if (existing) {
     db.prepare('DELETE FROM post_collects WHERE user_id = ? AND post_id = ?').run(userId, postId);
     db.prepare('UPDATE posts SET collects_count = collects_count - 1 WHERE id = ?').run(postId);
+    removeNotification({ userId: post.author_id, actorId: userId, type: 'collect', postId });
     res.json({ collected: false, count: post.collects_count - 1 });
   } else {
     db.prepare('INSERT INTO post_collects (user_id, post_id) VALUES (?, ?)').run(userId, postId);
     db.prepare('UPDATE posts SET collects_count = collects_count + 1 WHERE id = ?').run(postId);
+    addNotification({ userId: post.author_id, actorId: userId, type: 'collect', postId });
     res.json({ collected: true, count: post.collects_count + 1 });
   }
 });
@@ -373,11 +439,15 @@ app.post('/api/posts/:id/comments', authMiddleware, (req, res) => {
   const { content } = req.body;
   if (!content || !content.trim()) return res.status(400).json({ error: '内容不能为空' });
 
-  const post = db.prepare('SELECT id FROM posts WHERE id = ?').get(postId);
+  const post = db.prepare('SELECT id, author_id FROM posts WHERE id = ?').get(postId);
   if (!post) return res.status(404).json({ error: '帖子不存在' });
 
   const info = db.prepare('INSERT INTO comments (post_id, author_id, content) VALUES (?, ?, ?)').run(postId, req.user.id, content.trim());
   db.prepare('UPDATE posts SET comments_count = comments_count + 1 WHERE id = ?').run(postId);
+  addNotification({
+    userId: post.author_id, actorId: req.user.id, type: 'comment',
+    postId, commentId: Number(info.lastInsertRowid),
+  });
 
   const comment = db.prepare('SELECT c.*, u.nickname as author_nickname, u.avatar as author_avatar FROM comments c JOIN users u ON c.author_id = u.id WHERE c.id = ?').get(info.lastInsertRowid);
   comment.is_liked = false;
@@ -392,6 +462,8 @@ app.delete('/api/comments/:id', authMiddleware, (req, res) => {
 
   db.prepare('DELETE FROM comments WHERE id = ?').run(comment.id);
   db.prepare('UPDATE posts SET comments_count = comments_count - 1 WHERE id = ?').run(comment.post_id);
+  // 评论被删除后，对应的通知也一并撤回
+  db.prepare('DELETE FROM notifications WHERE comment_id = ?').run(comment.id);
   res.json({ ok: true });
 });
 
@@ -399,17 +471,25 @@ app.delete('/api/comments/:id', authMiddleware, (req, res) => {
 app.post('/api/comments/:id/like', authMiddleware, (req, res) => {
   const commentId = parseInt(req.params.id);
   const userId = req.user.id;
-  const comment = db.prepare('SELECT id, likes_count FROM comments WHERE id = ?').get(commentId);
+  const comment = db.prepare('SELECT id, author_id, post_id, likes_count FROM comments WHERE id = ?').get(commentId);
   if (!comment) return res.status(404).json({ error: '评论不存在' });
 
   const existing = db.prepare('SELECT 1 FROM comment_likes WHERE user_id = ? AND comment_id = ?').get(userId, commentId);
   if (existing) {
     db.prepare('DELETE FROM comment_likes WHERE user_id = ? AND comment_id = ?').run(userId, commentId);
     db.prepare('UPDATE comments SET likes_count = likes_count - 1 WHERE id = ?').run(commentId);
+    removeNotification({
+      userId: comment.author_id, actorId: userId, type: 'comment_like',
+      postId: comment.post_id, commentId,
+    });
     res.json({ liked: false, count: comment.likes_count - 1 });
   } else {
     db.prepare('INSERT INTO comment_likes (user_id, comment_id) VALUES (?, ?)').run(userId, commentId);
     db.prepare('UPDATE comments SET likes_count = likes_count + 1 WHERE id = ?').run(commentId);
+    addNotification({
+      userId: comment.author_id, actorId: userId, type: 'comment_like',
+      postId: comment.post_id, commentId,
+    });
     res.json({ liked: true, count: comment.likes_count + 1 });
   }
 });
@@ -424,9 +504,11 @@ app.post('/api/users/:id/follow', authMiddleware, (req, res) => {
   const existing = db.prepare('SELECT 1 FROM user_follows WHERE follower_id = ? AND following_id = ?').get(req.user.id, targetId);
   if (existing) {
     db.prepare('DELETE FROM user_follows WHERE follower_id = ? AND following_id = ?').run(req.user.id, targetId);
+    removeNotification({ userId: targetId, actorId: req.user.id, type: 'follow' });
     res.json({ following: false });
   } else {
     db.prepare('INSERT INTO user_follows (follower_id, following_id) VALUES (?, ?)').run(req.user.id, targetId);
+    addNotification({ userId: targetId, actorId: req.user.id, type: 'follow' });
     res.json({ following: true });
   }
 });
@@ -451,6 +533,92 @@ app.get('/api/users/:id/profile', (req, res) => {
   }
 
   res.json({ user: publicUser(user), stats: { followers, following, collects, posts }, is_following });
+});
+
+// ─────────────────────────────────────────────
+// 标签聚合
+// ─────────────────────────────────────────────
+
+/** 热门标签（按帖子数倒序）；tags 存的是 JSON 数组字符串，这里聚合去重 */
+app.get('/api/tags', (req, res) => {
+  const limit = Math.min(200, Math.max(1, parseInt(req.query.limit) || 30));
+  const rows = db.prepare('SELECT tags FROM posts').all();
+  const counter = new Map();
+  for (const row of rows) {
+    let arr = [];
+    try { arr = JSON.parse(row.tags || '[]'); } catch { arr = []; }
+    if (!Array.isArray(arr)) continue;
+    for (const raw of new Set(arr.map(t => String(t).trim()).filter(Boolean))) {
+      counter.set(raw, (counter.get(raw) || 0) + 1);
+    }
+  }
+  const tags = [...counter.entries()]
+    .map(([tag, count]) => ({ tag, count }))
+    .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag, 'zh'))
+    .slice(0, limit);
+  res.json({ tags });
+});
+
+// ─────────────────────────────────────────────
+// 消息通知
+// ─────────────────────────────────────────────
+
+/** 通知列表（含触发者信息与关联帖子封面） */
+app.get('/api/notifications', authMiddleware, (req, res) => {
+  const { pageNum, limitNum, offset } = parsePage(req);
+  const rows = db.prepare(`
+    SELECT n.*, u.nickname as actor_nickname, u.avatar as actor_avatar,
+           p.title as post_title, p.images as post_images,
+           c.content as comment_content
+    FROM notifications n
+    JOIN users u ON n.actor_id = u.id
+    LEFT JOIN posts p ON n.post_id = p.id
+    LEFT JOIN comments c ON n.comment_id = c.id
+    WHERE n.user_id = ?
+    ORDER BY n.created_at DESC, n.id DESC
+    LIMIT ? OFFSET ?
+  `).all(req.user.id, limitNum, offset);
+
+  const notifications = rows.map(r => {
+    let cover = '';
+    try { cover = JSON.parse(r.post_images || '[]')[0] || ''; } catch { cover = ''; }
+    return {
+      id: r.id,
+      type: r.type,
+      is_read: !!r.is_read,
+      created_at: r.created_at,
+      post_id: r.post_id || null,
+      comment_id: r.comment_id || null,
+      actor: { id: r.actor_id, nickname: r.actor_nickname, avatar: r.actor_avatar },
+      post_title: r.post_title || '',
+      post_cover: cover,
+      comment_excerpt: (r.comment_content || '').slice(0, 80),
+    };
+  });
+
+  const total = db.prepare('SELECT COUNT(*) as count FROM notifications WHERE user_id = ?').get(req.user.id).count;
+  const unread = db.prepare('SELECT COUNT(*) as count FROM notifications WHERE user_id = ? AND is_read = 0').get(req.user.id).count;
+  res.json({ notifications, total, unread, page: pageNum, limit: limitNum });
+});
+
+/** 未读数量（Header 角标轮询用，体积极小） */
+app.get('/api/notifications/unread', authMiddleware, (req, res) => {
+  const count = db.prepare('SELECT COUNT(*) as count FROM notifications WHERE user_id = ? AND is_read = 0').get(req.user.id).count;
+  res.json({ count });
+});
+
+/** 标记已读：不传 ids 则全部标记 */
+app.post('/api/notifications/read', authMiddleware, (req, res) => {
+  const { ids } = req.body || {};
+  if (Array.isArray(ids) && ids.length) {
+    const ph = ids.map(() => '?').join(',');
+    db.prepare(`UPDATE notifications SET is_read = 1 WHERE user_id = ? AND id IN (${ph})`)
+      .run(req.user.id, ...ids.map(Number));
+  } else {
+    db.prepare('UPDATE notifications SET is_read = 1 WHERE user_id = ? AND is_read = 0').run(req.user.id);
+  }
+  const unread = db.prepare('SELECT COUNT(*) as count FROM notifications WHERE user_id = ? AND is_read = 0').get(req.user.id).count;
+  res.json({ ok: true, unread });
 });
 
 // 我的收藏（分页，默认 100 条以便个人主页一次展示）

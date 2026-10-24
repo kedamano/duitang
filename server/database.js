@@ -103,6 +103,22 @@ db.exec(`
   );
 `);
 
+// 消息通知表（user_id 为接收者，actor_id 为触发者）
+db.exec(`
+  CREATE TABLE IF NOT EXISTS notifications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    actor_id INTEGER NOT NULL,
+    type TEXT NOT NULL,
+    post_id INTEGER NOT NULL DEFAULT 0,
+    comment_id INTEGER NOT NULL DEFAULT 0,
+    is_read INTEGER NOT NULL DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (actor_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+`);
+
 // 创建索引
 db.exec(`
   CREATE INDEX IF NOT EXISTS idx_posts_author ON posts(author_id);
@@ -111,6 +127,8 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_post_likes_user ON post_likes(user_id);
   CREATE INDEX IF NOT EXISTS idx_post_collects_user ON post_collects(user_id);
   CREATE INDEX IF NOT EXISTS idx_user_follows_follower ON user_follows(follower_id);
+  CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_notifications_unread ON notifications(user_id, is_read);
 `);
 
 // 轻量迁移：为旧库补齐后加的列

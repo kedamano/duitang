@@ -303,6 +303,149 @@ async function main() {
     check("收集页渲染比例与接口 sizes 一致", matched, `预期=${rc.expected.join(",") || "无"} 实际=${rc.pads.join(",") || "无"}`);
     await shotPng("profile-collects.png");
 
+    // ── 标签聚合页 ──
+    await open("#/tag/" + encodeURIComponent("汉服"));
+    let tagReady = false;
+    for (let i = 0; i < 15 && !tagReady; i++) {
+      await sleep(1000);
+      tagReady = (await cdp.eval(`document.querySelectorAll('main .break-inside-avoid').length`)) > 0;
+    }
+    const tagInfo = JSON.parse(await cdp.eval(`(() => {
+      const h1 = document.querySelector('main h1');
+      return JSON.stringify({
+        heading: h1 ? h1.textContent.trim() : '',
+        cards: document.querySelectorAll('main .break-inside-avoid').length,
+        hasTagChip: !!document.querySelector('[data-testid="related-tags"]'),
+      });
+    })()`));
+    check("标签页展示标签名与结果卡片", tagInfo.heading.includes("汉服") && tagInfo.cards > 0, JSON.stringify(tagInfo));
+    check("标签页展示相关标签", tagInfo.hasTagChip);
+    await shotPng("tag-page.png");
+
+    // 点击卡片上的标签能跳转到标签页
+    await open("#/tag/" + encodeURIComponent("壁纸"));
+    let tag2Ready = false;
+    for (let i = 0; i < 15 && !tag2Ready; i++) {
+      await sleep(1000);
+      tag2Ready = (await cdp.eval(`document.querySelectorAll('main .break-inside-avoid').length`)) > 0;
+    }
+    const tagNavOk = await cdp.eval(`(() => {
+      const card = document.querySelector('main .break-inside-avoid');
+      if (!card) return 'no-card';
+      const tagBtn = [...card.querySelectorAll('button')].find(b => b.textContent.trim().startsWith('#'));
+      if (!tagBtn) return 'no-tag-button';
+      tagBtn.click();
+      return 'clicked';
+    })()`);
+    await sleep(2000);
+    const tagAfter = await cdp.eval(`(() => { const h1 = document.querySelector('main h1'); return h1 ? h1.textContent.trim() : ''; })()`);
+    check("卡片标签可点击跳转标签页", tagNavOk === "clicked" && tagAfter.startsWith("#"), `${tagNavOk} → ${tagAfter}`);
+
+    // ── 帖子编辑 ──
+    await open("#/pin/" + ownPostId);
+    let editReady = false;
+    for (let i = 0; i < 15 && !editReady; i++) {
+      await sleep(1000);
+      editReady = await cdp.eval(`!!([...document.querySelectorAll('button')].find(b => b.textContent.trim() === '编辑'))`);
+    }
+    check("自己帖子详情有编辑入口", editReady);
+
+    const originalTitle = await cdp.eval(`(() => {
+      const h = [...document.querySelectorAll('h2')].map(e => e.textContent.trim()).filter(Boolean);
+      return h[0] || '';
+    })()`);
+
+    await cdp.eval(`[...document.querySelectorAll('button')].find(b => b.textContent.trim() === '编辑').click()`);
+    await sleep(700);
+    const hasForm = await cdp.eval(`!!document.querySelector('#edit-title')`);
+    check("编辑弹窗带预填内容", hasForm && (await cdp.eval(`document.querySelector('#edit-title').value`)) === originalTitle,
+      "预填=" + (await cdp.eval(`document.querySelector('#edit-title')?.value || ''`)));
+
+    const newTitle = originalTitle + "·改";
+    await cdp.eval(`(() => {
+      const i = document.querySelector('#edit-title');
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+      setter.call(i, ${JSON.stringify(newTitle)});
+      i.dispatchEvent(new Event('input', { bubbles: true }));
+    })()`);
+    await sleep(300);
+    await shotPng("edit-post-modal.png");
+    await cdp.eval(`[...document.querySelectorAll('button')].find(b => b.textContent.trim() === '保存').click()`);
+
+    let edited = false;
+    for (let i = 0; i < 12 && !edited; i++) {
+      await sleep(800);
+      text = await cdp.eval("document.body.innerText");
+      edited = text.includes(newTitle);
+    }
+    check("保存后详情页标题立即更新", edited, newTitle);
+
+    // 持久化校验（重新打开页面）
+    await open("#/pin/" + ownPostId);
+    let persisted = false;
+    for (let i = 0; i < 12 && !persisted; i++) {
+      await sleep(800);
+      text = await cdp.eval("document.body.innerText");
+      persisted = text.includes(newTitle);
+    }
+    check("刷新后编辑结果已持久化", persisted);
+
+    // 还原标题，保持演示数据干净
+    await cdp.eval(`(async () => {
+      await fetch('/api/posts/${ownPostId}', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + localStorage.getItem('duitang_token') },
+        body: JSON.stringify({ title: ${JSON.stringify(originalTitle)} }),
+      });
+    })()`);
+
+    // ── 消息通知 ──
+    const notifSetup = JSON.parse(await cdp.eval(`(async () => {
+      const myMe = await (await fetch('/api/auth/me', { headers: { Authorization: 'Bearer ' + localStorage.getItem('duitang_token') } })).json();
+      const other = await (await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: 'tangtu', password: '123456' }) })).json();
+      const oh = { Authorization: 'Bearer ' + other.token };
+      const mine = await (await fetch('/api/posts?user_id=' + myMe.user.id + '&limit=1', { headers: oh })).json();
+      const pid = mine.posts[0].id;
+      // 先确保未点赞状态，再点赞，保证一定产生一条通知
+      if (mine.posts[0].is_liked) {
+        await fetch('/api/posts/' + pid + '/like', { method: 'POST', headers: oh });
+      }
+      const r = await fetch('/api/posts/' + pid + '/like', { method: 'POST', headers: oh });
+      const d = await r.json();
+      return JSON.stringify({ ok: r.ok, postId: pid, liked: d.liked });
+    })()`));
+    check("他人点赞已产生通知", notifSetup.ok && notifSetup.liked, "post=" + notifSetup.postId);
+
+    await cdp.eval(`localStorage.setItem('duitang_token', ${JSON.stringify(loginToken)})`);
+    await open("#/");
+    let badgeReady = false;
+    for (let i = 0; i < 15 && !badgeReady; i++) {
+      await sleep(1000);
+      badgeReady = await cdp.eval(`!!document.querySelector('[data-testid="unread-badge"]')`);
+    }
+    const badgeText = await cdp.eval(`document.querySelector('[data-testid="unread-badge"]')?.textContent || ''`);
+    check("铃铛显示未读角标", badgeReady, "角标=" + badgeText);
+    await shotPng("notification-badge.png");
+
+    await cdp.eval(`document.querySelector('button[aria-label*="通知"]').click()`);
+    let panelReady = false;
+    for (let i = 0; i < 12 && !panelReady; i++) {
+      await sleep(800);
+      text = await cdp.eval("document.body.innerText");
+      panelReady = text.includes("赞了你的帖子");
+    }
+    check("通知面板显示点赞消息", panelReady);
+    await shotPng("notifications.png");
+
+    // 打开后应标记已读，角标消失
+    let badgeGone = false;
+    for (let i = 0; i < 10 && !badgeGone; i++) {
+      await sleep(700);
+      badgeGone = !(await cdp.eval(`!!document.querySelector('[data-testid="unread-badge"]')`));
+    }
+    check("打开面板后未读角标消失", badgeGone);
+
     ws.close();
     console.log(fails ? `\n${fails} 项失败` : "\n全部通过");
     process.exitCode = fails ? 1 : 0;

@@ -4,6 +4,8 @@ import { cn } from "../utils/cn";
 import { useAuth } from "../context/AuthContext";
 import { useCollection, type Comment } from "../context/CollectionContext";
 import type { ImageCard } from "../data/images";
+import { normalizePost } from "../utils/normalizePost";
+import EditPostModal from "./EditPostModal";
 
 // ─── Comment row ──────────────────────────────────────────────────────────────
 export function CommentItem({
@@ -372,6 +374,27 @@ export function DeletePostControl({ card, onClose }: { card: ImageCard; onClose:
   );
 }
 
+// ─── Edit control ─────────────────────────────────────────────────────────────
+/** 编辑入口（仅作者可见） */
+export function EditPostControl({ card, onSaved }: { card: ImageCard; onSaved?: (post: any) => void }) {
+  const { user } = useAuth();
+  const [open, setOpen] = useState(false);
+
+  if (!user || user.id !== card.authorId) return null;
+
+  return (
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        className="px-3 py-1.5 rounded-full text-xs font-medium text-gray-500 hover:bg-gray-100 transition-colors"
+      >
+        编辑
+      </button>
+      {open && <EditPostModal card={card} onClose={() => setOpen(false)} onSaved={onSaved} />}
+    </>
+  );
+}
+
 // ─── Comment composer ─────────────────────────────────────────────────────────
 export function CommentComposer({ card }: { card: ImageCard }) {
   const { user } = useAuth();
@@ -498,13 +521,15 @@ export function DetailActionBar({ card }: { card: ImageCard }) {
 
 // ─── Right-hand content column ────────────────────────────────────────────────
 export function DetailContent({
-  card, onClose, extraHeader,
+  card, onClose, extraHeader, onCardUpdate,
 }: {
   card: ImageCard;
   onClose: () => void;
   extraHeader?: React.ReactNode;
+  onCardUpdate?: (post: any) => void;
 }) {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const { comments, deleteComment, likeComment, getCommentCount, loadComments } = useCollection();
   const { requireAuth } = usePostActions(card);
   const cardComments = comments[card.id] ?? [];
@@ -517,7 +542,16 @@ export function DetailContent({
 
   return (
     <div className="md:w-1/2 flex flex-col overflow-hidden">
-      <DetailAuthorHeader card={card} onClose={onClose} extra={<DeletePostControl card={card} onClose={onClose} />} />
+      <DetailAuthorHeader
+        card={card}
+        onClose={onClose}
+        extra={
+          <>
+            <EditPostControl card={card} onSaved={onCardUpdate} />
+            <DeletePostControl card={card} onClose={onClose} />
+          </>
+        }
+      />
 
       <div className="px-4 pt-4 pb-2 shrink-0">
         <h2 className="font-bold text-gray-800 text-base mb-2">{card.title}</h2>
@@ -526,9 +560,13 @@ export function DetailContent({
         )}
         <div className="flex flex-wrap gap-1.5 mb-1">
           {card.tags.map(tag => (
-            <span key={tag} className="text-xs bg-[#fde8eb] text-[#e05d6f] px-3 py-1 rounded-full font-medium">
+            <button
+              key={tag}
+              onClick={() => { onClose(); navigate(`/tag/${encodeURIComponent(tag)}`); }}
+              className="text-xs bg-[#fde8eb] text-[#e05d6f] px-3 py-1 rounded-full font-medium hover:bg-[#f8d3d9] transition-colors"
+            >
               #{tag}
-            </span>
+            </button>
           ))}
         </div>
       </div>
@@ -561,6 +599,10 @@ export function DetailContent({
 
 // ─── Shared modal (首页 / 个人主页 使用) ───────────────────────────────────────
 export function PostDetailModal({ card, onClose }: { card: ImageCard; onClose: () => void }) {
+  // 编辑保存后就地更新，避免弹窗里还显示旧标题
+  const [displayCard, setDisplayCard] = useState(card);
+  useEffect(() => { setDisplayCard(card); }, [card]);
+
   useEffect(() => {
     document.body.style.overflow = "hidden";
     const handleEsc = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -580,8 +622,12 @@ export function PostDetailModal({ card, onClose }: { card: ImageCard; onClose: (
         className="bg-white rounded-2xl md:rounded-3xl overflow-hidden w-full max-w-3xl max-h-[95vh] md:max-h-[90vh] shadow-2xl flex flex-col md:flex-row animate-modal-in"
         onClick={e => e.stopPropagation()}
       >
-        <DetailImage card={card} overlay={<ShareButton card={card} />} />
-        <DetailContent card={card} onClose={onClose} />
+        <DetailImage card={displayCard} overlay={<ShareButton card={displayCard} />} />
+        <DetailContent
+          card={displayCard}
+          onClose={onClose}
+          onCardUpdate={post => setDisplayCard(prev => ({ ...prev, ...normalizePost(post) }))}
+        />
       </div>
     </div>
   );
