@@ -40,6 +40,7 @@ function fallbackAvatar(nickname: string): string {
  */
 export function normalizePost(p: any): ImageCard {
   const images = parseJsonArray<string>(p.images);
+  const thumbs = parseJsonArray<string>(p.thumbs);
   const tags = parseJsonArray<string>(p.tags);
   const sizes = parseJsonArray<PostSize>(p.sizes);
   const { w: width, h: height } = readSize(sizes[0]);
@@ -49,6 +50,8 @@ export function normalizePost(p: any): ImageCard {
     id: p.id,
     src: images[0] || "",
     images,
+    thumbs,
+    thumb: thumbs[0] || images[0] || "",
     title: p.title ?? "",
     description: p.description || "",
     author,

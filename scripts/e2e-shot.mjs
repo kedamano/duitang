@@ -446,6 +446,125 @@ async function main() {
     }
     check("打开面板后未读角标消失", badgeGone);
 
+    // ── 通知清空 ──
+    const clearOk = await cdp.eval(`(() => {
+      const b = [...document.querySelectorAll('button')].find(x => x.textContent.trim() === '清空');
+      if (!b) return 'no-button';
+      b.click();
+      return 'clicked';
+    })()`);
+    let cleared = false;
+    for (let i = 0; i < 10 && !cleared; i++) {
+      await sleep(600);
+      text = await cdp.eval("document.body.innerText");
+      cleared = text.includes("还没有新消息");
+    }
+    check("通知面板可一键清空", clearOk === "clicked" && cleared, clearOk);
+
+    // ── 通知未读数：窗口重新聚焦时自动刷新（无需手动打开面板）──
+    await cdp.eval(`(async () => {
+      const other = await (await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: 'tangtu', password: '123456' }) })).json();
+      const oh = { Authorization: 'Bearer ' + other.token };
+      const me = await (await fetch('/api/auth/me', { headers: { Authorization: 'Bearer ' + localStorage.getItem('duitang_token') } })).json();
+      const mine = await (await fetch('/api/posts?user_id=' + me.user.id + '&limit=1', { headers: oh })).json();
+      const pid = mine.posts[0].id;
+      if (mine.posts[0].is_liked) await fetch('/api/posts/' + pid + '/like', { method: 'POST', headers: oh });
+      await fetch('/api/posts/' + pid + '/like', { method: 'POST', headers: oh });
+    })()`);
+    // 关闭面板后触发 focus，验证轮询/聚焦刷新路径
+    await cdp.eval(`document.body.click()`);
+    await sleep(500);
+    await cdp.eval(`window.dispatchEvent(new Event('focus'))`);
+    let autoBadge = false;
+    for (let i = 0; i < 10 && !autoBadge; i++) {
+      await sleep(700);
+      autoBadge = await cdp.eval(`!!document.querySelector('[data-testid="unread-badge"]')`);
+    }
+    check("窗口聚焦后未读角标自动出现", autoBadge);
+
+    // ── 粉丝/关注列表弹窗 ──
+    await open("#/profile");
+    let statsReady = false;
+    for (let i = 0; i < 15 && !statsReady; i++) {
+      await sleep(800);
+      statsReady = await cdp.eval(`!!document.querySelector('button[aria-label*="查看粉丝"]')`);
+    }
+    check("个人主页粉丝/关注可点击", statsReady);
+    await cdp.eval(`document.querySelector('button[aria-label*="查看粉丝"]').click()`);
+    let followModalOpen = false;
+    for (let i = 0; i < 10 && !followModalOpen; i++) {
+      await sleep(600);
+      followModalOpen = await cdp.eval(`/粉丝（\\d+）/.test(document.body.innerText)`);
+    }
+    check("粉丝弹窗可打开", followModalOpen);
+    await shotPng("follow-list-modal.png");
+    await cdp.eval(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))`);
+    await sleep(500);
+
+    // ── 缩略图链路：上传 → 发帖 → 卡片使用 _thumb ──
+    const thumbSetup = JSON.parse(await cdp.eval(`(async () => {
+      const token = localStorage.getItem('duitang_token');
+      const canvas = document.createElement('canvas');
+      canvas.width = 1200; canvas.height = 900;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#3366ff'; ctx.fillRect(0, 0, 1200, 900);
+      ctx.fillStyle = '#fff'; ctx.font = '80px sans-serif'; ctx.fillText('E2E', 60, 200);
+      const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.9));
+      const fd = new FormData();
+      fd.append('file', new File([blob], 'e2e.jpg', { type: 'image/jpeg' }));
+      const up = await (await fetch('/api/upload', { method: 'POST', headers: { Authorization: 'Bearer ' + token }, body: fd })).json();
+      const created = await (await fetch('/api/posts', { method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ title: 'E2E 缩略图验证', images: [up.url], thumbs: [up.thumb], sizes: [{ w: up.width, h: up.height }], board: 'food', tags: ['e2etag'] }) })).json();
+      return JSON.stringify({ thumb: up.thumb, url: up.url, id: created.post.id, width: up.width });
+    })()`));
+    check("上传返回缩略图与尺寸", !!thumbSetup.thumb && thumbSetup.thumb.includes("_thumb.jpg") && thumbSetup.width === 1200,
+      JSON.stringify(thumbSetup));
+
+    await open("#/tag/e2etag");
+    let thumbCardReady = false;
+    for (let i = 0; i < 15 && !thumbCardReady; i++) {
+      await sleep(800);
+      thumbCardReady = (await cdp.eval(`document.querySelectorAll('main .break-inside-avoid img').length`)) > 0;
+    }
+    const cardSrc = await cdp.eval(`(() => {
+      const img = document.querySelector('main .break-inside-avoid img');
+      return img ? img.getAttribute('src') : '';
+    })()`);
+    check("列表卡片使用缩略图而非原图", cardSrc.includes("_thumb.jpg"), cardSrc);
+    await shotPng("thumb-card.png");
+
+    // 清理：删除验证帖子
+    await cdp.eval(`fetch('/api/posts/${thumbSetup.id}', { method: 'DELETE', headers: { Authorization: 'Bearer ' + localStorage.getItem('duitang_token') } })`);
+    await sleep(300);
+
+    // ── 发布页草稿保护 ──
+    await open("#/publish");
+    let publishReady = false;
+    for (let i = 0; i < 15 && !publishReady; i++) {
+      await sleep(800);
+      publishReady = await cdp.eval(`!!document.querySelector('input[placeholder*="好标题"]')`);
+    }
+    await cdp.eval(`(() => {
+      const i = document.querySelector('input[placeholder*="好标题"]');
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+      setter.call(i, 'E2E 草稿标题');
+      i.dispatchEvent(new Event('input', { bubbles: true }));
+    })()`);
+    await sleep(900); // 等草稿防抖写入
+    await open("#/");
+    await open("#/publish");
+    let draftRestored = false;
+    for (let i = 0; i < 15 && !draftRestored; i++) {
+      await sleep(800);
+      draftRestored = await cdp.eval(`document.querySelector('input[placeholder*="好标题"]')?.value === 'E2E 草稿标题'`);
+    }
+    check("离开后返回能恢复发布草稿", draftRestored);
+    await shotPng("publish-draft.png");
+    // 清理草稿，避免影响后续使用
+    await cdp.eval(`localStorage.removeItem('duitang_publish_draft')`);
+
     ws.close();
     console.log(fails ? `\n${fails} 项失败` : "\n全部通过");
     process.exitCode = fails ? 1 : 0;

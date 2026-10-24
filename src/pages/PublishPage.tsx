@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useCollection } from "../context/CollectionContext";
@@ -7,6 +7,18 @@ import { api } from "../api";
 import { cn } from "../utils/cn";
 import { labelToBoard, boardOptions } from "../data/images";
 import AiImageGenModal from "../components/AiImageGenModal";
+
+/** 与后端 multer 限制保持一致 */
+const MAX_FILE_BYTES = 10 * 1024 * 1024;
+/** 草稿键：只存文本信息，图片受 localStorage 配额限制不持久化 */
+const DRAFT_KEY = "duitang_publish_draft";
+
+interface Draft {
+  title: string;
+  description: string;
+  tags: string[];
+  board: string;
+}
 
 function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -44,6 +56,51 @@ export default function PublishPage() {
   const [showAiGen, setShowAiGen] = useState(false);
   const [dragActive, setDragActive] = useState(false);
 
+  // 进入页面时恢复草稿（仅文字信息，图片受 localStorage 配额限制不做持久化）
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (!raw) return;
+      const d = JSON.parse(raw) as Draft;
+      if (d.title) setTitle(d.title);
+      if (d.description) setDescription(d.description);
+      if (Array.isArray(d.tags) && d.tags.length) setTags(d.tags.slice(0, 5));
+      if (d.board) setBoard(d.board);
+      if (d.title || d.description || d.board || (d.tags || []).length) {
+        showToast("已恢复上次未发布的草稿", "success");
+      }
+    } catch {
+      /* 草稿损坏则忽略 */
+    }
+  }, [showToast]);
+
+  // 输入过程中自动保存草稿（防抖），全部清空时删除
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const empty = !title.trim() && !description.trim() && tags.length === 0 && !board;
+      try {
+        if (empty) localStorage.removeItem(DRAFT_KEY);
+        else localStorage.setItem(DRAFT_KEY, JSON.stringify({ title, description, tags, board } as Draft));
+      } catch {
+        /* 配额不足时放弃保存，不打断输入 */
+      }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [title, description, tags, board]);
+
+  /** 过滤掉非图片与超过 10MB 的文件，避免白等一次上传失败 */
+  const pickValidFiles = (files: File[]): File[] => {
+    const valid: File[] = [];
+    const tooBig: string[] = [];
+    for (const f of files) {
+      if (!f.type.startsWith("image/")) continue;
+      if (f.size > MAX_FILE_BYTES) { tooBig.push(f.name); continue; }
+      valid.push(f);
+    }
+    if (tooBig.length) showToast(`${tooBig.length} 张图片超过 10MB，已跳过`, "error");
+    return valid;
+  };
+
   if (!user) {
     return (
       <div className="min-h-screen bg-[#f8f8f8] flex items-center justify-center">
@@ -63,12 +120,13 @@ export default function PublishPage() {
     const files = e.target.files;
     if (!files) return;
     const newImages: { file?: File; preview: string }[] = [];
-    for (const file of Array.from(files)) {
+    for (const file of pickValidFiles(Array.from(files))) {
       if (newImages.length + images.length >= 9) break;
       const dataUrl = await fileToDataUrl(file);
       newImages.push({ file, preview: dataUrl });
     }
     setImages(prev => [...prev, ...newImages].slice(0, 9));
+    e.target.value = "";
   };
 
   const handleDrag = (e: React.DragEvent) => {
@@ -85,7 +143,7 @@ export default function PublishPage() {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
-    const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith("image/"));
+    const files = pickValidFiles(Array.from(e.dataTransfer.files).filter(f => f.type.startsWith("image/")));
     const newImages: { file?: File; preview: string }[] = [];
     for (const file of files) {
       if (newImages.length + images.length >= 9) break;
@@ -122,6 +180,7 @@ export default function PublishPage() {
 
     try {
       const imageUrls: string[] = [];
+      const thumbs: string[] = [];
       const sizes: { w: number; h: number }[] = [];
       for (const img of images) {
         if (img.preview.startsWith('data:')) {
@@ -130,9 +189,12 @@ export default function PublishPage() {
           const data = await api.upload(file);
           if (!data.url) throw new Error('图片上传失败');
           imageUrls.push(data.url);
+          // 缩略图由后端生成；失败时回落原图
+          thumbs.push(data.thumb || data.url);
         } else {
           // 已是可访问地址（本地上传结果或 AI 生成的远程图）
           imageUrls.push(img.preview);
+          thumbs.push(img.preview);
         }
         sizes.push(await measureImage(img.preview));
       }
@@ -144,8 +206,10 @@ export default function PublishPage() {
         images: imageUrls,
         tags,
         sizes,
+        thumbs,
       });
       addUserPost(result.post);
+      try { localStorage.removeItem(DRAFT_KEY); } catch { /* 忽略 */ }
       setPublishing(false);
       showToast("发布成功", "success");
       navigate("/");

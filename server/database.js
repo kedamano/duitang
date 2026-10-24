@@ -140,6 +140,7 @@ function ensureColumn(table, column, definition) {
   }
 }
 ensureColumn('posts', 'sizes', "TEXT DEFAULT '[]'");
+ensureColumn('posts', 'thumbs', "TEXT DEFAULT '[]'");
 
 // 历史数据迁移：早期前端把中文画板标签直接存进了 board，统一成英文 key
 const BOARD_LABEL_TO_KEY = {

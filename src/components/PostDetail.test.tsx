@@ -89,7 +89,7 @@ beforeEach(() => {
 describe("PostDetailModal 回归", () => {
   it("打开时从后端加载评论并渲染（缺陷3）", async () => {
     renderModal(makeCard());
-    await waitFor(() => expect(apiModule.api.getComments).toHaveBeenCalledWith(42));
+    await waitFor(() => expect(apiModule.api.getComments).toHaveBeenCalledWith(42, { page: 1 }));
     expect(await screen.findByText("已有的历史评论")).toBeInTheDocument();
     expect(screen.getByText("路人")).toBeInTheDocument();
   });

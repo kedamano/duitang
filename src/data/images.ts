@@ -4,6 +4,10 @@ export interface ImageCard {
   src: string;
   /** 帖子的全部图片（src 为第一张，即封面） */
   images?: string[];
+  /** 与 images 一一对应的缩略图（列表卡片用，详情页仍用原图） */
+  thumbs?: string[];
+  /** 当前卡片应加载的地址：优先缩略图 */
+  thumb?: string;
   width: number;
   height: number;
   author: string;

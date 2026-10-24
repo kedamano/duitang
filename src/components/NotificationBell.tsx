@@ -42,17 +42,33 @@ export default function NotificationBell() {
   const [items, setItems] = useState<Notice[]>([]);
   const [unread, setUnread] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
   const panelRef = useRef<HTMLDivElement | null>(null);
 
-  // 未读数：登录后拉一次，之后每次打开面板再刷新
+  // 未读数自动刷新：30s 轮询 + 窗口重新聚焦/切回前台时立即刷新
   useEffect(() => {
     if (!token) { setUnread(0); setItems([]); return; }
     let cancelled = false;
-    api.getUnreadCount()
-      .then(d => { if (!cancelled) setUnread(d.count || 0); })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, [token, open]);
+    const refresh = () => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      api.getUnreadCount()
+        .then(d => { if (!cancelled) setUnread(d.count || 0); })
+        .catch(() => {});
+    };
+    refresh();
+    const timer = setInterval(refresh, 30000);
+    const onVisible = () => { if (!document.hidden) refresh(); };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
+    };
+  }, [token]);
 
   // 点击外部或按 Esc 关闭
   useEffect(() => {
@@ -76,8 +92,10 @@ export default function NotificationBell() {
 
     setLoading(true);
     try {
-      const data = await api.getNotifications({ limit: 20 });
+      const data = await api.getNotifications({ limit: 20, page: 1 });
       setItems(data.notifications || []);
+      setTotal(data.total || 0);
+      setPage(1);
       setUnread(data.unread || 0);
       // 打开即视为已读
       if ((data.unread || 0) > 0) {
@@ -89,6 +107,39 @@ export default function NotificationBell() {
       /* 通知加载失败不打断浏览 */
     } finally {
       setLoading(false);
+    }
+  };
+
+  /** 加载更多通知（追加） */
+  const loadMore = async () => {
+    if (loadingMore || items.length >= total) return;
+    setLoadingMore(true);
+    try {
+      const next = page + 1;
+      const data = await api.getNotifications({ limit: 20, page: next });
+      setItems(prev => {
+        const map = new Map(prev.map(n => [n.id, n]));
+        (data.notifications || []).forEach(n => map.set(n.id, n));
+        return Array.from(map.values());
+      });
+      setPage(next);
+      setTotal(data.total || 0);
+    } catch {
+      /* 静默失败，保留已加载内容 */
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  /** 清空全部通知 */
+  const clearAll = async () => {
+    try {
+      await api.clearNotifications();
+      setItems([]);
+      setTotal(0);
+      setUnread(0);
+    } catch {
+      /* 失败时保留列表 */
     }
   };
 
@@ -124,7 +175,14 @@ export default function NotificationBell() {
         <div className="absolute top-full right-0 mt-2 w-80 max-h-[420px] overflow-y-auto bg-white rounded-2xl shadow-xl border border-gray-100 z-50">
           <div className="sticky top-0 bg-white px-4 py-3 border-b border-gray-100 flex items-center justify-between">
             <span className="text-sm font-bold text-gray-800">消息通知</span>
-            {items.length > 0 && <span className="text-xs text-gray-400">{items.length} 条</span>}
+            <div className="flex items-center gap-3">
+              {items.length > 0 && <span className="text-xs text-gray-400">{items.length}/{total} 条</span>}
+              {items.length > 0 && (
+                <button onClick={clearAll} className="text-xs text-gray-400 hover:text-[#e05d6f] transition-colors">
+                  清空
+                </button>
+              )}
+            </div>
           </div>
 
           {loading && items.length === 0 ? (
@@ -169,6 +227,18 @@ export default function NotificationBell() {
                 </button>
               );
             })
+          )}
+
+          {items.length > 0 && items.length < total && (
+            <div className="p-3 border-t border-gray-50">
+              <button
+                onClick={loadMore}
+                disabled={loadingMore}
+                className="w-full py-2 rounded-full text-xs text-gray-500 hover:text-[#e05d6f] hover:bg-gray-50 disabled:opacity-60 transition-colors"
+              >
+                {loadingMore ? "加载中..." : "加载更多"}
+              </button>
+            </div>
           )}
         </div>
       )}

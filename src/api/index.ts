@@ -80,6 +80,8 @@ export const api = {
     tags: string[];
     /** 与 images 一一对应的真实宽高，用于瀑布流错落布局 */
     sizes?: { w: number; h: number }[];
+    /** 与 images 一一对应的缩略图 */
+    thumbs?: string[];
   }) => request<{ post: any }>('/posts', { method: 'POST', body: JSON.stringify(data) }),
   /** 编辑帖子（仅作者本人；只传要改的字段） */
   updatePost: (id: number, data: { title?: string; description?: string; board?: string; tags?: string[] }) =>
@@ -103,6 +105,14 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(ids ? { ids } : {}),
     }),
+  /** 清空全部通知 */
+  clearNotifications: () => request<{ ok: boolean; deleted: number }>('/notifications', { method: 'DELETE' }),
+
+  // ─── Follow lists ───
+  getFollowers: (userId: number, params?: { page?: number; limit?: number }) =>
+    request<{ users: any[]; total: number; page: number; limit: number }>(`/users/${userId}/followers?${pageQuery(params)}`),
+  getFollowing: (userId: number, params?: { page?: number; limit?: number }) =>
+    request<{ users: any[]; total: number; page: number; limit: number }>(`/users/${userId}/following?${pageQuery(params)}`),
 
   // ─── Likes ───
   likePost: (id: number) => request<{ liked: boolean; count: number }>(`/posts/${id}/like`, { method: 'POST' }),
@@ -111,7 +121,12 @@ export const api = {
   collectPost: (id: number) => request<{ collected: boolean; count: number }>(`/posts/${id}/collect`, { method: 'POST' }),
 
   // ─── Comments ───
-  getComments: (postId: number) => request<{ comments: any[] }>(`/posts/${postId}/comments`),
+  getComments: (postId: number, params?: { page?: number; limit?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.page) qs.set('page', String(params.page));
+    if (params?.limit) qs.set('limit', String(params.limit));
+    return request<{ comments: any[]; total: number; page: number; limit: number }>(`/posts/${postId}/comments?${qs}`);
+  },
   addComment: (postId: number, content: string) =>
     request<{ comment: any }>(`/posts/${postId}/comments`, { method: 'POST', body: JSON.stringify({ content }) }),
   deleteComment: (id: number) => request(`/comments/${id}`, { method: 'DELETE' }),
@@ -154,9 +169,10 @@ export const api = {
     request<{ user: any }>('/users/me', { method: 'PATCH', body: JSON.stringify(data) }),
 
   // ─── Upload ───
+  /** 上传图片：返回原图、缩略图与真实尺寸 */
   upload: (file: File) => {
     const fd = new FormData();
     fd.append('file', file);
-    return request<{ url: string }>('/upload', { method: 'POST', body: fd });
+    return request<{ url: string; thumb?: string; width?: number; height?: number }>('/upload', { method: 'POST', body: fd });
   },
 };

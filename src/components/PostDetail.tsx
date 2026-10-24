@@ -530,10 +530,11 @@ export function DetailContent({
 }) {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { comments, deleteComment, likeComment, getCommentCount, loadComments } = useCollection();
+  const { comments, deleteComment, likeComment, loadComments, loadMoreComments, hasMoreComments, commentsTotal } = useCollection();
   const { requireAuth } = usePostActions(card);
   const cardComments = comments[card.id] ?? [];
-  const commentCount = getCommentCount(card.id, card.comments ?? 0);
+  // 优先用服务端总数，避免只加载第一页时评论数显示偏小
+  const commentCount = commentsTotal[card.id] ?? card.comments ?? 0;
 
   // 打开详情时从后端拉取评论（原先只靠本次会话内存，刷新即丢）
   useEffect(() => {
@@ -582,12 +583,24 @@ export function DetailContent({
             <p className="text-sm text-gray-400">还没有评论，来说点什么吧~</p>
           </div>
         ) : (
-          <CommentList
-            comments={cardComments}
-            currentUserId={user?.id ?? null}
-            onDelete={id => deleteComment(card.id, id)}
-            onLike={id => { if (!requireAuth()) likeComment(card.id, id); }}
-          />
+          <>
+            <CommentList
+              comments={cardComments}
+              currentUserId={user?.id ?? null}
+              onDelete={id => deleteComment(card.id, id)}
+              onLike={id => { if (!requireAuth()) likeComment(card.id, id); }}
+            />
+            {hasMoreComments(card.id) && (
+              <div className="flex justify-center py-3">
+                <button
+                  onClick={() => loadMoreComments(card.id)}
+                  className="text-xs text-[#e05d6f] hover:underline"
+                >
+                  加载更多评论（共 {commentCount} 条）
+                </button>
+              </div>
+            )}
+          </>
         )}
       </div>
 

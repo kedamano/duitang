@@ -44,7 +44,7 @@ export function ImageTile({ card, onClick }: { card: ImageCard; onClick: () => v
           <div className="absolute inset-0 bg-gradient-to-br from-gray-200 to-gray-100 animate-pulse" />
         )}
         <img
-          src={card.src}
+          src={card.thumb || card.src}
           alt={card.title}
           loading="lazy"
           decoding="async"
@@ -58,6 +58,8 @@ export function ImageTile({ card, onClick }: { card: ImageCard; onClick: () => v
         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-300" />
         <button
           onClick={handleCollect}
+          aria-label={collected ? "取消收集" : "收集这张图片"}
+          aria-pressed={collected}
           className={cn(
             "absolute top-3 right-3 flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold shadow-md",
             "opacity-0 group-hover:opacity-100 transition-all duration-200 -translate-y-1 group-hover:translate-y-0",
@@ -97,6 +99,8 @@ export function ImageTile({ card, onClick }: { card: ImageCard; onClick: () => v
           </div>
           <button
             onClick={handleLike}
+            aria-label={liked ? "取消点赞" : "点赞"}
+            aria-pressed={liked}
             className={cn(
               "flex items-center gap-1 text-xs transition-colors",
               liked ? "text-[#e05d6f]" : "text-gray-400 hover:text-[#e05d6f]",

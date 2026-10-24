@@ -36,7 +36,10 @@ function normalizeComment(c: any): Comment {
 interface CollectionContextType {
   comments: Record<number, Comment[]>;
   commentsLoaded: Record<number, boolean>;
+  commentsTotal: Record<number, number>;
   loadComments: (postId: number) => Promise<void>;
+  loadMoreComments: (postId: number) => Promise<void>;
+  hasMoreComments: (postId: number) => boolean;
   likeCounts: Record<number, number>;
   collectCounts: Record<number, number>;
   likedIds: Set<number>;
@@ -74,6 +77,8 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
   const [collectedIds, setCollectedIds] = useState<Set<number>>(new Set());
   const [comments, setComments] = useState<Record<number, Comment[]>>({});
   const [commentsLoaded, setCommentsLoaded] = useState<Record<number, boolean>>({});
+  const [commentsTotal, setCommentsTotal] = useState<Record<number, number>>({});
+  const [commentPage, setCommentPage] = useState<Record<number, number>>({});
   const [likeCounts, setLikeCounts] = useState<Record<number, number>>({});
   const [collectCounts, setCollectCounts] = useState<Record<number, number>>({});
   const [shareCounts, setShareCounts] = useState<Record<number, number>>({});
@@ -161,14 +166,36 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
     } catch { showToast("操作失败，请稍后重试", "error"); }
   }, [token, showToast]);
 
-  /** 打开详情时加载该帖评论（公开接口，游客也可浏览；写操作仍需登录） */
+  /** 打开详情时加载第一页评论（公开接口，游客也可浏览；写操作仍需登录） */
   const loadComments = useCallback(async (postId: number) => {
     try {
-      const data = await api.getComments(postId);
+      const data = await api.getComments(postId, { page: 1 });
       setComments(prev => ({ ...prev, [postId]: (data.comments || []).map(normalizeComment) }));
       setCommentsLoaded(prev => ({ ...prev, [postId]: true }));
+      setCommentsTotal(prev => ({ ...prev, [postId]: data.total ?? (data.comments || []).length }));
+      setCommentPage(prev => ({ ...prev, [postId]: 1 }));
     } catch { showToast("评论加载失败", "error"); }
   }, [showToast]);
+
+  /** 追加下一页评论 */
+  const loadMoreComments = useCallback(async (postId: number) => {
+    const nextPage = (commentPage[postId] || 1) + 1;
+    try {
+      const data = await api.getComments(postId, { page: nextPage });
+      setComments(prev => {
+        const map = new Map((prev[postId] || []).map(c => [c.id, c]));
+        (data.comments || []).map(normalizeComment).forEach(c => map.set(c.id, c));
+        return { ...prev, [postId]: Array.from(map.values()) };
+      });
+      setCommentsTotal(prev => ({ ...prev, [postId]: data.total ?? Object.keys(prev).length }));
+      setCommentPage(prev => ({ ...prev, [postId]: nextPage }));
+    } catch { showToast("评论加载失败", "error"); }
+  }, [commentPage, showToast]);
+
+  const hasMoreComments = useCallback(
+    (postId: number) => (comments[postId] || []).length < (commentsTotal[postId] || 0),
+    [comments, commentsTotal],
+  );
 
   const addComment = useCallback(async (postId: number, content: string) => {
     if (!token) return;
@@ -267,7 +294,7 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
 
   return (
     <CollectionContext.Provider value={{
-      comments, commentsLoaded, loadComments,
+      comments, commentsLoaded, commentsTotal, loadComments, loadMoreComments, hasMoreComments,
       likeCounts, collectCounts,
       likedIds, collectedIds, userPosts,
       isLiked, isCollected, getLikeCount, getCollectCount,

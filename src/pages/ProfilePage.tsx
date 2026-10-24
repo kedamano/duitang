@@ -6,9 +6,13 @@ import { useToast } from "../context/ToastContext";
 import { api } from "../api";
 import { cn } from "../utils/cn";
 import { PostDetailModal } from "../components/PostDetail";
+import FollowListModal from "../components/FollowListModal";
+import { normalizePost } from "../utils/normalizePost";
 import type { ImageCard } from "../data/images";
 
 type Tab = "posts" | "collection" | "likes";
+
+const LIST_PAGE_SIZE = 24;
 
 function MiniCard({ card, onCardClick }: { card: ImageCard; onCardClick?: (card: ImageCard) => void }) {
   const { user, setShowLogin } = useAuth();
@@ -189,7 +193,7 @@ function EditProfilePanel({ onClose }: { onClose: () => void }) {
 export default function ProfilePage() {
   const { user, setShowLogin, updateUser } = useAuth();
   const { showToast } = useToast();
-  const { userPosts, getMyCollects, getMyLikes, getUserPosts, isFollowing, toggleFollow } = useCollection();
+  const { userPosts, getUserPosts, isFollowing, toggleFollow } = useCollection();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const tabParam = searchParams.get("tab");
@@ -200,6 +204,10 @@ export default function ProfilePage() {
   const [selectedCard, setSelectedCard] = useState<ImageCard | null>(null);
   const [myCollects, setMyCollects] = useState<ImageCard[]>([]);
   const [myLikes, setMyLikes] = useState<ImageCard[]>([]);
+  const [collectTotal, setCollectTotal] = useState(0);
+  const [likesTotal, setLikesTotal] = useState(0);
+  const [loadingMoreList, setLoadingMoreList] = useState(false);
+  const [followModal, setFollowModal] = useState<"followers" | "following" | null>(null);
   const [targetUser, setTargetUser] = useState<any>(null);
   const [targetPosts, setTargetPosts] = useState<ImageCard[]>([]);
   const [showEditPanel, setShowEditPanel] = useState(false);
@@ -217,12 +225,52 @@ export default function ProfilePage() {
     else setActiveTab("posts");
   }, [tabParam]);
 
-  // Fetch collects and likes when user logs in
+  // 收集/喜欢分页加载（服务端默认只返回前 100 条，这里显式分页避免静默截断）
   useEffect(() => {
     if (!user || isViewingOther) return;
-    getMyCollects().then(setMyCollects);
-    getMyLikes().then(setMyLikes);
-  }, [user, isViewingOther, getMyCollects, getMyLikes]);
+    let cancelled = false;
+    api.myCollects({ page: 1, limit: LIST_PAGE_SIZE })
+      .then(d => {
+        if (cancelled) return;
+        setMyCollects((d.posts || []).map(normalizePost));
+        setCollectTotal(d.total ?? (d.posts || []).length);
+      })
+      .catch(() => {});
+    api.myLikes({ page: 1, limit: LIST_PAGE_SIZE })
+      .then(d => {
+        if (cancelled) return;
+        setMyLikes((d.posts || []).map(normalizePost));
+        setLikesTotal(d.total ?? (d.posts || []).length);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [user, isViewingOther]);
+
+  const loadMoreList = async () => {
+    const isCollection = activeTab === "collection";
+    const list = isCollection ? myCollects : myLikes;
+    const total = isCollection ? collectTotal : likesTotal;
+    if (loadingMoreList || list.length >= total) return;
+    setLoadingMoreList(true);
+    try {
+      const nextPage = Math.floor(list.length / LIST_PAGE_SIZE) + 1;
+      const data = isCollection
+        ? await api.myCollects({ page: nextPage, limit: LIST_PAGE_SIZE })
+        : await api.myLikes({ page: nextPage, limit: LIST_PAGE_SIZE });
+      const cards = (data.posts || []).map(normalizePost);
+      const merge = (prev: ImageCard[]) => {
+        const map = new Map(prev.map(c => [c.id, c]));
+        cards.forEach(c => map.set(c.id, c));
+        return Array.from(map.values());
+      };
+      if (isCollection) setMyCollects(merge);
+      else setMyLikes(merge);
+    } catch {
+      showToast("加载更多失败，请稍后重试", "error");
+    } finally {
+      setLoadingMoreList(false);
+    }
+  };
 
   // 查看他人主页: 拉取资料与该用户发帖
   useEffect(() => {
@@ -280,8 +328,8 @@ export default function ProfilePage() {
     ? [{ key: "posts", label: "TA的发布", count: targetPosts.length }]
     : [
       { key: "posts", label: "我的发布", count: userPosts.length },
-      { key: "collection", label: "我的收集", count: myCollects.length },
-      { key: "likes", label: "我的喜欢", count: myLikes.length },
+      { key: "collection", label: "我的收集", count: collectTotal },
+      { key: "likes", label: "我的喜欢", count: likesTotal },
     ];
 
   const currentCards = activeTab === "posts" ? profilePosts : activeTab === "collection" ? myCollects : myLikes;
@@ -387,17 +435,25 @@ export default function ProfilePage() {
                 <p className="font-bold text-gray-800">{postCount}</p>
                 <p className="text-xs text-gray-400">发布</p>
               </div>
-              <div className="text-center">
+              <button
+                onClick={() => setFollowModal("followers")}
+                className="text-center hover:opacity-70 transition-opacity"
+                aria-label={`查看粉丝（${profileUser?.followers ?? 0}）`}
+              >
                 <p className="font-bold text-gray-800">{profileUser?.followers ?? 0}</p>
                 <p className="text-xs text-gray-400">粉丝</p>
-              </div>
-              <div className="text-center">
+              </button>
+              <button
+                onClick={() => setFollowModal("following")}
+                className="text-center hover:opacity-70 transition-opacity"
+                aria-label={`查看关注（${profileUser?.following ?? 0}）`}
+              >
                 <p className="font-bold text-gray-800">{profileUser?.following ?? 0}</p>
                 <p className="text-xs text-gray-400">关注</p>
-              </div>
+              </button>
               {!isViewingOther && (
                 <div className="text-center">
-                  <p className="font-bold text-gray-800">{myCollects.length}</p>
+                  <p className="font-bold text-gray-800">{collectTotal}</p>
                   <p className="text-xs text-gray-400">收集</p>
                 </div>
               )}
@@ -455,13 +511,37 @@ export default function ProfilePage() {
           )}
         </div>
 
-        {currentCards.length > 0 && (
-          <p className="text-center text-gray-300 text-sm py-8">— 已经到底啦 🌸 —</p>
-        )}
+        {currentCards.length > 0 && (activeTab === "collection" || activeTab === "likes") &&
+          currentCards.length < (activeTab === "collection" ? collectTotal : likesTotal) && (
+            <div className="flex justify-center py-6">
+              <button
+                onClick={loadMoreList}
+                disabled={loadingMoreList}
+                className="px-6 py-2 rounded-full bg-white border border-gray-200 text-sm text-gray-600 hover:border-[#e05d6f] hover:text-[#e05d6f] disabled:opacity-60 transition-colors"
+              >
+                {loadingMoreList ? "加载中..." : "加载更多"}
+              </button>
+            </div>
+          )}
+
+        {currentCards.length > 0 &&
+          !((activeTab === "collection" || activeTab === "likes") &&
+            currentCards.length < (activeTab === "collection" ? collectTotal : likesTotal)) && (
+            <p className="text-center text-gray-300 text-sm py-8">— 已经到底啦 🌸 —</p>
+          )}
       </div>
 
       {/* 编辑资料（头像 / 昵称 / 简介）*/}
       {showEditPanel && !isViewingOther && <EditPanelWrapper onClose={() => setShowEditPanel(false)} />}
+
+      {/* 粉丝 / 关注列表 */}
+      {followModal && profileUser && (
+        <FollowListModal
+          userId={profileUser.id}
+          mode={followModal}
+          onClose={() => setFollowModal(null)}
+        />
+      )}
 
       {/* Detail modal for profile cards */}
       {selectedCard && (

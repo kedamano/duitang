@@ -134,6 +134,7 @@ app.get('/api/auth/me', authMiddleware, (req, res) => {
 require('fs').mkdirSync(UPLOAD_DIR, { recursive: true });
 // 用文件头 magic bytes 校验真实类型，防伪造扩展名
 const { fileTypeFromFile } = require('file-type');
+const Jimp = require('jimp');
 const ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 const upload = multer({
   storage: multer.diskStorage({
@@ -142,6 +143,16 @@ const upload = multer({
   }),
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
 });
+
+/** 生成缩略图（宽 400，等比），返回文件名；失败时返回 null 由前端回落到原图 */
+const THUMB_WIDTH = 400;
+async function makeThumb(filePath) {
+  const ext = path.extname(filePath);
+  const thumbPath = filePath.replace(ext, `_thumb.jpg`);
+  const img = await Jimp.read(filePath);
+  await img.resize(THUMB_WIDTH, Jimp.AUTO).quality(80).writeAsync(thumbPath);
+  return path.basename(thumbPath);
+}
 
 app.post('/api/upload', authMiddleware, upload.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: '上传失败' });
@@ -156,7 +167,24 @@ app.post('/api/upload', authMiddleware, upload.single('file'), async (req, res) 
     require('fs').unlink(req.file.path, () => {});
     return res.status(400).json({ error: '文件校验失败' });
   }
-  res.json({ url: `/uploads/${req.file.filename}` });
+
+  // 生成缩略图：卡片列表用它，详情页仍用原图
+  let thumb = null;
+  let width = 0, height = 0;
+  try {
+    const img = await Jimp.read(req.file.path);
+    width = img.bitmap.width;
+    height = img.bitmap.height;
+    thumb = await makeThumb(req.file.path);
+  } catch (e) {
+    req.log?.warn?.({ err: e.message }, '缩略图生成失败，回落原图');
+  }
+
+  res.json({
+    url: `/uploads/${req.file.filename}`,
+    thumb: thumb ? `/uploads/${thumb}` : `/uploads/${req.file.filename}`,
+    width, height,
+  });
 });
 
 // ─────────────────────────────────────────────
@@ -179,6 +207,7 @@ function hydratePost(post) {
   try { post.images = JSON.parse(post.images); } catch { post.images = []; }
   try { post.tags = JSON.parse(post.tags); } catch { post.tags = []; }
   try { post.sizes = JSON.parse(post.sizes || '[]'); } catch { post.sizes = []; }
+  try { post.thumbs = JSON.parse(post.thumbs || '[]'); } catch { post.thumbs = []; }
   return post;
 }
 
@@ -304,18 +333,23 @@ app.get('/api/posts/:id', (req, res) => {
 
 // 发布帖子
 app.post('/api/posts', authMiddleware, (req, res) => {
-  const { title, description, board, images, tags, sizes } = req.body;
+  const { title, description, board, images, tags, sizes, thumbs } = req.body;
   if (!title || !title.trim()) return res.status(400).json({ error: '标题必填' });
   if (!Array.isArray(images) || images.length === 0) return res.status(400).json({ error: '至少一张图片' });
 
-  const imageStr = JSON.stringify(images.slice(0, 9));
+  const finalImages = images.slice(0, 9);
+  const imageStr = JSON.stringify(finalImages);
   const tagStr = JSON.stringify((tags || []).slice(0, 5));
+  // 缩略图与 images 一一对应；缺失时回落原图
+  const thumbStr = JSON.stringify(
+    Array.isArray(thumbs) && thumbs.length === finalImages.length ? thumbs : finalImages
+  );
   // sizes 与 images 一一对应；缺省时存空数组，前端回落到默认比例
-  const sizeStr = Array.isArray(sizes) && sizes.length === images.length
+  const sizeStr = Array.isArray(sizes) && sizes.length === finalImages.length
     ? JSON.stringify(sizes.map(s => ({ w: Number(s?.w) || 400, h: Number(s?.h) || 300 })))
     : '[]';
-  const info = db.prepare('INSERT INTO posts (author_id, title, description, board, images, tags, sizes) VALUES (?, ?, ?, ?, ?, ?, ?)').run(
-    req.user.id, title.trim(), description || '', normalizeBoard(board), imageStr, tagStr, sizeStr
+  const info = db.prepare('INSERT INTO posts (author_id, title, description, board, images, tags, sizes, thumbs) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(
+    req.user.id, title.trim(), description || '', normalizeBoard(board), imageStr, tagStr, sizeStr, thumbStr
   );
 
   const post = db.prepare('SELECT p.*, u.nickname as author_nickname, u.avatar as author_avatar FROM posts p JOIN users u ON p.author_id = u.id WHERE p.id = ?').get(info.lastInsertRowid);
@@ -411,26 +445,31 @@ app.post('/api/posts/:id/collect', authMiddleware, (req, res) => {
 // 评论
 // ─────────────────────────────────────────────
 
-// 获取帖子的评论
+// 获取帖子的评论（分页，点赞状态批量查询避免 N+1）
 app.get('/api/posts/:id/comments', (req, res) => {
   const postId = parseInt(req.params.id);
-  const comments = db.prepare('SELECT c.*, u.nickname as author_nickname, u.avatar as author_avatar FROM comments c JOIN users u ON c.author_id = u.id WHERE c.post_id = ? ORDER BY c.created_at ASC').all(postId);
+  const { pageNum, limitNum, offset } = parsePage(req, 50);
 
-  // 统一携带 is_liked，游客默认 false
+  const comments = db.prepare(
+    'SELECT c.*, u.nickname as author_nickname, u.avatar as author_avatar FROM comments c JOIN users u ON c.author_id = u.id WHERE c.post_id = ? ORDER BY c.created_at ASC LIMIT ? OFFSET ?'
+  ).all(postId, limitNum, offset);
+
+  const total = db.prepare('SELECT COUNT(*) as count FROM comments WHERE post_id = ?').get(postId).count;
+
+  // 一次性取出当前用户在这批评论里的点赞记录
   comments.forEach(c => { c.is_liked = false; });
-
-  // 当前用户对评论的点赞状态
-  const authHeader = req.headers.authorization?.replace('Bearer ', '');
-  if (authHeader) {
-    try {
-      const user = jwt.verify(authHeader, JWT_SECRET);
-      comments.forEach(c => {
-        c.is_liked = !!db.prepare('SELECT 1 FROM comment_likes WHERE user_id = ? AND comment_id = ?').get(user.id, c.id);
-      });
-    } catch {}
+  const user = optionalUser(req);
+  if (user && comments.length) {
+    const ids = comments.map(c => c.id);
+    const ph = ids.map(() => '?').join(',');
+    const liked = new Set(
+      db.prepare(`SELECT comment_id FROM comment_likes WHERE user_id = ? AND comment_id IN (${ph})`)
+        .all(user.id, ...ids).map(r => r.comment_id)
+    );
+    comments.forEach(c => { c.is_liked = liked.has(c.id); });
   }
 
-  res.json({ comments });
+  res.json({ comments, total, page: pageNum, limit: limitNum });
 });
 
 // 发布评论
@@ -535,6 +574,40 @@ app.get('/api/users/:id/profile', (req, res) => {
   res.json({ user: publicUser(user), stats: { followers, following, collects, posts }, is_following });
 });
 
+/** 关注者 / 关注中 列表（分页，附带当前用户是否已关注每个人） */
+function followListHandler(mode) {
+  return (req, res) => {
+    const user = db.prepare('SELECT id FROM users WHERE id = ?').get(req.params.id);
+    if (!user) return res.status(404).json({ error: '用户不存在' });
+    const { pageNum, limitNum, offset } = parsePage(req);
+
+    const base = mode === 'followers'
+      ? 'FROM user_follows f JOIN users u ON f.follower_id = u.id WHERE f.following_id = ?'
+      : 'FROM user_follows f JOIN users u ON f.following_id = u.id WHERE f.follower_id = ?';
+
+    const users = db.prepare(
+      `SELECT u.id, u.username, u.nickname, u.avatar, u.bio ${base} ORDER BY f.created_at DESC, u.id DESC LIMIT ? OFFSET ?`
+    ).all(user.id, limitNum, offset);
+    const total = db.prepare(`SELECT COUNT(*) as count ${base}`).get(user.id).count;
+
+    users.forEach(u => { u.is_following = false; });
+    const me = optionalUser(req);
+    if (me && users.length) {
+      const ids = users.map(u => u.id);
+      const ph = ids.map(() => '?').join(',');
+      const mine = new Set(
+        db.prepare(`SELECT following_id FROM user_follows WHERE follower_id = ? AND following_id IN (${ph})`)
+          .all(me.id, ...ids).map(r => r.following_id)
+      );
+      users.forEach(u => { u.is_following = mine.has(u.id); });
+    }
+
+    res.json({ users, total, page: pageNum, limit: limitNum });
+  };
+}
+app.get('/api/users/:id/followers', followListHandler('followers'));
+app.get('/api/users/:id/following', followListHandler('following'));
+
 // ─────────────────────────────────────────────
 // 标签聚合
 // ─────────────────────────────────────────────
@@ -568,7 +641,7 @@ app.get('/api/notifications', authMiddleware, (req, res) => {
   const { pageNum, limitNum, offset } = parsePage(req);
   const rows = db.prepare(`
     SELECT n.*, u.nickname as actor_nickname, u.avatar as actor_avatar,
-           p.title as post_title, p.images as post_images,
+           p.title as post_title, p.images as post_images, p.thumbs as post_thumbs,
            c.content as comment_content
     FROM notifications n
     JOIN users u ON n.actor_id = u.id
@@ -581,7 +654,10 @@ app.get('/api/notifications', authMiddleware, (req, res) => {
 
   const notifications = rows.map(r => {
     let cover = '';
-    try { cover = JSON.parse(r.post_images || '[]')[0] || ''; } catch { cover = ''; }
+    try {
+      // 优先缩略图，避免通知面板加载原图
+      cover = JSON.parse(r.post_thumbs || '[]')[0] || JSON.parse(r.post_images || '[]')[0] || '';
+    } catch { cover = ''; }
     return {
       id: r.id,
       type: r.type,
@@ -619,6 +695,12 @@ app.post('/api/notifications/read', authMiddleware, (req, res) => {
   }
   const unread = db.prepare('SELECT COUNT(*) as count FROM notifications WHERE user_id = ? AND is_read = 0').get(req.user.id).count;
   res.json({ ok: true, unread });
+});
+
+/** 清空全部通知 */
+app.delete('/api/notifications', authMiddleware, (req, res) => {
+  const info = db.prepare('DELETE FROM notifications WHERE user_id = ?').run(req.user.id);
+  res.json({ ok: true, deleted: info.changes, unread: 0 });
 });
 
 // 我的收藏（分页，默认 100 条以便个人主页一次展示）
