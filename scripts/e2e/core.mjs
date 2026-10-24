@@ -37,6 +37,30 @@ try {
   h.check("详情页可打开", !!detailOk);
   await h.shotPng("e2e-core-detail.png");
 
+  // ── 搜索（FTS5 中文二元组：2 字词也能命中） ──
+  await h.open("#/");
+  const searchResult = await h.cdp.eval(`(async () => {
+    const hits = {};
+    for (const kw of ['汉服', '壁纸', '美食']) {
+      const d = await (await fetch('/api/posts?q=' + encodeURIComponent(kw) + '&limit=5')).json();
+      hits[kw] = (d.posts || []).length;
+    }
+    return JSON.stringify(hits);
+  })()`);
+  const hits = JSON.parse(searchResult);
+  h.check(
+    "2 字中文搜索可命中（FTS5 二元组）",
+    hits["汉服"] > 0 && hits["壁纸"] > 0 && hits["美食"] > 0,
+    searchResult,
+  );
+
+  // 搜索不存在的词应返回空
+  const emptyHit = await h.cdp.eval(`(async () => {
+    const d = await (await fetch('/api/posts?q=' + encodeURIComponent('完全不存在的词组合') + '&limit=5')).json();
+    return (d.posts || []).length;
+  })()`);
+  h.check("无结果搜索返回空列表", emptyHit === 0, `count=${emptyHit}`);
+
   // ── 通知：SSE 实时推送 ──
   await h.open("#/");
   const me = await h.login("tangyan");

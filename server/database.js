@@ -192,6 +192,16 @@ db.exec(`
   );
 `);
 
+// 全文检索索引（FTS5 + 中文二元组，见 server/search-index.js）
+// rowid 直接复用 posts.id，便于与主表关联
+try {
+  db.exec(`CREATE VIRTUAL TABLE IF NOT EXISTS post_fts USING fts5(terms, tokenize='unicode61')`);
+} catch (e) {
+  // 某些 SQLite 构建未启用 FTS5：降级为普通表，搜索会自动回落到 LIKE
+  console.warn('FTS5 不可用，全文检索将回落为 LIKE 查询:', e.message);
+  db.exec(`CREATE TABLE IF NOT EXISTS post_fts (rowid INTEGER PRIMARY KEY, terms TEXT)`);
+}
+
 // 创建索引
 db.exec(`
   CREATE INDEX IF NOT EXISTS idx_posts_author ON posts(author_id);

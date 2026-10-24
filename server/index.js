@@ -12,6 +12,7 @@ const pinoHttp = require('pino-http');
 const sanitizeHtml = require('sanitize-html');
 const { maskSensitive } = require('./sensitive-words');
 const { signFile, hotlinkGuard, applyWatermark } = require('./upload-guard');
+const { indexPost, removeFromIndex, searchPostIds, rebuildIndex } = require('./search-index');
 
 const db = require('./database');
 
@@ -460,11 +461,28 @@ app.get('/api/posts', (req, res) => {
     params.push(kw); countParams.push(kw);
   }
   if (q) {
-    // 标题、描述、标签、作者昵称模糊匹配（与前端本地筛选口径保持一致）
-    const cond = ' AND (p.title LIKE ? OR p.description LIKE ? OR p.tags LIKE ? OR u.nickname LIKE ?)';
-    sql += cond; countSql += cond;
-    const kw = '%' + q + '%';
-    params.push(kw, kw, kw, kw); countParams.push(kw, kw, kw, kw);
+    // 优先走 FTS5 全文索引（中文用二元组，支持 2 字查询）；
+    // 索引不可用或查询太短时回落到 LIKE 模糊匹配
+    const ftsIds = searchPostIds(q);
+    if (ftsIds !== null) {
+      if (ftsIds.length) {
+        const ph = ftsIds.map(() => '?').join(',');
+        sql += ` AND p.id IN (${ph})`;
+        countSql += ` AND p.id IN (${ph})`;
+        params.push(...ftsIds);
+        countParams.push(...ftsIds);
+      } else {
+        // FTS 明确无结果
+        sql += ' AND 1 = 0';
+        countSql += ' AND 1 = 0';
+      }
+    } else {
+      // 回落：标题、描述、标签、作者昵称模糊匹配
+      const cond = ' AND (p.title LIKE ? OR p.description LIKE ? OR p.tags LIKE ? OR u.nickname LIKE ?)';
+      sql += cond; countSql += cond;
+      const kw = '%' + q + '%';
+      params.push(kw, kw, kw, kw); countParams.push(kw, kw, kw, kw);
+    }
     // 记录搜索词用于「热搜」统计：只记首页、长度≥2，避免输入过程中的半截词刷屏
     if (pageNum === 1 && String(q).trim().length >= 2) {
       try {
@@ -539,6 +557,7 @@ app.post('/api/posts', authMiddleware, (req, res) => {
 
   const post = db.prepare('SELECT p.*, u.nickname as author_nickname, u.avatar as author_avatar FROM posts p JOIN users u ON p.author_id = u.id WHERE p.id = ?').get(info.lastInsertRowid);
   hydratePost(post);
+  indexPost(post);
 
   res.json({ post });
 });
@@ -565,6 +584,7 @@ app.put('/api/posts/:id', authMiddleware, (req, res) => {
 
   const updated = db.prepare('SELECT p.*, u.nickname as author_nickname, u.avatar as author_avatar FROM posts p JOIN users u ON p.author_id = u.id WHERE p.id = ?').get(postId);
   hydratePost(updated);
+  indexPost(updated);
   res.json({ post: updated });
 });
 
@@ -577,6 +597,7 @@ app.delete('/api/posts/:id', authMiddleware, (req, res) => {
   db.prepare('DELETE FROM posts WHERE id = ?').run(req.params.id);
   // 帖子没了，相关通知也失去意义
   db.prepare('DELETE FROM notifications WHERE post_id = ?').run(req.params.id);
+  removeFromIndex(Number(req.params.id));
   res.json({ ok: true });
 });
 
@@ -1558,6 +1579,10 @@ app.use((err, req, res, next) => {
 });
 
 if (require.main === module) {
+  // 首次启动或索引为空时回填全文索引
+  const indexed = rebuildIndex();
+  if (indexed > 0) logger.info(`已为 ${indexed} 条帖子建立全文索引`);
+
   app.listen(PORT, () => {
     logger.info(`Duitang API running on http://localhost:${PORT}`);
   });
