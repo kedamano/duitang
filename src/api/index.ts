@@ -159,6 +159,12 @@ export const api = {
     request<{ ok: boolean; count: number }>(`/albums/${albumId}/posts/${postId}`, { method: 'DELETE' }),
   myAlbums: () => request<{ albums: any[] }>('/my/albums'),
 
+  // ─── Drafts ───
+  getMyDraft: () => request<{ draft: any | null; updated_at?: string }>('/my/draft'),
+  saveMyDraft: (payload: any) =>
+    request<{ ok: boolean }>('/my/draft', { method: 'PUT', body: JSON.stringify({ payload }) }),
+  deleteMyDraft: () => request<{ ok: boolean }>('/my/draft', { method: 'DELETE' }),
+
   // ─── Follow lists ───
   getFollowers: (userId: number, params?: { page?: number; limit?: number }) =>
     request<{ users: any[]; total: number; page: number; limit: number }>(`/users/${userId}/followers?${pageQuery(params)}`),

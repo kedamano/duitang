@@ -1198,6 +1198,39 @@ app.get('/api/my/blocks', authMiddleware, (req, res) => {
 });
 
 // ─────────────────────────────────────────────
+// 服务端草稿箱
+// ─────────────────────────────────────────────
+
+/** 读取我的草稿（每人一份） */
+app.get('/api/my/draft', authMiddleware, (req, res) => {
+  const row = db.prepare('SELECT payload, updated_at FROM drafts WHERE user_id = ?').get(req.user.id);
+  if (!row) return res.json({ draft: null });
+  let payload = null;
+  try { payload = JSON.parse(row.payload); } catch { payload = null; }
+  res.json({ draft: payload, updated_at: row.updated_at });
+});
+
+/** 保存草稿（覆盖式，每人一份） */
+app.put('/api/my/draft', authMiddleware, (req, res) => {
+  const payload = req.body?.payload;
+  if (!payload || typeof payload !== 'object') return res.status(400).json({ error: 'payload 必填' });
+  const text = JSON.stringify(payload);
+  if (text.length > 20000) return res.status(400).json({ error: '草稿内容过大' });
+
+  db.prepare(`
+    INSERT INTO drafts (user_id, payload, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(user_id) DO UPDATE SET payload = excluded.payload, updated_at = CURRENT_TIMESTAMP
+  `).run(req.user.id, text);
+  res.json({ ok: true });
+});
+
+/** 删除草稿（发布成功后调用） */
+app.delete('/api/my/draft', authMiddleware, (req, res) => {
+  db.prepare('DELETE FROM drafts WHERE user_id = ?').run(req.user.id);
+  res.json({ ok: true });
+});
+
+// ─────────────────────────────────────────────
 // 专辑（用户自建收藏夹）
 // ─────────────────────────────────────────────
 

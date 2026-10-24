@@ -181,6 +181,17 @@ db.exec(`
   );
 `);
 
+// 服务端草稿箱（换设备/清缓存后仍可继续编辑）
+db.exec(`
+  CREATE TABLE IF NOT EXISTS drafts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    payload TEXT NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+`);
+
 // 创建索引
 db.exec(`
   CREATE INDEX IF NOT EXISTS idx_posts_author ON posts(author_id);
@@ -196,6 +207,7 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_search_queries_created ON search_queries(created_at DESC);
   CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status, created_at DESC);
   CREATE INDEX IF NOT EXISTS idx_user_blocks_blocker ON user_blocks(blocker_id);
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_drafts_user ON drafts(user_id);
 `);
 
 // 轻量迁移：为旧库补齐后加的列

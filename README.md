@@ -9,7 +9,7 @@
 - **发现页**：`/#/discover` 热门作者（按近 30 天互动量）、热门话题、新鲜面孔，解决关注流冷启动
 - **帖子详情**：多图浏览与大图预览（灯箱，支持 ←/→/Esc）、点赞 / 收集 / 分享（复制链接、微博）、**评论区楼中楼**（发表、回复、点赞、删除；回复默认折叠、点击展开，支持分页加载；正文里的 @昵称 高亮并可点击跳转搜索）、关注作者、删除与编辑自己的帖子
 - **独立分享页**：`/#/pin/<id>` 直达某条帖子，可被搜索引擎外分享
-- **发布**：**富文本描述**（TipTap：加粗/斜体/删除线/小标题/列表/引用/代码/链接）、拖拽 / 点选上传图片（最多 9 张，**自动生成 400/800 两档尺寸变体**）、AI 生成图片（Pollinations，经 Vite 代理）、画板与标签选择、可选归入专辑、草稿自动保存
+- **发布**：**富文本描述**（TipTap：加粗/斜体/删除线/小标题/列表/引用/代码/链接）、拖拽 / 点选上传图片（最多 9 张，**自动生成 400/800 两档尺寸变体**、**可拖拽排序与指定封面**）、AI 生成图片（Pollinations，经 Vite 代理）、画板与标签选择、可选归入专辑、**草稿自动保存到服务端**（换设备也能继续编辑）
 - **专辑（收藏夹）**：用户自建专辑，收藏/发布时可归入；`/#/album/<id>` 专辑详情页；支持公开/私密、改名与删除
 - **关注流**：导航「关注」标签展示已关注作者与自己的帖子（时间倒序、分页）；未登录显示登录引导，无关注显示空状态与去首页入口；关注标签下搜索会自动切回推荐
 - **消息通知**：顶部铃铛 + 未读角标，**SSE 实时推送**（断线自动回落轮询，窗口聚焦也会刷新）；点赞 / 收藏 / 评论 / 赞评论 / 回复 / 关注 / **@提及** 都会通知对应作者（自己不通知自己，取消操作与删除评论会自动撤回），面板支持加载更多与一键清空，点击跳转到对应帖子或用户
@@ -55,7 +55,7 @@ src/                前端
   pages/            HomePage / PublishPage / ProfilePage / PostDetailPage / TagPage / BoardPage / AlbumPage / DiscoverPage / AdminReportsPage
   utils/            normalizePost（后端→前端唯一转换入口）、mention（@解析与高亮）、richText（富文本消毒与摘要）、searchEvent、useDebouncedValue、formatTime、cn
 server/             后端
-  index.js          Express 路由（auth/posts/likes/collects/comments/follows/feed/notifications/tags/trending/albums/reports/blocks/upload）
+  index.js          Express 路由（auth/posts/likes/collects/comments/follows/feed/notifications/tags/trending/albums/reports/blocks/draft/upload）
   database.js       node:sqlite 建表 + 轻量迁移（列补齐、中文 board → 英文 key）
   sensitive-words.js 敏感词表与打码（可用 SENSITIVE_WORDS 覆盖）
   seed-demo.js      演示数据（30 帖 / 5 用户 / 评论 / 关注），仅默认库且空表时执行
@@ -107,6 +107,7 @@ node scripts/verify-feed.mjs            # 关注流页面与接口一致性校�
 - **管理员**：`users.is_admin` 标记，每次请求查库判定（权限撤销后旧 token 立即失效）；默认 `tangyan` 为管理员，可用 `ADMIN_USERNAMES="a,b"` 覆盖。
 - **敏感词**：默认词表仅演示能力（`sensitive-words.js`），命中后以等长 `*` 打码；可用 `SENSITIVE_WORDS` 覆盖。生产环境应替换为完整词库或接入第三方内容安全服务。
 - **拉黑**：拉黑后对方的帖子、评论与关注流内容都不再展示（服务端过滤，前端无需特殊处理）。
+- **草稿箱**：`drafts` 表每人一份（唯一索引），输入停止 1.2s 后自动写入服务端；进入发布页优先恢复服务端草稿，无服务端草稿时回落到 localStorage；发布成功后自动清除。
 - 上传与静态资源经 `/uploads` 由后端提供；开发环境 Vite 代理 `/api` 与 `/uploads` 到后端。
 - 生产部署：`npm run build` 产出单文件 `dist/index.html`，配合 `server/.env`（参考 `.env.example`，务必更换 `JWT_SECRET`、设置 `FRONTEND_ORIGIN`）。
 
@@ -115,6 +116,5 @@ node scripts/verify-feed.mjs            # 关注流页面与接口一致性校�
 - 图片上传后生成更多档位（如 1200/1600）与 WebP/AVIF 格式
 - 评论支持富文本 / 图片 / 表情
 - 上传防盗链与水印
-- 服务端草稿箱（当前草稿只在 localStorage）
 - OpenAPI 文档 + 前后端共享类型（后端目前是纯 JS）
 - E2E 脚本按功能拆分（当前为单个大脚本）

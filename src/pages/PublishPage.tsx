@@ -60,6 +60,8 @@ export default function PublishPage() {
   const [dragActive, setDragActive] = useState(false);
   const [myAlbums, setMyAlbums] = useState<{ id: number; title: string; post_count: number }[]>([]);
   const [albumId, setAlbumId] = useState<number | null>(null);
+  // 拖拽排序时记录源下标
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
 
   // 拉取我的专辑，供发布时选择归入
   useEffect(() => {
@@ -71,37 +73,56 @@ export default function PublishPage() {
     return () => { cancelled = true; };
   }, [user]);
 
-  // 进入页面时恢复草稿（仅文字信息，图片受 localStorage 配额限制不做持久化）
+  // 进入页面时恢复草稿：优先服务端（跨设备可用），回落到 localStorage
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(DRAFT_KEY);
-      if (!raw) return;
-      const d = JSON.parse(raw) as Draft;
+    let cancelled = false;
+    const apply = (d: Partial<Draft> | null, fromServer: boolean) => {
+      if (cancelled || !d) return;
       if (d.title) setTitle(d.title);
       if (d.description) setDescription(d.description);
       if (Array.isArray(d.tags) && d.tags.length) setTags(d.tags.slice(0, 5));
       if (d.board) setBoard(d.board);
       if (d.title || d.description || d.board || (d.tags || []).length) {
-        showToast("已恢复上次未发布的草稿", "success");
+        showToast(fromServer ? "已恢复服务端草稿" : "已恢复上次未发布的草稿", "success");
       }
-    } catch {
-      /* 草稿损坏则忽略 */
-    }
+    };
+
+    api.getMyDraft()
+      .then(d => {
+        if (d.draft) { apply(d.draft, true); return; }
+        try {
+          const raw = localStorage.getItem(DRAFT_KEY);
+          if (raw) apply(JSON.parse(raw) as Draft, false);
+        } catch { /* 草稿损坏则忽略 */ }
+      })
+      .catch(() => {
+        // 服务端不可用时回落到本地草稿
+        try {
+          const raw = localStorage.getItem(DRAFT_KEY);
+          if (raw) apply(JSON.parse(raw) as Draft, false);
+        } catch { /* 忽略 */ }
+      });
+
+    return () => { cancelled = true; };
   }, [showToast]);
 
-  // 输入过程中自动保存草稿（防抖），全部清空时删除
+  // 输入过程中自动保存草稿（防抖）：同时写服务端与 localStorage
   useEffect(() => {
     const timer = setTimeout(() => {
       const empty = !title.trim() && isRichTextEmpty(description) && tags.length === 0 && !board;
+      const payload: Draft = { title, description, tags, board };
       try {
         if (empty) localStorage.removeItem(DRAFT_KEY);
-        else localStorage.setItem(DRAFT_KEY, JSON.stringify({ title, description, tags, board } as Draft));
+        else localStorage.setItem(DRAFT_KEY, JSON.stringify(payload));
       } catch {
-        /* 配额不足时放弃保存，不打断输入 */
+        /* 配额不足时放弃本地保存，不打断输入 */
       }
-    }, 400);
+      if (!user) return;
+      if (empty) api.deleteMyDraft().catch(() => {});
+      else api.saveMyDraft(payload).catch(() => { /* 服务端保存失败不影响发布 */ });
+    }, 1200);
     return () => clearTimeout(timer);
-  }, [title, description, tags, board]);
+  }, [title, description, tags, board, user]);
 
   /** 过滤掉非图片与超过 10MB 的文件，避免白等一次上传失败 */
   const pickValidFiles = (files: File[]): File[] => {
@@ -177,6 +198,28 @@ export default function PublishPage() {
     setImages(prev => prev.filter((_, i) => i !== index));
   };
 
+  /** 把某张图移到第一位（作为封面） */
+  const setAsCover = (index: number) => {
+    setImages(prev => {
+      if (index <= 0) return prev;
+      const next = [...prev];
+      const [moved] = next.splice(index, 1);
+      next.unshift(moved);
+      return next;
+    });
+  };
+
+  /** 调整图片顺序 */
+  const moveImage = (index: number, dir: -1 | 1) => {
+    setImages(prev => {
+      const target = index + dir;
+      if (target < 0 || target >= prev.length) return prev;
+      const next = [...prev];
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
+  };
+
   const addTag = () => {
     const t = tagInput.trim();
     if (t && !tags.includes(t) && tags.length < 5) {
@@ -238,6 +281,7 @@ export default function PublishPage() {
         try { await api.addPostToAlbum(albumId, result.post.id); } catch { /* 忽略 */ }
       }
       try { localStorage.removeItem(DRAFT_KEY); } catch { /* 忽略 */ }
+      api.deleteMyDraft().catch(() => { /* 忽略 */ });
       setPublishing(false);
       showToast("发布成功", "success");
       navigate("/");
@@ -328,10 +372,35 @@ export default function PublishPage() {
           ) : (
             <div className="flex flex-wrap gap-3">
               {images.map((img, i) => (
-                <div key={i} className="relative group w-28 h-28 rounded-xl overflow-hidden bg-gray-100">
-                  <img src={img.preview} alt="" className="w-full h-full object-cover" />
+                <div
+                  key={i}
+                  draggable
+                  onDragStart={e => {
+                    setDragIndex(i);
+                    e.dataTransfer.effectAllowed = "move";
+                  }}
+                  onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }}
+                  onDrop={e => {
+                    e.preventDefault();
+                    const from = dragIndex;
+                    setDragIndex(null);
+                    if (from === null || from === i) return;
+                    setImages(prev => {
+                      const next = [...prev];
+                      const [moved] = next.splice(from, 1);
+                      next.splice(i, 0, moved);
+                      return next;
+                    });
+                  }}
+                  className={cn(
+                    "relative group w-28 h-28 rounded-xl overflow-hidden bg-gray-100 cursor-grab active:cursor-grabbing",
+                    dragIndex === i && "ring-2 ring-[#e05d6f] ring-offset-2",
+                  )}
+                >
+                  <img src={img.preview} alt="" className="w-full h-full object-cover pointer-events-none" />
                   <button
                     onClick={() => removeImage(i)}
+                    aria-label={`删除第 ${i + 1} 张图片`}
                     className="absolute top-1.5 right-1.5 w-7 h-7 bg-black/50 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/70"
                   >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
@@ -341,6 +410,34 @@ export default function PublishPage() {
                   {i === 0 && (
                     <span className="absolute bottom-1.5 left-1.5 text-xs bg-[#e05d6f] text-white px-1.5 py-0.5 rounded font-medium">封面</span>
                   )}
+                  {/* 设为封面：非首图时显示 */}
+                  {i !== 0 && (
+                    <button
+                      onClick={() => setAsCover(i)}
+                      className="absolute bottom-1.5 left-1.5 text-[10px] bg-black/50 text-white px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/70"
+                    >
+                      设为封面
+                    </button>
+                  )}
+                  {/* 顺序调整 */}
+                  <div className="absolute bottom-1.5 right-1.5 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={() => moveImage(i, -1)}
+                      disabled={i === 0}
+                      aria-label="前移"
+                      className="w-6 h-6 bg-black/50 text-white rounded flex items-center justify-center disabled:opacity-30 hover:bg-black/70"
+                    >
+                      <Icon name="arrowLeft" className="w-3 h-3" />
+                    </button>
+                    <button
+                      onClick={() => moveImage(i, 1)}
+                      disabled={i === images.length - 1}
+                      aria-label="后移"
+                      className="w-6 h-6 bg-black/50 text-white rounded flex items-center justify-center disabled:opacity-30 hover:bg-black/70"
+                    >
+                      <Icon name="arrowRight" className="w-3 h-3" />
+                    </button>
+                  </div>
                 </div>
               ))}
               {images.length < 9 && (

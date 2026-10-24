@@ -575,7 +575,7 @@ async function main() {
       setter.call(i, 'E2E 草稿标题');
       i.dispatchEvent(new Event('input', { bubbles: true }));
     })()`);
-    await sleep(900); // 等草稿防抖写入
+    await sleep(2000); // 等草稿防抖写入（服务端 1200ms + 网络）
     await open("#/");
     await open("#/publish");
     let draftRestored = false;
@@ -587,6 +587,7 @@ async function main() {
     await shotPng("publish-draft.png");
     // 清理草稿，避免影响后续使用
     await cdp.eval(`localStorage.removeItem('duitang_publish_draft')`);
+    await cdp.eval(`fetch('/api/my/draft', { method: 'DELETE', headers: { Authorization: 'Bearer ' + localStorage.getItem('duitang_token') } })`);
 
     // ── 画板分组页 ──
     await open("#/board/anime");
@@ -1223,6 +1224,81 @@ async function main() {
     })()`);
     const maskedInfo = JSON.parse(masked);
     check("敏感词被自动打码", !maskedInfo.title.includes("傻逼") && maskedInfo.title.includes("**"), maskedInfo.title);
+
+    // ── 服务端草稿箱 ──
+    const draftSaved = await cdp.eval(`(async () => {
+      const token = localStorage.getItem('duitang_token');
+      const r = await fetch('/api/my/draft', { method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ payload: { title: 'E2E 草稿', description: '<p>草稿内容</p>', tags: ['e2e'], board: '美食菜谱' } }) });
+      const d = await r.json();
+      const g = await (await fetch('/api/my/draft', { headers: { Authorization: 'Bearer ' + token } })).json();
+      return JSON.stringify({ saved: d.ok, title: g.draft && g.draft.title, tags: g.draft && g.draft.tags });
+    })()`);
+    const draftInfo = JSON.parse(draftSaved);
+    check("服务端草稿可保存并读回", draftInfo.saved && draftInfo.title === "E2E 草稿" && Array.isArray(draftInfo.tags), draftSaved);
+
+    // 发布页进入时能恢复服务端草稿
+    await open("#/publish");
+    let serverDraftRestored = false;
+    for (let i = 0; i < 15 && !serverDraftRestored; i++) {
+      await sleep(800);
+      serverDraftRestored = await cdp.eval(`document.querySelector('input[placeholder*="好标题"]')?.value === 'E2E 草稿'`);
+    }
+    check("发布页恢复服务端草稿", serverDraftRestored);
+    await shotPng("server-draft.png");
+
+    // 清理草稿
+    await cdp.eval(`fetch('/api/my/draft', { method: 'DELETE', headers: { Authorization: 'Bearer ' + localStorage.getItem('duitang_token') } })`);
+    await cdp.eval(`localStorage.removeItem('duitang_publish_draft')`);
+    await sleep(300);
+
+    // ── 多图排序与选封面 ──
+    const reorder = await cdp.eval(`(async () => {
+      const token = localStorage.getItem('duitang_token');
+      // 上传两张不同颜色的图，后端会返回不同尺寸便于区分
+      const mk = async (color) => {
+        const c = document.createElement('canvas');
+        c.width = 400; c.height = 400;
+        const ctx = c.getContext('2d');
+        ctx.fillStyle = color; ctx.fillRect(0, 0, 400, 400);
+        const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.9));
+        const fd = new FormData();
+        fd.append('file', new File([blob], color.replace('#','') + '.jpg', { type: 'image/jpeg' }));
+        return (await (await fetch('/api/upload', { method: 'POST', headers: { Authorization: 'Bearer ' + token }, body: fd })).json()).url;
+      };
+      const a = await mk('#ff0000');
+      const b = await mk('#00ff00');
+      const p = await (await fetch('/api/posts', { method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ title: 'E2E 多图', images: [a, b], board: 'food', tags: ['reorder'] }) })).json();
+      return JSON.stringify({ id: p.post.id, first: p.post.images[0] });
+    })()`);
+    const reorderInfo = JSON.parse(reorder);
+    check("多图帖子创建成功", !!reorderInfo.id, reorder);
+
+    await open("#/pin/" + reorderInfo.id);
+    let multiReady = false;
+    for (let i = 0; i < 15 && !multiReady; i++) {
+      await sleep(700);
+      multiReady = await cdp.eval(`!!document.querySelector('main img[alt]')`);
+    }
+    // 详情页可切换到第二张
+    const switched = await cdp.eval(`(() => {
+      const dots = [...document.querySelectorAll('button[aria-label^="查看第"]')];
+      if (!dots.length) return 'no-dots';
+      dots[1].click();
+      return 'clicked';
+    })()`);
+    await sleep(600);
+    const afterSwitch = await cdp.eval(`(() => {
+      const img = document.querySelector('main img[alt]');
+      return img ? img.getAttribute('src') : '';
+    })()`);
+    check("详情页可切换多图", switched === "clicked" && afterSwitch !== reorderInfo.first, `${switched} ${afterSwitch}`);
+
+    await cdp.eval(`fetch('/api/posts/${reorderInfo.id}', { method: 'DELETE', headers: { Authorization: 'Bearer ' + localStorage.getItem('duitang_token') } })`);
+    await sleep(300);
 
     ws.close();
     console.log(fails ? `\n${fails} 项失败` : "\n全部通过");
