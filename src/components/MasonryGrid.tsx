@@ -45,6 +45,8 @@ export function ImageTile({ card, onClick }: { card: ImageCard; onClick: () => v
         )}
         <img
           src={card.thumb || card.src}
+          srcSet={card.srcset || undefined}
+          sizes="(max-width: 640px) 100vw, 330px"
           alt={card.title}
           loading="lazy"
           decoding="async"

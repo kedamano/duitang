@@ -144,14 +144,29 @@ const upload = multer({
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
 });
 
-/** 生成缩略图（宽 400，等比），返回文件名；失败时返回 null 由前端回落到原图 */
-const THUMB_WIDTH = 400;
-async function makeThumb(filePath) {
+/**
+ * 生成多档尺寸的变体（宽 400 缩略图 + 宽 800 中图），原图始终保留为最高档。
+ * 返回 [{ url, width }...]，按宽度升序；原图小于目标宽度时不额外放大。
+ */
+const VARIANT_WIDTHS = [400, 800];
+
+async function makeVariants(filePath, originalWidth) {
+  const variants = [];
   const ext = path.extname(filePath);
-  const thumbPath = filePath.replace(ext, `_thumb.jpg`);
-  const img = await Jimp.read(filePath);
-  await img.resize(THUMB_WIDTH, Jimp.AUTO).quality(80).writeAsync(thumbPath);
-  return path.basename(thumbPath);
+  const read = async (width) => {
+    if (width >= originalWidth) return null;
+    const out = filePath.replace(ext, `_w${width}.jpg`);
+    const img = await Jimp.read(filePath);
+    await img.resize(width, Jimp.AUTO).quality(82).writeAsync(out);
+    return { url: `/uploads/${path.basename(out)}`, width };
+  };
+  for (const width of VARIANT_WIDTHS) {
+    try {
+      const v = await read(width);
+      if (v) variants.push(v);
+    } catch { /* 单档失败不影响其他档位 */ }
+  }
+  return variants;
 }
 
 app.post('/api/upload', authMiddleware, upload.single('file'), async (req, res) => {
@@ -168,21 +183,24 @@ app.post('/api/upload', authMiddleware, upload.single('file'), async (req, res) 
     return res.status(400).json({ error: '文件校验失败' });
   }
 
-  // 生成缩略图：卡片列表用它，详情页仍用原图
-  let thumb = null;
+  const url = `/uploads/${req.file.filename}`;
   let width = 0, height = 0;
+  let variants = [];
   try {
     const img = await Jimp.read(req.file.path);
     width = img.bitmap.width;
     height = img.bitmap.height;
-    thumb = await makeThumb(req.file.path);
+    variants = await makeVariants(req.file.path, width);
   } catch (e) {
-    req.log?.warn?.({ err: e.message }, '缩略图生成失败，回落原图');
+    req.log?.warn?.({ err: e.message }, '图片尺寸变体生成失败，回落原图');
   }
 
   res.json({
-    url: `/uploads/${req.file.filename}`,
-    thumb: thumb ? `/uploads/${thumb}` : `/uploads/${req.file.filename}`,
+    url,
+    // 兼容旧字段：thumb 指向最小档，缺失时回落原图
+    thumb: variants.length ? variants[0].url : url,
+    mid: variants.length > 1 ? variants[1].url : url,
+    variants,
     width, height,
   });
 });
@@ -208,6 +226,7 @@ function hydratePost(post) {
   try { post.tags = JSON.parse(post.tags); } catch { post.tags = []; }
   try { post.sizes = JSON.parse(post.sizes || '[]'); } catch { post.sizes = []; }
   try { post.thumbs = JSON.parse(post.thumbs || '[]'); } catch { post.thumbs = []; }
+  try { post.images_variants = JSON.parse(post.images_variants || '[]'); } catch { post.images_variants = []; }
   return post;
 }
 
@@ -235,14 +254,31 @@ function optionalUser(req) {
  */
 /**
  * 通知偏好：user.notify_prefs 存 JSON，未列出的类型默认开启。
- * 例如 { "like": false } 表示不收点赞通知。
+ * 取值可为 true / false / 'followers'（仅接收已关注的人发来的）。
+ * 例如 { "like": false, "comment": "followers" }。
  */
-function isNotifyTypeEnabled(userId, type) {
+function getNotifyPrefs(userId) {
   const row = db.prepare('SELECT notify_prefs FROM users WHERE id = ?').get(userId);
-  if (!row) return true;
-  let prefs = {};
-  try { prefs = JSON.parse(row.notify_prefs || '{}'); } catch { prefs = {}; }
-  return prefs[type] !== false;
+  if (!row) return {};
+  try {
+    const parsed = JSON.parse(row.notify_prefs || '{}');
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch { return {}; }
+}
+
+function isNotifyTypeEnabled(userId, type) {
+  return getNotifyPrefs(userId)[type] !== false;
+}
+
+/** 判断某个通知是否应发送：偏好开启，且（若配置为仅关注的人）对方确实关注了我 */
+function canNotify({ userId, actorId, type }) {
+  const prefs = getNotifyPrefs(userId);
+  if (prefs[type] === false) return false;
+  if (prefs[type] === 'followers') {
+    // 仅接收"关注我的人"的通知：触发者(follower) 关注了 接收者(following)
+    return !!db.prepare('SELECT 1 FROM user_follows WHERE follower_id = ? AND following_id = ?').get(actorId, userId);
+  }
+  return true;
 }
 
 /** SSE 连接表：userId -> Set<res> */
@@ -259,7 +295,8 @@ function pushNotification(userId, payload) {
 
 function addNotification({ userId, actorId, type, postId = 0, commentId = 0 }) {
   if (!userId || userId === actorId) return;
-  if (!isNotifyTypeEnabled(userId, type)) return;
+  // 偏好 + 关注关系判定都在写入前完成
+  if (!canNotify({ userId, actorId, type })) return;
   const dedupable = type !== 'comment' && type !== 'reply';
   if (dedupable) {
     const existing = db.prepare(
@@ -280,6 +317,26 @@ function removeNotification({ userId, actorId, type, postId = 0, commentId = 0 }
   db.prepare(
     'DELETE FROM notifications WHERE user_id = ? AND actor_id = ? AND type = ? AND post_id = ? AND comment_id = ?'
   ).run(userId, actorId, type, postId, commentId);
+}
+
+/**
+ * 解析评论里的 @昵称 并通知被提到的人。
+ * 昵称按全角/半角 @ 匹配，长度 1-20，去除空白。
+ */
+function notifyMentions({ actorId, content, postId, commentId }) {
+  const matches = [...content.matchAll(/@([^\s@]{1,20})/g)].map(m => m[1]);
+  if (!matches.length) return [];
+  const targets = db.prepare(`
+    SELECT id FROM users WHERE nickname IN (${matches.map(() => '?').join(',')})
+  `).all(...matches).map(u => u.id);
+
+  const notified = [];
+  for (const userId of targets) {
+    if (userId === actorId) continue;
+    addNotification({ userId, actorId, type: 'mention', postId, commentId });
+    notified.push(userId);
+  }
+  return notified;
 }
 
 /**
@@ -361,7 +418,7 @@ app.get('/api/posts/:id', (req, res) => {
 
 // 发布帖子
 app.post('/api/posts', authMiddleware, (req, res) => {
-  const { title, description, board, images, tags, sizes, thumbs } = req.body;
+  const { title, description, board, images, tags, sizes, thumbs, variants } = req.body;
   if (!title || !title.trim()) return res.status(400).json({ error: '标题必填' });
   if (!Array.isArray(images) || images.length === 0) return res.status(400).json({ error: '至少一张图片' });
 
@@ -372,12 +429,20 @@ app.post('/api/posts', authMiddleware, (req, res) => {
   const thumbStr = JSON.stringify(
     Array.isArray(thumbs) && thumbs.length === finalImages.length ? thumbs : finalImages
   );
+  // 尺寸变体与 images 一一对应，每项为按宽度升序的 {url,width}；缺失时回落单档
+  const variantStr = JSON.stringify(finalImages.map((img, i) => {
+    const provided = Array.isArray(variants) ? variants[i] : null;
+    if (Array.isArray(provided) && provided.length) {
+      return provided.map(v => ({ url: String(v.url || ''), width: Number(v.width) || 0 }));
+    }
+    return [{ url: String(img), width: 0 }];
+  }));
   // sizes 与 images 一一对应；缺省时存空数组，前端回落到默认比例
   const sizeStr = Array.isArray(sizes) && sizes.length === finalImages.length
     ? JSON.stringify(sizes.map(s => ({ w: Number(s?.w) || 400, h: Number(s?.h) || 300 })))
     : '[]';
-  const info = db.prepare('INSERT INTO posts (author_id, title, description, board, images, tags, sizes, thumbs) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(
-    req.user.id, title.trim(), description || '', normalizeBoard(board), imageStr, tagStr, sizeStr, thumbStr
+  const info = db.prepare('INSERT INTO posts (author_id, title, description, board, images, tags, sizes, thumbs, images_variants) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(
+    req.user.id, title.trim(), description || '', normalizeBoard(board), imageStr, tagStr, sizeStr, thumbStr, variantStr
   );
 
   const post = db.prepare('SELECT p.*, u.nickname as author_nickname, u.avatar as author_avatar FROM posts p JOIN users u ON p.author_id = u.id WHERE p.id = ?').get(info.lastInsertRowid);
@@ -586,12 +651,21 @@ app.post('/api/posts/:id/comments', authMiddleware, (req, res) => {
     }
   }
 
+  // @ 提醒：解析内容中的 @昵称 并通知被提到的人
+  const mentioned = notifyMentions({
+    actorId: req.user.id,
+    content: content.trim(),
+    postId,
+    commentId: Number(info.lastInsertRowid),
+  });
+
   const comment = db.prepare(`${COMMENT_SELECT} WHERE c.id = ?`).get(info.lastInsertRowid);
   comment.is_liked = false;
   if (parentId) {
     const parent = db.prepare('SELECT u.nickname FROM comments c JOIN users u ON c.author_id = u.id WHERE c.id = ?').get(parentId);
     if (parent) comment.reply_to_nickname = parent.nickname;
   }
+  comment.mentioned_users = mentioned;
   res.json({ comment });
 });
 
@@ -845,13 +919,10 @@ app.get('/api/notifications/stream', (req, res) => {
 // ─────────────────────────────────────────────
 // 通知偏好
 // ─────────────────────────────────────────────
-const NOTIFY_TYPES = ['like', 'collect', 'comment', 'comment_like', 'follow', 'reply'];
+const NOTIFY_TYPES = ['like', 'collect', 'comment', 'comment_like', 'reply', 'follow', 'mention'];
 
 app.get('/api/users/me/notify-prefs', authMiddleware, (req, res) => {
-  const row = db.prepare('SELECT notify_prefs FROM users WHERE id = ?').get(req.user.id);
-  let prefs = {};
-  try { prefs = JSON.parse(row?.notify_prefs || '{}'); } catch { prefs = {}; }
-  res.json({ prefs, types: NOTIFY_TYPES });
+  res.json({ prefs: getNotifyPrefs(req.user.id), types: NOTIFY_TYPES, modes: ['true', 'false', 'followers'] });
 });
 
 app.patch('/api/users/me/notify-prefs', authMiddleware, (req, res) => {
@@ -860,6 +931,7 @@ app.patch('/api/users/me/notify-prefs', authMiddleware, (req, res) => {
   const clean = {};
   for (const type of NOTIFY_TYPES) {
     if (typeof prefs[type] === 'boolean') clean[type] = prefs[type];
+    else if (prefs[type] === 'followers') clean[type] = 'followers';
   }
   db.prepare('UPDATE users SET notify_prefs = ? WHERE id = ?').run(JSON.stringify(clean), req.user.id);
   res.json({ prefs: clean });

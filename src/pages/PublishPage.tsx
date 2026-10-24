@@ -181,6 +181,7 @@ export default function PublishPage() {
     try {
       const imageUrls: string[] = [];
       const thumbs: string[] = [];
+      const variants: { url: string; width: number }[][] = [];
       const sizes: { w: number; h: number }[] = [];
       for (const img of images) {
         if (img.preview.startsWith('data:')) {
@@ -189,12 +190,19 @@ export default function PublishPage() {
           const data = await api.upload(file);
           if (!data.url) throw new Error('图片上传失败');
           imageUrls.push(data.url);
-          // 缩略图由后端生成；失败时回落原图
-          thumbs.push(data.thumb || data.url);
+          // 尺寸变体由后端生成；失败时回落原图
+          if (Array.isArray(data.variants) && data.variants.length) {
+            variants.push(data.variants);
+            thumbs.push(data.variants[0].url || data.url);
+          } else {
+            variants.push([{ url: data.url, width: data.width || 0 }]);
+            thumbs.push(data.thumb || data.url);
+          }
         } else {
           // 已是可访问地址（本地上传结果或 AI 生成的远程图）
           imageUrls.push(img.preview);
           thumbs.push(img.preview);
+          variants.push([{ url: img.preview, width: 0 }]);
         }
         sizes.push(await measureImage(img.preview));
       }
@@ -207,6 +215,7 @@ export default function PublishPage() {
         tags,
         sizes,
         thumbs,
+        variants,
       });
       addUserPost(result.post);
       try { localStorage.removeItem(DRAFT_KEY); } catch { /* 忽略 */ }

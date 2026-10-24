@@ -141,6 +141,8 @@ function ensureColumn(table, column, definition) {
 }
 ensureColumn('posts', 'sizes', "TEXT DEFAULT '[]'");
 ensureColumn('posts', 'thumbs', "TEXT DEFAULT '[]'");
+// 与 images 一一对应的尺寸变体：[{url,width}] 按宽度升序（400/800/原图）
+ensureColumn('posts', 'images_variants', "TEXT DEFAULT '[]'");
 // 楼中楼：回复指向父评论 id（0 表示顶层评论）
 ensureColumn('comments', 'parent_id', "INTEGER NOT NULL DEFAULT 0");
 // 通知偏好：JSON，按类型开关

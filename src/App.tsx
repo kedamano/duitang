@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { HashRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
 import { CollectionProvider } from "./context/CollectionContext";
 import { ToastProvider } from "./context/ToastContext";
@@ -13,10 +13,25 @@ import ProfilePage from "./pages/ProfilePage";
 import PostDetailPage from "./pages/PostDetailPage";
 import TagPage from "./pages/TagPage";
 import BoardPage from "./pages/BoardPage";
+import { SEARCH_EVENT } from "./utils/searchEvent";
 
 function AppContent() {
   const [search, setSearch] = useState("");
   const [activeNav, setActiveNav] = useState("推荐");
+  const navigate = useNavigate();
+
+  // 评论里的 @ 提及点击后：回到首页并填入搜索框
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const query = (e as CustomEvent<{ query: string }>).detail?.query;
+      if (query) {
+        setSearch(query);
+        navigate("/");
+      }
+    };
+    window.addEventListener(SEARCH_EVENT, handler);
+    return () => window.removeEventListener(SEARCH_EVENT, handler);
+  }, [navigate]);
 
   return (
     <div className="min-h-screen bg-[#f8f8f8] font-sans">

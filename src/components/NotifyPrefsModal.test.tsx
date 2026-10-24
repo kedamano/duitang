@@ -28,7 +28,7 @@ function renderModal(onClose = vi.fn()) {
 beforeEach(() => {
   vi.clearAllMocks();
   (apiModule.api.getNotifyPrefs as any).mockResolvedValue({
-    prefs: {}, types: ["like", "collect", "comment", "comment_like", "reply", "follow"],
+    prefs: {}, types: ["like", "collect", "comment", "comment_like", "reply", "follow", "mention"],
   });
 });
 
@@ -46,15 +46,43 @@ describe("NotifyPrefsModal", () => {
     expect(like).toHaveAttribute("aria-checked", "false");
   });
 
-  it("切换后保存提交对应偏好", async () => {
-    (apiModule.api.updateNotifyPrefs as any).mockResolvedValue({ prefs: { like: false } });
+  it("点击切换进入\"仅关注的人\"模式，说明文案随之变化", async () => {
     renderModal();
     const like = await screen.findByRole("switch", { name: "点赞通知" });
     await userEvent.click(like);
+    // 三态循环：开启 → followers → 关闭
+    expect(like).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByText(/仅关注的人/)).toBeInTheDocument();
+    await userEvent.click(like);
     expect(like).toHaveAttribute("aria-checked", "false");
+    await userEvent.click(like);
+    expect(like).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("保存时提交三态取值", async () => {
+    (apiModule.api.updateNotifyPrefs as any).mockResolvedValue({ prefs: { like: "followers" } });
+    renderModal();
+    const like = await screen.findByRole("switch", { name: "点赞通知" });
+    await userEvent.click(like); // → followers
+    await userEvent.click(screen.getByRole("button", { name: "保存" }));
+    await waitFor(() => expect(apiModule.api.updateNotifyPrefs).toHaveBeenCalled());
+    expect((apiModule.api.updateNotifyPrefs as any).mock.calls[0][0].like).toBe("followers");
+  });
+
+  it("关闭后再保存提交 false", async () => {
+    (apiModule.api.updateNotifyPrefs as any).mockResolvedValue({ prefs: { like: false } });
+    renderModal();
+    const like = await screen.findByRole("switch", { name: "点赞通知" });
+    await userEvent.click(like); // → followers
+    await userEvent.click(like); // → false
     await userEvent.click(screen.getByRole("button", { name: "保存" }));
     await waitFor(() => expect(apiModule.api.updateNotifyPrefs).toHaveBeenCalled());
     expect((apiModule.api.updateNotifyPrefs as any).mock.calls[0][0].like).toBe(false);
+  });
+
+  it("展示 @ 提醒开关", async () => {
+    renderModal();
+    expect(await screen.findByRole("switch", { name: "@ 提醒通知" })).toBeInTheDocument();
   });
 
   it("保存成功后关闭弹窗", async () => {

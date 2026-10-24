@@ -5,6 +5,7 @@ import { useAuth } from "../context/AuthContext";
 import { useCollection, type Comment } from "../context/CollectionContext";
 import type { ImageCard } from "../data/images";
 import { normalizePost } from "../utils/normalizePost";
+import { renderContentWithMentions } from "../utils/mention";
 import EditPostModal from "./EditPostModal";
 import ImageLightbox from "./ImageLightbox";
 
@@ -30,7 +31,9 @@ function ReplyRow({
               <span className="font-normal text-gray-400"> 回复 <span className="text-[#e05d6f]">@{reply.reply_to_nickname}</span></span>
             )}
           </p>
-          <p className="text-sm text-gray-600 leading-relaxed">{reply.content}</p>
+          <p className="text-sm text-gray-600 leading-relaxed break-words whitespace-pre-wrap">
+            {renderContentWithMentions(reply.content)}
+          </p>
         </div>
         <div className="flex items-center gap-3 mt-0.5 ml-2">
           <button
@@ -80,6 +83,8 @@ export function CommentItem({
   const [targetId, setTargetId] = useState<number | null>(null);
   const replies = comment.replies || [];
   const replyCount = comment.reply_count || replies.length;
+  // 楼中楼默认折叠，仅显示数量；点开后展开
+  const [repliesOpen, setRepliesOpen] = useState(false);
 
   const submit = () => {
     const text = replyText.trim();
@@ -89,6 +94,8 @@ export function CommentItem({
     setReplying(false);
     setReplyTo(null);
     setTargetId(null);
+    // 回复后展开，否则用户看不到自己刚发出的内容
+    setRepliesOpen(true);
   };
 
   const startReply = (nickname: string | null, id?: number) => {
@@ -104,7 +111,9 @@ export function CommentItem({
         <div className="flex-1 min-w-0">
           <div className="bg-gray-50 rounded-2xl rounded-tl-none px-3 py-2">
             <p className="text-xs font-semibold text-gray-700 mb-0.5">{comment.author}</p>
-            <p className="text-sm text-gray-600 leading-relaxed">{comment.content}</p>
+            <p className="text-sm text-gray-600 leading-relaxed break-words whitespace-pre-wrap">
+              {renderContentWithMentions(comment.content)}
+            </p>
           </div>
           <div className="flex items-center gap-3 mt-1 ml-2">
             <span className="text-xs text-gray-400">{new Date(comment.created_at).toLocaleDateString()}</span>
@@ -139,26 +148,38 @@ export function CommentItem({
         </div>
       </div>
 
-      {/* 楼中楼回复 */}
+      {/* 楼中楼回复：默认折叠，仅显示数量 */}
       {replies.length > 0 && (
-        <div className="ml-10 mt-2 space-y-2.5 border-l-2 border-gray-100 pl-3" data-testid={`replies-${comment.id}`}>
-          {replies.map(r => (
-            <ReplyRow
-              key={r.id}
-              reply={r}
-              canDelete={currentUserId != null && r.author_id === currentUserId}
-              onDelete={onDelete}
-              onLike={onLike}
-              onReply={reply => startReply(reply.author, comment.id)}
-            />
-          ))}
-          {replyCount > replies.length && (
-            <button
-              onClick={() => onLoadReplies(comment.id)}
-              className="text-xs text-[#e05d6f] hover:underline"
-            >
-              展开更多回复（{replyCount - replies.length}）
-            </button>
+        <div data-testid={`replies-${comment.id}`}>
+          <button
+            onClick={() => setRepliesOpen(o => !o)}
+            className="ml-10 mt-2 inline-flex items-center gap-1 text-xs text-gray-400 hover:text-[#e05d6f] transition-colors"
+          >
+            <span>{repliesOpen ? "收起回复" : `展开 ${replyCount} 条回复`}</span>
+            <span className={cn("transition-transform", repliesOpen && "rotate-180")}>▾</span>
+          </button>
+
+          {repliesOpen && (
+            <div className="ml-10 mt-2 space-y-2.5 border-l-2 border-gray-100 pl-3">
+              {replies.map(r => (
+                <ReplyRow
+                  key={r.id}
+                  reply={r}
+                  canDelete={currentUserId != null && r.author_id === currentUserId}
+                  onDelete={onDelete}
+                  onLike={onLike}
+                  onReply={reply => startReply(reply.author, comment.id)}
+                />
+              ))}
+              {replyCount > replies.length && (
+                <button
+                  onClick={() => onLoadReplies(comment.id)}
+                  className="text-xs text-[#e05d6f] hover:underline"
+                >
+                  加载更多回复（共 {replyCount} 条）
+                </button>
+              )}
+            </div>
           )}
         </div>
       )}
@@ -250,11 +271,18 @@ export function DetailImage({ card, overlay }: { card: ImageCard; overlay?: Reac
   const [index, setIndex] = useState(0);
   const [lightbox, setLightbox] = useState(false);
   const src = allImages[Math.min(index, allImages.length - 1)];
+  // 详情页展示尽量高清：每张图取最高档变体（原图）作为 src
+  const largestUrl = (i: number) => {
+    const variants = card.variants?.[i] || [];
+    const biggest = variants.reduce((best, v) => (!best || v.width > best.width ? v : best), null as { url: string; width: number } | null);
+    return biggest?.url || allImages[i];
+  };
+  const detailSrc = largestUrl(Math.min(index, allImages.length - 1));
 
   return (
     <div className="relative md:w-1/2 bg-gray-100 flex-shrink-0 max-h-[40vh] md:max-h-full overflow-hidden">
       <img
-        src={src}
+        src={detailSrc || src}
         alt={card.title}
         onClick={() => setLightbox(true)}
         className="w-full h-full object-cover cursor-zoom-in"

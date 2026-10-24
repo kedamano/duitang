@@ -8,6 +8,10 @@ export interface ImageCard {
   thumbs?: string[];
   /** 当前卡片应加载的地址：优先缩略图 */
   thumb?: string;
+  /** 与 images 一一对应的尺寸变体，每项按宽度升序 */
+  variants?: { url: string; width: number }[][];
+  /** 封面图的 srcset 字符串（浏览器按需选档） */
+  srcset?: string;
   width: number;
   height: number;
   author: string;

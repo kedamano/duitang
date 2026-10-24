@@ -6,18 +6,18 @@
 ## 功能
 
 - **首页**：错落瀑布流（按图片真实宽高分配列高）、分类导航（12 个画板）、**关注流**、关键词搜索、Banner 轮播、热门话题侧栏、分页加载
-- **帖子详情**：多图浏览与大图预览（灯箱，支持 ←/→/Esc）、点赞 / 收集 / 分享（复制链接、微博）、**评论区楼中楼**（发表、回复、点赞、删除、分页加载）、关注作者、删除与编辑自己的帖子
+- **帖子详情**：多图浏览与大图预览（灯箱，支持 ←/→/Esc）、点赞 / 收集 / 分享（复制链接、微博）、**评论区楼中楼**（发表、回复、点赞、删除；回复默认折叠、点击展开，支持分页加载；正文里的 @昵称 高亮并可点击跳转搜索）、关注作者、删除与编辑自己的帖子
 - **独立分享页**：`/#/pin/<id>` 直达某条帖子，可被搜索引擎外分享
-- **发布**：拖拽 / 点选上传图片（最多 9 张，自动生成缩略图）、AI 生成图片（Pollinations，经 Vite 代理）、画板与标签选择、草稿自动保存
+- **发布**：拖拽 / 点选上传图片（最多 9 张，**自动生成 400/800 两档尺寸变体**）、AI 生成图片（Pollinations，经 Vite 代理）、画板与标签选择、草稿自动保存
 - **关注流**：导航「关注」标签展示已关注作者与自己的帖子（时间倒序、分页）；未登录显示登录引导，无关注显示空状态与去首页入口；关注标签下搜索会自动切回推荐
-- **消息通知**：顶部铃铛 + 未读角标，**SSE 实时推送**（断线自动回落轮询，窗口聚焦也会刷新）；点赞 / 收藏 / 评论 / 赞评论 / 回复 / 关注都会通知作者（自己不通知自己，取消操作与删除评论会自动撤回），面板支持加载更多与一键清空，点击跳转到对应帖子或用户
-- **通知设置**：个人菜单中可按键关闭某类通知（后端写入前即拦截，含 SSE 推送）
+- **消息通知**：顶部铃铛 + 未读角标，**SSE 实时推送**（断线自动回落轮询，窗口聚焦也会刷新）；点赞 / 收藏 / 评论 / 赞评论 / 回复 / 关注 / **@提及** 都会通知对应作者（自己不通知自己，取消操作与删除评论会自动撤回），面板支持加载更多与一键清空，点击跳转到对应帖子或用户
+- **通知设置**：个人菜单中可按键关闭某类通知，或设为**「仅关注的人」**（后端写入前按关注关系判定，含 SSE 推送）
 - **帖子编辑**：作者可在详情页编辑标题、描述、画板与标签，保存后详情与列表就地更新，图片与尺寸保持不变
 - **标签聚合页**：`/#/tag/<标签名>` 展示该标签下的图片（分页 + 相关标签推荐），卡片与详情页标签均可点击跳转
 - **画板分组页**：`/#/board/<key>` 按画板浏览（分页 + 其他画板切换），可直接分享某个分类
 - **个人主页**：我的发布 / 收集 / 喜欢三个分组（服务端分页 + 加载更多）、编辑资料（头像上传、昵称、简介）、粉丝与关注列表可点击查看、查看他人主页与关注
 - **账号**：用户名密码注册登录，JWT（7 天）持久会话；token 失效时自动登出并引导重新登录
-- **体验**：首屏骨架屏（不再闪现空状态）、搜索防抖 300ms、列表图片懒加载、**上传自动生成 400px 缩略图**（卡片用缩略图、详情用原图）、发布页草稿自动保存与恢复、上传前 10MB 体积预检、评论区按页加载
+- **体验**：首屏骨架屏（不再闪现空状态）、搜索防抖 300ms、列表图片懒加载 + **srcset 响应式选档**（400/800/原图）、发布页草稿自动保存与恢复、上传前 10MB 体积预检、评论区按页加载
 
 ## 快速开始
 
@@ -48,12 +48,12 @@ src/                前端
   components/       Header / 登录注册弹窗 / AI 生图弹窗 / PostDetail(共享详情组件) / MasonryGrid / NotificationBell / NotifyPrefsModal / EditPostModal / FollowListModal / ImageLightbox
   context/          Auth / Collection(点赞收藏评论关注) / Toast
   pages/            HomePage / PublishPage / ProfilePage / PostDetailPage / TagPage / BoardPage
-  utils/            normalizePost（后端→前端唯一转换入口）、useDebouncedValue、formatTime、cn
+  utils/            normalizePost（后端→前端唯一转换入口）、mention（@解析与高亮）、searchEvent、useDebouncedValue、formatTime、cn
 server/             后端
   index.js          Express 路由（auth/posts/likes/collects/comments/follows/feed/notifications/tags/upload）
   database.js       node:sqlite 建表 + 轻量迁移（列补齐、中文 board → 英文 key）
   seed-demo.js      演示数据（30 帖 / 5 用户 / 评论 / 关注），仅默认库且空表时执行
-  backfill-thumbs.js 为历史上传图片补生成缩略图并回填 posts.thumbs
+  backfill-thumbs.js 为历史上传图片补生成尺寸变体（400/800）并回填 thumbs / images_variants
   uploads/          图片上传目录（magic bytes 校验，仅 JPG/PNG/WebP/GIF）
 scripts/
   smoke-e2e.mjs     对运行中后端的端到端冒烟脚本（node scripts/smoke-e2e.mjs）
@@ -62,9 +62,9 @@ scripts/
 ## 测试与构建
 
 ```bash
-npm test              # 前端 vitest（82 用例）
+npm test              # 前端 vitest（89 用例）
 npm run build         # 前端生产构建（vite-plugin-singlefile → dist/index.html）
-cd server && npm test # 后端 mocha + supertest（93 用例，独立测试库）
+cd server && npm test # 后端 mocha + supertest（103 用例，独立测试库）
 npx tsc --noEmit      # 类型检查
 node scripts/smoke-e2e.mjs [http://127.0.0.1:3001]  # 对运行中后端的端到端冒烟
 ```
@@ -81,18 +81,19 @@ node scripts/verify-feed.mjs            # 关注流页面与接口一致性校�
 
 - **画板（board）统一存英文 key**（`wallpaper/anime/...`）；后端兼容中文标签入参与查询并自动归一化，旧库数据由 `database.js` 启动时迁移。
 - **图片尺寸**：发布时前端测量真实宽高随 `sizes` 提交，列表/详情原样返回，用于瀑布流列高分配；历史数据缺省回落 400×300。
-- **缩略图**：上传时用纯 JS 的 `jimp` 生成 400px 宽缩略图（保持「零原生依赖」），`posts.thumbs` 与 `images` 一一对应；缺失时回落原图。历史上传用 `node server/backfill-thumbs.js` 回填。
+- **图片尺寸变体**：上传时用纯 JS 的 `jimp` 生成 400/800 两档变体（保持「零原生依赖」），原图始终保留为最高档；`posts.images_variants` 与 `images` 一一对应，前端据此拼 `srcset` 让浏览器按需选档（卡片用 400 档、详情用最高档）。缺失时回落原图。历史上传用 `node server/backfill-thumbs.js` 回填。
 - **互动状态**：列表接口（`/posts`、`/feed/following`、`/my/*`）会为登录用户附带 `is_liked` / `is_collected`；登录时另用轻量接口 `/my/interactions` 同步 ID 集合，不再拉取完整帖子体。
 - **通知去重**：点赞/收藏/关注/赞评论按「接收者 + 触发者 + 类型 + 目标」唯一，反复操作不会堆积；取消操作或删除评论会同步撤回对应通知。
 - **实时通知**：`GET /api/notifications/stream?token=` 为 SSE 长连接，写入通知时即时推送未读数；EventSource 无法自定义请求头，因此 token 走 query。连接异常自动回落为 60s 轮询。
-- **通知偏好**：`users.notify_prefs` 存 JSON（如 `{"like":false}`），写入通知前即拦截，因此 SSE 也不会推送被关闭的类型。
-- **楼中楼**：评论只有一层嵌套，回复的回复统一挂到顶层评论下（`comments.parent_id`），列表接口给顶层评论内嵌前 3 条回复与 `reply_count`。
+- **通知偏好**：`users.notify_prefs` 存 JSON，取值 `true`（全部）/ `false`（关闭）/ `"followers"`（仅关注的人），例如 `{"like":false,"comment":"followers"}`；写入通知前即拦截，因此 SSE 也不会推送被关闭或不满足关注条件的类型。
+- **楼中楼**：评论只有一层嵌套，回复的回复统一挂到顶层评论下（`comments.parent_id`），列表接口给顶层评论内嵌前 3 条回复与 `reply_count`；前端默认折叠回复，点击展开，回复超过已加载部分可分页加载。
+- **@ 提及**：评论正文中的 `@昵称` 会通知被提到者（类型 `mention`），前端高亮为可点击链接，点击跳转到首页并以该昵称为关键词搜索。
 - **点赞/收藏/分享计数**接口返回的是**绝对总数**，前端直接覆盖基准值，不做增量叠加。
 - 上传与静态资源经 `/uploads` 由后端提供；开发环境 Vite 代理 `/api` 与 `/uploads` 到后端。
 - 生产部署：`npm run build` 产出单文件 `dist/index.html`，配合 `server/.env`（参考 `.env.example`，务必更换 `JWT_SECRET`、设置 `FRONTEND_ORIGIN`）。
 
 ## 开发路线（可选）
 
-- @ 提醒与评论楼中楼的折叠分页
-- 通知偏好按类型细分为「仅关注的人」
-- 图片上传后自动生成多档尺寸（srcset）
+- 通知偏好支持「仅关注的人」与「互关」等更多层级
+- 图片上传后生成更多档位（如 1200/1600）与 WebP/AVIF 格式
+- 评论支持富文本 / 图片 / 表情

@@ -40,12 +40,16 @@ describe('Duitang API - 缩略图链路', function () {
       .attach('file', buf, 'shot.jpg');
     if (res.status !== 200) throw new Error('上传失败 status=' + res.status);
     if (!res.body.url || !res.body.url.startsWith('/uploads/')) throw new Error('缺少原图地址');
-    if (!res.body.thumb || !res.body.thumb.endsWith('_thumb.jpg')) throw new Error('缺少缩略图地址: ' + res.body.thumb);
+    if (!res.body.thumb) throw new Error('缺少缩略图地址');
     if (res.body.width !== 1200 || res.body.height !== 900) {
       throw new Error('尺寸错误: ' + res.body.width + 'x' + res.body.height);
     }
-    created.push(path.basename(res.body.url), path.basename(res.body.thumb));
-
+    // 变体应按宽度升序，且每档宽度符合预期
+    const variants = res.body.variants || [];
+    if (variants.length < 2) throw new Error('变体数量不足: ' + JSON.stringify(variants));
+    const widths = variants.map(v => v.width);
+    if (widths[0] !== 400 || widths[1] !== 800) throw new Error('变体宽度应为 400/800, 实际 ' + JSON.stringify(widths));
+    created.push(path.basename(res.body.url), ...variants.map(v => path.basename(v.url)));
     // 缩略图文件真实存在且宽度被限制到 400
     const thumbPath = path.join(UPLOAD_DIR, path.basename(res.body.thumb));
     if (!fs.existsSync(thumbPath)) throw new Error('缩略图文件不存在');
@@ -57,7 +61,8 @@ describe('Duitang API - 缩略图链路', function () {
   it('帖子保存 thumbs 并在列表返回', async () => {
     const up = await request(app).post('/api/upload').set(auth())
       .attach('file', await makeImage(800, 600), 'a.jpg');
-    created.push(path.basename(up.body.url), path.basename(up.body.thumb));
+    created.push(path.basename(up.body.url), path.basename(up.body.thumb),
+      ...((up.body.variants || []).map(v => path.basename(v.url))));
 
     const post = await request(app).post('/api/posts').set(auth()).send({
       title: '带缩略图的帖子',

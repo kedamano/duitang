@@ -23,6 +23,8 @@ const TYPE_TEXT: Record<string, string> = {
   collect: "收藏了你的帖子",
   comment: "评论了你的帖子",
   comment_like: "赞了你的评论",
+  reply: "回复了你的评论",
+  mention: "提到了你",
   follow: "关注了你",
 };
 
@@ -31,6 +33,8 @@ const TYPE_ICON: Record<string, { emoji: string; className: string }> = {
   collect: { emoji: "📌", className: "bg-amber-50 text-amber-600" },
   comment: { emoji: "💬", className: "bg-sky-50 text-sky-600" },
   comment_like: { emoji: "👍", className: "bg-indigo-50 text-indigo-600" },
+  reply: { emoji: "↩️", className: "bg-teal-50 text-teal-600" },
+  mention: { emoji: "🔔", className: "bg-pink-50 text-pink-600" },
   follow: { emoji: "🫶", className: "bg-pink-50 text-pink-600" },
 };
 

@@ -3,6 +3,8 @@ import { api } from "../api";
 import { useToast } from "../context/ToastContext";
 import { cn } from "../utils/cn";
 
+type PrefsValue = boolean | "followers";
+
 const TYPE_LABELS: { key: string; label: string; desc: string; emoji: string }[] = [
   { key: "like", label: "点赞", desc: "有人赞了你的帖子", emoji: "❤️" },
   { key: "collect", label: "收藏", desc: "有人收藏了你的帖子", emoji: "📌" },
@@ -10,12 +12,13 @@ const TYPE_LABELS: { key: string; label: string; desc: string; emoji: string }[]
   { key: "comment_like", label: "赞评论", desc: "有人赞了你的评论", emoji: "👍" },
   { key: "reply", label: "回复", desc: "有人回复了你的评论", emoji: "↩️" },
   { key: "follow", label: "关注", desc: "有人关注了你", emoji: "🫶" },
+  { key: "mention", label: "@ 提醒", desc: "有人在评论中提到你", emoji: "🔔" },
 ];
 
-/** 通知偏好设置：按类型开关（关闭后后端不再写入该类通知） */
+/** 通知偏好设置：按类型开关，或限定「仅关注的人」 */
 export default function NotifyPrefsModal({ onClose }: { onClose: () => void }) {
   const { showToast } = useToast();
-  const [prefs, setPrefs] = useState<Record<string, boolean>>({});
+  const [prefs, setPrefs] = useState<Record<string, PrefsValue>>({});
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -40,7 +43,13 @@ export default function NotifyPrefsModal({ onClose }: { onClose: () => void }) {
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const toggle = (key: string) => setPrefs(prev => ({ ...prev, [key]: prev[key] === false }));
+  // 三态循环：开启 → 仅关注的人 → 关闭 → 开启
+  // 注意：未保存过的类型其值为 undefined，按"开启"处理
+  const cycle = (key: string) => setPrefs(prev => {
+    const current = prev[key];
+    const next = current === "followers" ? false : current === false ? true : "followers";
+    return { ...prev, [key]: next };
+  });
 
   const save = async () => {
     setSaving(true);
@@ -79,19 +88,23 @@ export default function NotifyPrefsModal({ onClose }: { onClose: () => void }) {
             </div>
           ) : (
             TYPE_LABELS.map(t => {
-              const enabled = prefs[t.key] !== false;
+              const value = prefs[t.key];
+              const enabled = value !== false;
+              const followersOnly = value === "followers";
               return (
                 <div key={t.key} className="flex items-center gap-3 py-3 border-b border-gray-50 last:border-0">
                   <span className="text-lg">{t.emoji}</span>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm text-gray-700">{t.label}</p>
-                    <p className="text-xs text-gray-400 truncate">{t.desc}</p>
+                    <p className="text-xs text-gray-400 truncate">
+                      {followersOnly ? t.desc + "（仅关注的人）" : t.desc}
+                    </p>
                   </div>
                   <button
                     role="switch"
                     aria-checked={enabled}
                     aria-label={`${t.label}通知`}
-                    onClick={() => toggle(t.key)}
+                    onClick={() => cycle(t.key)}
                     className={cn(
                       "relative w-10 h-5 rounded-full transition-colors shrink-0",
                       enabled ? "bg-[#e05d6f]" : "bg-gray-200",

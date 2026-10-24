@@ -519,7 +519,7 @@ async function main() {
         body: JSON.stringify({ title: 'E2E 缩略图验证', images: [up.url], thumbs: [up.thumb], sizes: [{ w: up.width, h: up.height }], board: 'food', tags: ['e2etag'] }) })).json();
       return JSON.stringify({ thumb: up.thumb, url: up.url, id: created.post.id, width: up.width });
     })()`));
-    check("上传返回缩略图与尺寸", !!thumbSetup.thumb && thumbSetup.thumb.includes("_thumb.jpg") && thumbSetup.width === 1200,
+    check("上传返回缩略图与尺寸", !!thumbSetup.thumb && thumbSetup.thumb.includes("_w400.jpg") && thumbSetup.width === 1200,
       JSON.stringify(thumbSetup));
 
     await open("#/tag/e2etag");
@@ -532,7 +532,7 @@ async function main() {
       const img = document.querySelector('main .break-inside-avoid img');
       return img ? img.getAttribute('src') : '';
     })()`);
-    check("列表卡片使用缩略图而非原图", cardSrc.includes("_thumb.jpg"), cardSrc);
+    check("列表卡片使用缩略图而非原图", cardSrc.includes("_w400.jpg"), cardSrc);
     await shotPng("thumb-card.png");
 
     // 清理：删除验证帖子
@@ -734,10 +734,10 @@ async function main() {
     check("通知设置弹窗可打开", prefsOpen, clickedPrefs);
 
     if (prefsOpen) {
-      // 关闭"点赞"通知
+      // 关闭"点赞"通知：三态循环 开启→仅关注的人→关闭，需点两次
       await cdp.eval(`(() => {
         const s = [...document.querySelectorAll('[role="switch"]')].find(x => x.getAttribute('aria-label') === '点赞通知');
-        if (s && s.getAttribute('aria-checked') === 'true') s.click();
+        if (s) { s.click(); s.click(); }
       })()`);
       await sleep(300);
       await cdp.eval(`[...document.querySelectorAll('button')].find(b => b.textContent.trim() === '保存')?.click()`);
@@ -774,6 +774,159 @@ async function main() {
       // 恢复默认设置，避免影响手动测试
       await cdp.eval(`fetch('/api/users/me/notify-prefs', { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + localStorage.getItem('duitang_token') }, body: JSON.stringify({ prefs: { like: true } }) })`);
     }
+
+    // ── 图片多档尺寸：上传 → 发帖 → 卡片 srcset ──
+    const varUpload = JSON.parse(await cdp.eval(`(async () => {
+      const token = localStorage.getItem('duitang_token');
+      const canvas = document.createElement('canvas');
+      canvas.width = 1600; canvas.height = 900;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#2255ff'; ctx.fillRect(0, 0, 1600, 900);
+      const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.9));
+      const fd = new FormData();
+      fd.append('file', new File([blob], 'v.jpg', { type: 'image/jpeg' }));
+      const up = await (await fetch('/api/upload', { method: 'POST', headers: { Authorization: 'Bearer ' + token }, body: fd })).json();
+      return JSON.stringify({ variants: up.variants, url: up.url, width: up.width, thumb: up.thumb });
+    })()`));
+    check("上传返回多档尺寸变体", varUpload.variants.length === 2 && varUpload.width === 1600, JSON.stringify(varUpload.variants));
+
+    const varPost = await cdp.eval(`(async () => {
+      const token = localStorage.getItem('duitang_token');
+      const r = await fetch('/api/posts', { method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({
+          title: '多档尺寸验证帖', images: [${JSON.stringify(varUpload.url)}],
+          thumbs: [${JSON.stringify(varUpload.thumb)}], variants: [${JSON.stringify(varUpload.variants)}],
+          sizes: [{ w: 1600, h: 900 }], board: 'food', tags: ['vartag'],
+        }) });
+      const d = await r.json();
+      return d.post ? d.post.id : null;
+    })()`);
+    check("带变体的帖子创建成功", !!varPost, String(varPost));
+
+    await open("#/tag/vartag");
+    let varReady = false;
+    for (let i = 0; i < 15 && !varReady; i++) {
+      await sleep(800);
+      varReady = (await cdp.eval(`document.querySelectorAll('main .break-inside-avoid img').length`)) > 0;
+    }
+    const srcsetInfo = await cdp.eval(`(() => {
+      const img = document.querySelector('main .break-inside-avoid img');
+      return img ? JSON.stringify({ src: img.getAttribute('src'), srcset: img.getAttribute('srcset') }) : 'no-img';
+    })()`);
+    check("卡片使用 srcset 响应式加载", /_w400/.test(srcsetInfo) && /_w800/.test(srcsetInfo), srcsetInfo);
+    await shotPng("variant-card.png");
+    await cdp.eval(`fetch('/api/posts/${varPost}', { method: 'DELETE', headers: { Authorization: 'Bearer ' + localStorage.getItem('duitang_token') } })`);
+
+    // ── @ 提醒 ──
+    const mentionResult = await cdp.eval(`(async () => {
+      const other = await (await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: 'tangtu', password: '123456' }) })).json();
+      const r = await fetch('/api/posts/${ownPostId}/comments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + other.token },
+        body: JSON.stringify({ content: '@糖小颜 来围观这条帖子' }),
+      });
+      return r.ok;
+    })()`);
+    check("评论 @提及 提交成功", mentionResult);
+
+    await cdp.eval(`document.querySelector('button[aria-label*="通知"]').click()`);
+    let mentionShown = false;
+    for (let i = 0; i < 12 && !mentionShown; i++) {
+      await sleep(700);
+      text = await cdp.eval("document.body.innerText");
+      mentionShown = text.includes("提到了你");
+    }
+    check("评论 @提及 产生通知", mentionShown);
+    await shotPng("mention-notification.png");
+    await cdp.eval(`document.body.click()`);
+    await sleep(500);
+
+    // ── 通知偏好「仅关注的人」 ──
+    const stranger = await cdp.eval(`(async () => {
+      const r = await fetch('/api/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: 'str_' + Date.now(), nickname: '陌生人', password: '123456' }) });
+      return JSON.stringify({ token: (await r.json()).token });
+    })()`);
+    const strangerToken = JSON.parse(stranger).token;
+    const myId = JSON.parse(await cdp.eval(`(async () => {
+      const me = await (await fetch('/api/auth/me', { headers: { Authorization: 'Bearer ' + localStorage.getItem('duitang_token') } })).json();
+      return JSON.stringify({ id: me.user.id });
+    })()`)).id;
+
+    // 设置 comment 仅关注的人
+    await cdp.eval(`fetch('/api/users/me/notify-prefs', { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + localStorage.getItem('duitang_token') }, body: JSON.stringify({ prefs: { comment: 'followers' } }) })`);
+
+    const readUnread = async () => JSON.parse(await cdp.eval(`(async () => {
+      const d = await (await fetch('/api/notifications/unread', { headers: { Authorization: 'Bearer ' + localStorage.getItem('duitang_token') } })).json();
+      return JSON.stringify({ count: d.count });
+    })()`)).count;
+
+    const baseUnread = await readUnread();
+    // 陌生人（未关注）评论 → 不应通知
+    await cdp.eval(`fetch('/api/posts/${ownPostId}/comments', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + ${JSON.stringify(strangerToken)} }, body: JSON.stringify({ content: '陌生人评论1' }) })`);
+    await sleep(1500);
+    const afterNoFollow = await readUnread();
+    check("「仅关注的人」下非关注者评论不通知", afterNoFollow <= baseUnread, `${baseUnread}→${afterNoFollow}`);
+
+    // 陌生人关注后再评论 → 应通知
+    await cdp.eval(`fetch('/api/users/${myId}/follow', { method: 'POST', headers: { Authorization: 'Bearer ' + ${JSON.stringify(strangerToken)} } })`);
+    await cdp.eval(`fetch('/api/posts/${ownPostId}/comments', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + ${JSON.stringify(strangerToken)} }, body: JSON.stringify({ content: '关注者评论' }) })`);
+    await sleep(1500);
+    const afterFollow = await readUnread();
+    check("「仅关注的人」下关注者评论触发通知", afterFollow > afterNoFollow, `${afterNoFollow}→${afterFollow}`);
+
+    // 恢复偏好
+    await cdp.eval(`fetch('/api/users/me/notify-prefs', { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + localStorage.getItem('duitang_token') }, body: JSON.stringify({ prefs: { comment: true } }) })`);
+
+    // ── 评论楼中楼折叠 ──
+    const thread = JSON.parse(await cdp.eval(`(async () => {
+      const token = localStorage.getItem('duitang_token');
+      const h = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token };
+      const post = await (await fetch('/api/posts', { method: 'POST', headers: h,
+        body: JSON.stringify({ title: '楼中楼折叠验证', images: ['/uploads/x.jpg'], board: 'food', tags: ['threadtag'] }) })).json();
+      const pid = post.post.id;
+      const top = await (await fetch('/api/posts/' + pid + '/comments', { method: 'POST', headers: h,
+        body: JSON.stringify({ content: '顶层评论' }) })).json();
+      for (let i = 0; i < 3; i++) {
+        await fetch('/api/posts/' + pid + '/comments', { method: 'POST', headers: h,
+          body: JSON.stringify({ content: '回复内容' + (i + 1), parent_id: top.comment.id }) });
+      }
+      return JSON.stringify({ pid, topId: top.comment.id });
+    })()`));
+    check("构造带回复的帖子", !!thread.pid && !!thread.topId, JSON.stringify(thread));
+
+    await open("#/pin/" + thread.pid);
+    let threadReady = false;
+    for (let i = 0; i < 15 && !threadReady; i++) {
+      await sleep(800);
+      threadReady = await cdp.eval(`!!document.querySelector('[data-testid="replies-${thread.topId}"]')`);
+    }
+    const collapsed = await cdp.eval(`(() => {
+      const block = document.querySelector('[data-testid="replies-${thread.topId}"]');
+      const toggle = block && block.querySelector('button');
+      return JSON.stringify({
+        hasToggle: !!toggle,
+        toggleText: toggle ? toggle.textContent.trim() : '',
+        replyVisible: block ? block.textContent.includes('回复内容1') : false,
+      });
+    })()`);
+    const cf = JSON.parse(collapsed);
+    check("楼中楼默认折叠且显示回复数", cf.hasToggle && cf.toggleText.includes("3") && !cf.replyVisible, collapsed);
+
+    await cdp.eval(`document.querySelector('[data-testid="replies-${thread.topId}"] button').click()`);
+    await sleep(600);
+    const expanded = await cdp.eval(`(() => {
+      const block = document.querySelector('[data-testid="replies-${thread.topId}"]');
+      return block ? block.textContent.includes('回复内容1') : false;
+    })()`);
+    check("点击展开后显示回复内容", expanded);
+    await shotPng("threaded-collapse.png");
+
+    // 清理验证帖子与评论
+    await cdp.eval(`fetch('/api/posts/${thread.pid}', { method: 'DELETE', headers: { Authorization: 'Bearer ' + localStorage.getItem('duitang_token') } })`);
+    await sleep(300);
 
     ws.close();
     console.log(fails ? `\n${fails} 项失败` : "\n全部通过");

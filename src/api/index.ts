@@ -82,6 +82,8 @@ export const api = {
     sizes?: { w: number; h: number }[];
     /** 与 images 一一对应的缩略图 */
     thumbs?: string[];
+    /** 与 images 一一对应的尺寸变体（每项按宽度升序），用于响应式加载 */
+    variants?: { url: string; width: number }[][];
   }) => request<{ post: any }>('/posts', { method: 'POST', body: JSON.stringify(data) }),
   /** 编辑帖子（仅作者本人；只传要改的字段） */
   updatePost: (id: number, data: { title?: string; description?: string; board?: string; tags?: string[] }) =>
@@ -100,9 +102,9 @@ export const api = {
   },
   /** SSE 实时通知流地址（EventSource 不能自定义请求头，token 走 query） */
   notificationStreamUrl: (token: string) => `${API_BASE}/notifications/stream?token=${encodeURIComponent(token)}`,
-  getNotifyPrefs: () => request<{ prefs: Record<string, boolean>; types: string[] }>('/users/me/notify-prefs'),
-  updateNotifyPrefs: (prefs: Record<string, boolean>) =>
-    request<{ prefs: Record<string, boolean> }>('/users/me/notify-prefs', { method: 'PATCH', body: JSON.stringify({ prefs }) }),
+  getNotifyPrefs: () => request<{ prefs: Record<string, boolean | "followers">; types: string[] }>('/users/me/notify-prefs'),
+  updateNotifyPrefs: (prefs: Record<string, boolean | "followers">) =>
+    request<{ prefs: Record<string, boolean | "followers"> }>('/users/me/notify-prefs', { method: 'PATCH', body: JSON.stringify({ prefs }) }),
   getUnreadCount: () => request<{ count: number }>('/notifications/unread'),
   /** 不传 ids 即全部标记已读 */
   markNotificationsRead: (ids?: number[]) =>
@@ -183,10 +185,10 @@ export const api = {
     request<{ user: any }>('/users/me', { method: 'PATCH', body: JSON.stringify(data) }),
 
   // ─── Upload ───
-  /** 上传图片：返回原图、缩略图与真实尺寸 */
+  /** 上传图片：返回原图、尺寸变体与真实宽高 */
   upload: (file: File) => {
     const fd = new FormData();
     fd.append('file', file);
-    return request<{ url: string; thumb?: string; width?: number; height?: number }>('/upload', { method: 'POST', body: fd });
+    return request<{ url: string; thumb?: string; mid?: string; variants?: { url: string; width: number }[]; width?: number; height?: number }>('/upload', { method: 'POST', body: fd });
   },
 };

@@ -34,6 +34,15 @@ function fallbackAvatar(nickname: string): string {
   return `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(nickname)}&backgroundColor=ffdfbf,ffd5dc,d1d4f9,c0aede,b6e3f4`;
 }
 
+/** 由变体数组拼出 srcset：每项 `url widthw`，宽度为 0 时忽略 */
+function buildSrcset(variants: { url: string; width: number }[]): string {
+  return variants
+    .filter(v => typeof v.url === "string" && v.url && v.width > 0)
+    .sort((a, b) => a.width - b.width)
+    .map(v => `${v.url} ${v.width}w`)
+    .join(", ");
+}
+
 /**
  * 后端 post → 前端 ImageCard 的唯一转换入口。
  * 兼容 images/tags/sizes 为字符串或数组，board 为英文 key 或历史中文标签。
@@ -43,8 +52,16 @@ export function normalizePost(p: any): ImageCard {
   const thumbs = parseJsonArray<string>(p.thumbs);
   const tags = parseJsonArray<string>(p.tags);
   const sizes = parseJsonArray<PostSize>(p.sizes);
+  const variants = parseJsonArray<{ url: string; width: number }[]>(p.images_variants);
   const { w: width, h: height } = readSize(sizes[0]);
   const author = p.author_nickname || "匿名";
+
+  // 变体缺失时，用"原图 + 缩略图"兜底，保证 srcset 仍有意义
+  const finalVariants = variants.length === images.length
+    ? variants
+    : images.map((img, i) => [{ url: thumbs[i] || img, width: thumbs[i] && thumbs[i] !== img ? 400 : 0 }, { url: img, width }]);
+  const firstVariants = finalVariants[0] || [];
+  const srcset = buildSrcset(firstVariants);
 
   return {
     id: p.id,
@@ -52,6 +69,8 @@ export function normalizePost(p: any): ImageCard {
     images,
     thumbs,
     thumb: thumbs[0] || images[0] || "",
+    variants: finalVariants,
+    srcset: srcset || undefined,
     title: p.title ?? "",
     description: p.description || "",
     author,

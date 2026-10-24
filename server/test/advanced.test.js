@@ -263,3 +263,167 @@ describe('Duitang API - SSE 实时通知', function () {
     await request(app).patch('/api/users/me/notify-prefs').set(auth(a.token)).send({ prefs: { like: true } });
   });
 });
+
+describe('Duitang API - @提及与通知偏好层级', function () {
+  let author, mentioner, other;
+  let postId;
+  const auth = t => ({ Authorization: 'Bearer ' + t });
+  const unread = async t => (await request(app).get('/api/notifications/unread').set(auth(t))).body.count;
+
+  before(async () => {
+    const stamp = Date.now();
+    author = await register('mt_author', '楼主甲');
+    mentioner = await register('mt_mentioner', '回复者乙');
+    other = await register('mt_other', '路人丙');
+    postId = (await request(app).post('/api/posts').set(auth(author.token))
+      .send({ title: '@提及测试', images: ['/uploads/m.jpg'], board: 'food', tags: [] })).body.post.id;
+  });
+
+  it('评论里的 @昵称 会通知被提到者', async () => {
+    await request(app).post(`/api/posts/${postId}/comments`).set(auth(mentioner.token))
+      .send({ content: '@楼主甲 来围观一下' });
+
+    const data = await request(app).get('/api/notifications').set(auth(author.token));
+    const mention = data.body.notifications.find(n => n.type === 'mention');
+    if (!mention) throw new Error('被 @ 的人未收到 mention 通知');
+    if (mention.actor.nickname !== '回复者乙') throw new Error('触发者信息错误');
+    if (mention.comment_id) {
+      const comment = (await request(app).get(`/api/posts/${postId}/comments`)).body.comments[0];
+      if (comment.id !== mention.comment_id) throw new Error('通知关联评论错误');
+    }
+  });
+
+  it('回复里的 @昵称 也会通知被提到者', async () => {
+    const top = (await request(app).get(`/api/posts/${postId}/comments`)).body.comments[0];
+    await request(app).post(`/api/posts/${postId}/comments`).set(auth(other.token))
+      .send({ content: '@回复者乙 这条回复', parent_id: top.id });
+
+    const data = await request(app).get('/api/notifications').set(auth(mentioner.token));
+    if (!data.body.notifications.some(n => n.type === 'mention')) {
+      throw new Error('被 @ 者未收到回复中的 mention 通知');
+    }
+  });
+
+  it('@自己不会产生通知', async () => {
+    const before = await unread(author.token);
+    await request(app).post(`/api/posts/${postId}/comments`).set(auth(author.token))
+      .send({ content: '@楼主甲 自问自答' });
+    const after = await unread(author.token);
+    if (after > before) throw new Error('@自己不应产生通知');
+  });
+
+  it('未被 @ 的用户不受影响', async () => {
+    const before = await unread(other.token);
+    await request(app).post(`/api/posts/${postId}/comments`).set(auth(mentioner.token))
+      .send({ content: '这是一条没有 @ 的评论' });
+    const after = await unread(other.token);
+    if (after > before) throw new Error('未被提及者不应收到通知');
+  });
+
+  it('设置「仅关注的人」后，未关注我的人不再通知', async () => {
+    // other 尚未关注 author
+    await request(app).patch('/api/users/me/notify-prefs').set(auth(author.token))
+      .send({ prefs: { comment: 'followers' } });
+
+    const before = await unread(author.token);
+    await request(app).post(`/api/posts/${postId}/comments`).set(auth(other.token))
+      .send({ content: '非关注者的评论' });
+    const after = await unread(author.token);
+    if (after > before) throw new Error('未关注者评论仍触发了通知');
+  });
+
+  it('关注我的人仍能触发通知', async () => {
+    await request(app).post(`/api/users/${author.id}/follow`).set(auth(other.token));
+    const before = await unread(author.token);
+    await request(app).post(`/api/posts/${postId}/comments`).set(auth(other.token))
+      .send({ content: '关注者的评论' });
+    const after = await unread(author.token);
+    if (after <= before) throw new Error('关注者评论未触发通知');
+  });
+
+  it('偏好接口接受 followers 取值', async () => {
+    const res = await request(app).patch('/api/users/me/notify-prefs').set(auth(author.token))
+      .send({ prefs: { mention: 'followers', collect: false } });
+    if (res.body.prefs.mention !== 'followers') throw new Error('mention 未保存为 followers');
+    if (res.body.prefs.collect !== false) throw new Error('collect 未保存为 false');
+    // 非法取值被忽略
+    const bad = await request(app).patch('/api/users/me/notify-prefs').set(auth(author.token))
+      .send({ prefs: { like: 'bogus' } });
+    if (bad.body.prefs.like !== undefined) throw new Error('非法取值未被忽略');
+    // 恢复默认
+    await request(app).patch('/api/users/me/notify-prefs').set(auth(author.token))
+      .send({ prefs: { comment: true, like: true, mention: true } });
+  });
+});
+
+describe('Duitang API - 图片尺寸变体', function () {
+  let token;
+  const auth = () => ({ Authorization: 'Bearer ' + token });
+  const created = [];
+
+  before(async () => {
+    const stamp = Date.now();
+    token = (await request(app).post('/api/auth/register')
+      .send({ username: `var_${stamp}`, nickname: '变体', password: '123456' })).body.token;
+  });
+
+  after(() => {
+    const path = require('path');
+    const fs = require('fs');
+    const dir = path.join(__dirname, '..', 'uploads');
+    for (const f of created) {
+      try { fs.unlinkSync(path.join(dir, f)); } catch {}
+    }
+  });
+
+  it('上传返回升序变体且原图保留', async () => {
+    const Jimp = require('jimp');
+    const buf = await new Jimp(1600, 900, 0x2255ff).getBufferAsync(Jimp.MIME_JPEG);
+    const res = await request(app).post('/api/upload').set(auth()).attach('file', buf, 'big.jpg');
+    if (res.status !== 200) throw new Error('上传失败 status=' + res.status);
+    const variants = res.body.variants || [];
+    if (variants.length !== 2) throw new Error('应生成 400/800 两档, 实际 ' + JSON.stringify(variants));
+    if (variants[0].width !== 400 || variants[1].width !== 800) throw new Error('变体宽度错误');
+    if (variants[0].url === variants[1].url) throw new Error('不同档位不能是同一文件');
+    // 原图文件存在
+    const fs = require('fs');
+    const fsPath = require('path');
+    if (!fs.existsSync(fsPath.join(__dirname, '..', 'uploads', res.body.url.replace('/uploads/', '')))) {
+      throw new Error('原图文件不存在');
+    }
+    created.push(res.body.url.replace('/uploads/', ''), ...variants.map(v => v.url.replace('/uploads/', '')));
+  });
+
+  it('帖子保存变体并在列表返回', async () => {
+    const up = await request(app).post('/api/upload').set(auth())
+      .attach('file', await new (require('jimp'))(1200, 800, 0x112233).getBufferAsync('image/jpeg'), 'a.jpg');
+    created.push(up.body.url.replace('/uploads/', ''), ...(up.body.variants || []).map(v => v.url.replace('/uploads/', '')));
+
+    const post = await request(app).post('/api/posts').set(auth()).send({
+      title: '变体测试帖',
+      images: [up.body.url],
+      thumbs: [up.body.variants[0].url],
+      variants: [up.body.variants],
+      sizes: [{ w: 1200, h: 800 }],
+      board: 'food',
+    });
+    if (!Array.isArray(post.body.post.images_variants)) throw new Error('创建响应缺少 images_variants');
+    if (post.body.post.images_variants[0][0].width !== 400) throw new Error('变体未按预期保存');
+
+    const list = await request(app).get('/api/posts').query({ q: '变体测试帖' });
+    const found = list.body.posts.find(p => p.id === post.body.post.id);
+    if (!found) throw new Error('列表未找到帖子');
+    if (found.images_variants[0][0].width !== 400) throw new Error('列表未返回变体');
+  });
+
+  it('未传变体时回落为单档原图', async () => {
+    const post = await request(app).post('/api/posts').set(auth()).send({
+      title: '无变体帖',
+      images: ['/uploads/plain.jpg'],
+      board: 'food',
+    });
+    const entry = post.body.post.images_variants[0];
+    if (entry.length !== 1) throw new Error('应回落为单档, 实际 ' + JSON.stringify(entry));
+    if (entry[0].url !== '/uploads/plain.jpg') throw new Error('变体 URL 错误');
+  });
+});
