@@ -124,6 +124,20 @@ export const api = {
   /** 清空全部通知 */
   clearNotifications: () => request<{ ok: boolean; deleted: number }>('/notifications', { method: 'DELETE' }),
 
+  // ─── Moderation ───
+  /** 举报内容：target_type 为 post / comment / user */
+  report: (data: { target_type: "post" | "comment" | "user"; target_id: number; reason?: string }) =>
+    request<{ ok: boolean; duplicated?: boolean }>('/reports', { method: 'POST', body: JSON.stringify(data) }),
+  /** 拉黑 / 解除拉黑 */
+  blockUser: (userId: number) => request<{ blocked: boolean }>(`/users/${userId}/block`, { method: 'POST' }),
+  myBlocks: () => request<{ ids: number[] }>('/my/blocks'),
+  /** 管理员：举报队列 */
+  adminReports: (status: "pending" | "resolved" | "rejected" = "pending") =>
+    request<{ reports: any[]; total: number }>(`/admin/reports?status=${status}`),
+  /** 管理员：处理举报 */
+  resolveReport: (id: number, action: "delete" | "reject") =>
+    request<{ ok: boolean }>(`/admin/reports/${id}/resolve`, { method: 'POST', body: JSON.stringify({ action }) }),
+
   // ─── Albums ───
   getUserAlbums: (userId: number, params?: { page?: number; limit?: number }) =>
     request<{ albums: any[]; total: number; page: number; limit: number }>(`/users/${userId}/albums?${pageQuery(params)}`),

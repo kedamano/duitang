@@ -242,6 +242,15 @@ export default function Header({
                       <Icon name="fire" className="w-4 h-4 text-gray-400" />
                       发现
                     </button>
+                    {user.is_admin && (
+                      <button
+                        onClick={() => { navigate("/admin/reports"); setProfileDropdown(false); }}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                      >
+                        <Icon name="shield" className="w-4 h-4 text-gray-400" />
+                        审核队列
+                      </button>
+                    )}
                     <button
                       onClick={() => { setShowNotifyPrefs(true); setProfileDropdown(false); }}
                       className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"

@@ -1156,6 +1156,74 @@ async function main() {
       await sleep(300);
     }
 
+    // ── 社区治理：举报 / 拉黑 / 审核队列 ──
+    // 用另一个账号（tangtu）对 tangyan 的帖子举报
+    const modSetup = JSON.parse(await cdp.eval(`(async () => {
+      const other = await (await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: 'tangtu', password: '123456' }) })).json();
+      const oh = { Authorization: 'Bearer ' + other.token };
+      const me = await (await fetch('/api/auth/me', { headers: { Authorization: 'Bearer ' + localStorage.getItem('duitang_token') } })).json();
+      const mine = await (await fetch('/api/posts?user_id=' + me.user.id + '&limit=1', { headers: oh })).json();
+      const pid = mine.posts[0].id;
+      const rep = await (await fetch('/api/reports', { method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...oh },
+        body: JSON.stringify({ target_type: 'post', target_id: pid, reason: 'E2E 举报' }) })).json();
+      const blk = await (await fetch('/api/users/' + me.user.id + '/block', { method: 'POST', headers: oh })).json();
+      return JSON.stringify({ reported: rep.ok, blocked: blk.blocked, myId: me.user.id });
+    })()`));
+    check("可举报他人帖子", modSetup.reported === true, JSON.stringify(modSetup));
+    check("可拉黑其他用户", modSetup.blocked === true);
+
+    // 管理员审核队列
+    await open("#/admin/reports");
+    let queueReady = false;
+    for (let i = 0; i < 15 && !queueReady; i++) {
+      await sleep(700);
+      queueReady = await cdp.eval(`!!document.querySelector('[data-testid="report-list"]')`);
+    }
+    const queueInfo = await cdp.eval(`(() => {
+      const list = document.querySelector('[data-testid="report-list"]');
+      return JSON.stringify({
+        hasList: !!list,
+        text: list ? list.textContent.slice(0, 60) : '',
+        hasDelete: !![...document.querySelectorAll('button')].find(b => b.textContent.trim() === '删除内容'),
+      });
+    })()`);
+    check("管理员可见审核队列并含处理按钮", queueReady && queueInfo.includes("hasDelete"), queueInfo);
+    await shotPng("admin-reports.png");
+
+    // 驳回该举报（避免删掉演示数据）
+    const rejected = await cdp.eval(`(async () => {
+      const token = localStorage.getItem('duitang_token');
+      const q = await (await fetch('/api/admin/reports?status=pending', { headers: { Authorization: 'Bearer ' + token } })).json();
+      if (!q.reports.length) return 'no-reports';
+      const r = await (await fetch('/api/admin/reports/' + q.reports[0].id + '/resolve', { method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ action: 'reject' }) })).json();
+      return JSON.stringify(r);
+    })()`);
+    check("管理员可驳回举报", rejected.includes('"ok":true'), rejected);
+
+    // 恢复拉黑状态
+    await cdp.eval(`(async () => {
+      const other = await (await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: 'tangtu', password: '123456' }) })).json();
+      await fetch('/api/users/${modSetup.myId}/block', { method: 'POST', headers: { Authorization: 'Bearer ' + other.token } });
+    })()`);
+    await sleep(300);
+
+    // ── 敏感词过滤 ──
+    const masked = await cdp.eval(`(async () => {
+      const token = localStorage.getItem('duitang_token');
+      const r = await fetch('/api/posts', { method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ title: '标题里有傻逼二字', images: ['/uploads/s.jpg'], board: 'food', tags: [] }) });
+      const d = await r.json();
+      return JSON.stringify({ title: d.post.title });
+    })()`);
+    const maskedInfo = JSON.parse(masked);
+    check("敏感词被自动打码", !maskedInfo.title.includes("傻逼") && maskedInfo.title.includes("**"), maskedInfo.title);
+
     ws.close();
     console.log(fails ? `\n${fails} 项失败` : "\n全部通过");
     process.exitCode = fails ? 1 : 0;

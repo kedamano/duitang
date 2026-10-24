@@ -14,7 +14,7 @@ const isWin = process.platform === "win32";
 const steps = [
   { name: "类型检查 (tsc)", cmd: "npx", args: ["tsc", "--noEmit"], cwd: root },
   { name: "前端单测 (vitest)", cmd: "npx", args: ["vitest", "run"], cwd: root },
-  { name: "后端单测 (mocha)", cmd: "npm", args: ["test"], cwd: path.join(root, "server") },
+  { name: "后端单测 (mocha, 隔离进程)", cmd: "node", args: [path.join(root, "scripts", "run-server-tests.mjs")] },
   { name: "生产构建 (vite build)", cmd: "npm", args: ["run", "build"], cwd: root },
 ];
 

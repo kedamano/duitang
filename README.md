@@ -14,13 +14,14 @@
 - **关注流**：导航「关注」标签展示已关注作者与自己的帖子（时间倒序、分页）；未登录显示登录引导，无关注显示空状态与去首页入口；关注标签下搜索会自动切回推荐
 - **消息通知**：顶部铃铛 + 未读角标，**SSE 实时推送**（断线自动回落轮询，窗口聚焦也会刷新）；点赞 / 收藏 / 评论 / 赞评论 / 回复 / 关注 / **@提及** 都会通知对应作者（自己不通知自己，取消操作与删除评论会自动撤回），面板支持加载更多与一键清空，点击跳转到对应帖子或用户
 - **通知设置**：个人菜单中可按键关闭某类通知，或设为**「仅关注的人」**（后端写入前按关注关系判定，含 SSE 推送）
+- **社区治理**：帖子/评论/用户可**举报**（同一对象只保留一条待处理）；管理员有**审核队列**（`/#/admin/reports`）可删除违规内容或驳回；**拉黑**后看不到对方帖子、评论与关注流内容；**敏感词自动打码**（帖子标题/描述/评论/专辑名）
 - **帖子编辑**：作者可在详情页编辑标题、富文本描述、画板与标签，保存后详情与列表就地更新，图片与尺寸保持不变
 - **标签聚合页**：`/#/tag/<标签名>` 展示该标签下的图片（分页 + 相关标签推荐），卡片与详情页标签均可点击跳转
 - **画板分组页**：`/#/board/<key>` 按画板浏览（分页 + 其他画板切换），可直接分享某个分类
 - **个人主页**：我的发布 / 收集 / 喜欢 / **我的专辑**四个分组（服务端分页 + 加载更多）、编辑资料（头像上传、昵称、简介）、粉丝与关注列表可点击查看、查看他人主页与关注
 - **账号**：用户名密码注册登录，JWT（7 天）持久会话；token 失效时自动登出并引导重新登录
 - **体验**：首屏骨架屏（不再闪现空状态）、搜索防抖 300ms、列表图片懒加载 + **srcset 响应式选档**（400/800/原图）、发布页草稿自动保存与恢复、上传前 10MB 体积预检、评论区按页加载、**热搜来自真实搜索统计**
-- **工程**：`npm run verify` 一键跑完类型检查/前后端单测/构建，附 GitHub Actions 配置
+- **工程**：`npm run verify` 一键跑完类型检查/前后端单测/构建，附 GitHub Actions 配置；后端测试用 `npm run test:server` **逐文件独立进程**运行（避免共享 sqlite 连接导致的原生崩溃与数据串库）
 
 ## 快速开始
 
@@ -51,11 +52,12 @@ src/                前端
   components/       Header / 登录注册弹窗 / AI 生图弹窗 / PostDetail(共享详情组件) / MasonryGrid / NotificationBell / NotifyPrefsModal / EditPostModal / FollowListModal / ImageLightbox / Icons(统一 SVG 图标库) / AlbumPickerModal / CreateAlbumModal / RichTextEditor / RichTextContent
   context/          Auth / Collection(点赞收藏评论关注) / Toast
   hooks/            useTrending（热搜/话题/作者聚合，模块级缓存）
-  pages/            HomePage / PublishPage / ProfilePage / PostDetailPage / TagPage / BoardPage / AlbumPage / DiscoverPage
+  pages/            HomePage / PublishPage / ProfilePage / PostDetailPage / TagPage / BoardPage / AlbumPage / DiscoverPage / AdminReportsPage
   utils/            normalizePost（后端→前端唯一转换入口）、mention（@解析与高亮）、richText（富文本消毒与摘要）、searchEvent、useDebouncedValue、formatTime、cn
 server/             后端
-  index.js          Express 路由（auth/posts/likes/collects/comments/follows/feed/notifications/tags/trending/albums/upload）
+  index.js          Express 路由（auth/posts/likes/collects/comments/follows/feed/notifications/tags/trending/albums/reports/blocks/upload）
   database.js       node:sqlite 建表 + 轻量迁移（列补齐、中文 board → 英文 key）
+  sensitive-words.js 敏感词表与打码（可用 SENSITIVE_WORDS 覆盖）
   seed-demo.js      演示数据（30 帖 / 5 用户 / 评论 / 关注），仅默认库且空表时执行
   backfill-thumbs.js 为历史上传图片补生成尺寸变体（400/800）并回填 thumbs / images_variants
   uploads/          图片上传目录（magic bytes 校验，仅 JPG/PNG/WebP/GIF）
@@ -102,6 +104,9 @@ node scripts/verify-feed.mjs            # 关注流页面与接口一致性校�
 - **热搜/话题**：`search_queries` 记录首页搜索词（仅关键词、长度≥2），热搜取近 7 天统计；不足 8 条时用热门标签补齐。热门作者按近 30 天作品互动量排序。
 - **搜索为何不用 FTS5**：实测 `node:sqlite` 支持 FTS5 与 trigram 分词，但 trigram 要求查询 ≥3 字符——中文最常用的 `汉服`/`壁纸`/`美食` 都是 2 字，会**搜不到结果**；`unicode61` 又不做中文分词。当前用 `LIKE '%kw%'` 在数据量未过万时更快且无召回损失，故暂不引入 FTS5。
 - **点赞/收藏/分享计数**接口返回的是**绝对总数**，前端直接覆盖基准值，不做增量叠加。
+- **管理员**：`users.is_admin` 标记，每次请求查库判定（权限撤销后旧 token 立即失效）；默认 `tangyan` 为管理员，可用 `ADMIN_USERNAMES="a,b"` 覆盖。
+- **敏感词**：默认词表仅演示能力（`sensitive-words.js`），命中后以等长 `*` 打码；可用 `SENSITIVE_WORDS` 覆盖。生产环境应替换为完整词库或接入第三方内容安全服务。
+- **拉黑**：拉黑后对方的帖子、评论与关注流内容都不再展示（服务端过滤，前端无需特殊处理）。
 - 上传与静态资源经 `/uploads` 由后端提供；开发环境 Vite 代理 `/api` 与 `/uploads` 到后端。
 - 生产部署：`npm run build` 产出单文件 `dist/index.html`，配合 `server/.env`（参考 `.env.example`，务必更换 `JWT_SECRET`、设置 `FRONTEND_ORIGIN`）。
 
@@ -109,7 +114,7 @@ node scripts/verify-feed.mjs            # 关注流页面与接口一致性校�
 
 - 图片上传后生成更多档位（如 1200/1600）与 WebP/AVIF 格式
 - 评论支持富文本 / 图片 / 表情
-- 举报与审核队列、用户拉黑、敏感词过滤（公网运营必备）
 - 上传防盗链与水印
 - 服务端草稿箱（当前草稿只在 localStorage）
 - OpenAPI 文档 + 前后端共享类型（后端目前是纯 JS）
+- E2E 脚本按功能拆分（当前为单个大脚本）

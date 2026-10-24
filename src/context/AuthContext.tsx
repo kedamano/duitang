@@ -12,6 +12,8 @@ export interface User {
   followers: number;
   following: number;
   collections: number;
+  /** 管理员标记（可进入审核队列） */
+  is_admin?: boolean;
 }
 
 interface AuthContextType {
@@ -54,6 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           followers: data.stats.followers,
           following: data.stats.following,
           collections: data.stats.collects,
+          is_admin: !!data.user.is_admin,
         });
       })
       .catch(() => {
@@ -92,6 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         followers: 0,
         following: 0,
         collections: 0,
+        is_admin: !!data.user.is_admin,
       });
       setTimeout(() => setShowLogin(false), 50);
       return true;
@@ -119,6 +123,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         followers: 0,
         following: 0,
         collections: 0,
+        is_admin: !!data.user.is_admin,
       });
       setTimeout(() => setShowRegister(false), 50);
       return true;

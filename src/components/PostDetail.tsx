@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "../utils/cn";
 import { useAuth } from "../context/AuthContext";
+import { useToast } from "../context/ToastContext";
 import { useCollection, type Comment } from "../context/CollectionContext";
 import type { ImageCard } from "../data/images";
 import { normalizePost } from "../utils/normalizePost";
@@ -10,18 +11,22 @@ import EditPostModal from "./EditPostModal";
 import ImageLightbox from "./ImageLightbox";
 import AlbumPickerModal from "./AlbumPickerModal";
 import RichTextContent from "./RichTextContent";
+import ReportModal from "./ReportModal";
+import { api } from "../api";
 import { Icon } from "./Icons";
 
 // ─── Comment row ──────────────────────────────────────────────────────────────
 /** 回复行（楼中楼内层） */
 function ReplyRow({
-  reply, canDelete, onDelete, onLike, onReply,
+  reply, canDelete, onDelete, onLike, onReply, onReport, canReport,
 }: {
   reply: Comment;
   canDelete: boolean;
   onDelete: (commentId: number) => void;
   onLike: (commentId: number) => void;
   onReply: (reply: Comment) => void;
+  onReport?: (comment: Comment) => void;
+  canReport?: boolean;
 }) {
   return (
     <div className="flex gap-2 group/reply">
@@ -54,6 +59,14 @@ function ReplyRow({
           <button onClick={() => onReply(reply)} className="text-[11px] text-gray-400 hover:text-[#e05d6f] transition-colors">
             回复
           </button>
+          {canReport && (
+            <button
+              onClick={() => onReport?.(reply)}
+              className="text-[11px] text-gray-400 hover:text-amber-600 transition-colors opacity-0 group-hover/reply:opacity-100"
+            >
+              举报
+            </button>
+          )}
           {canDelete && (
             <button
               onClick={() => onDelete(reply.id)}
@@ -69,7 +82,7 @@ function ReplyRow({
 }
 
 export function CommentItem({
-  comment, currentUserId, canDelete, onDelete, onLike, onLoadReplies, onSubmitReply,
+  comment, currentUserId, canDelete, onDelete, onLike, onLoadReplies, onSubmitReply, onReport,
 }: {
   comment: Comment;
   currentUserId: number | null;
@@ -78,6 +91,7 @@ export function CommentItem({
   onLike: (commentId: number) => void;
   onLoadReplies: (commentId: number) => void;
   onSubmitReply: (parentId: number, content: string) => void;
+  onReport?: (comment: Comment) => void;
 }) {
   const [replying, setReplying] = useState(false);
   const [replyText, setReplyText] = useState("");
@@ -147,6 +161,14 @@ export function CommentItem({
                 删除
               </button>
             )}
+            {onReport && currentUserId != null && comment.author_id !== currentUserId && (
+              <button
+                onClick={() => onReport(comment)}
+                className="text-xs text-gray-400 hover:text-amber-600 transition-colors opacity-0 group-hover/comment:opacity-100"
+              >
+                举报
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -172,6 +194,8 @@ export function CommentItem({
                   onDelete={onDelete}
                   onLike={onLike}
                   onReply={reply => startReply(reply.author, comment.id)}
+                  onReport={onReport}
+                  canReport={!!onReport}
                 />
               ))}
               {replyCount > replies.length && (
@@ -215,7 +239,7 @@ export function CommentItem({
 
 // ─── Comment list (with inline delete confirmation) ───────────────────────────
 function CommentList({
-  comments, currentUserId, onDelete, onLike, onLoadReplies, onSubmitReply,
+  comments, currentUserId, onDelete, onLike, onLoadReplies, onSubmitReply, onReport,
 }: {
   comments: Comment[];
   currentUserId: number | null;
@@ -223,6 +247,7 @@ function CommentList({
   onLike: (commentId: number) => void;
   onLoadReplies: (commentId: number) => void;
   onSubmitReply: (parentId: number, content: string) => void;
+  onReport?: (comment: Comment) => void;
 }) {
   const [confirmId, setConfirmId] = useState<number | null>(null);
 
@@ -260,6 +285,7 @@ function CommentList({
               onLike={onLike}
               onLoadReplies={onLoadReplies}
               onSubmitReply={onSubmitReply}
+              onReport={onReport}
             />
           )}
         </div>
@@ -505,6 +531,10 @@ export function DetailAuthorHeader({
       </div>
       <div className="flex items-center gap-1 shrink-0">
         {extra}
+        {/* 更多操作：举报 / 拉黑（非作者可见） */}
+        {user && card.authorId && user.id !== card.authorId && (
+          <MoreMenu card={card} />
+        )}
         {onClose && (
           <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -513,6 +543,75 @@ export function DetailAuthorHeader({
           </button>
         )}
       </div>
+    </div>
+  );
+}
+
+/** 详情页「更多」菜单：举报该帖 / 拉黑作者 */
+function MoreMenu({ card }: { card: ImageCard }) {
+  const { showToast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [showReport, setShowReport] = useState(false);
+  const [blocked, setBlocked] = useState(false);
+  const ref = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onClick = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [open]);
+
+  const toggleBlock = async () => {
+    try {
+      const res = await api.blockUser(card.authorId!);
+      setBlocked(res.blocked);
+      showToast(res.blocked ? `已拉黑 ${card.author}` : `已解除拉黑 ${card.author}`, "success");
+      setOpen(false);
+    } catch {
+      showToast("操作失败，请稍后重试", "error");
+    }
+  };
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        aria-label="更多操作"
+        className="p-2 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+      >
+        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M12 8a2 2 0 110-4 2 2 0 010 4zm0 6a2 2 0 110-4 2 2 0 010 4zm0 6a2 2 0 110-4 2 2 0 010 4z" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="absolute top-full right-0 mt-1 w-36 bg-white rounded-xl py-1 shadow-xl border border-gray-100 z-30 animate-fade-in">
+          <button
+            onClick={() => { setShowReport(true); setOpen(false); }}
+            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            <Icon name="flag" className="w-3.5 h-3.5" /> 举报该内容
+          </button>
+          <button
+            onClick={toggleBlock}
+            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            <Icon name="block" className="w-3.5 h-3.5" /> {blocked ? "解除拉黑" : "拉黑作者"}
+          </button>
+        </div>
+      )}
+
+      {showReport && (
+        <ReportModal
+          targetType="post"
+          targetId={card.id}
+          targetTitle={card.title}
+          onClose={() => setShowReport(false)}
+        />
+      )}
     </div>
   );
 }
@@ -736,6 +835,8 @@ export function DetailContent({
   const cardComments = comments[card.id] ?? [];
   // 展示用总数包含楼中楼回复；分页判断用顶层数量
   const commentCount = commentsAllTotal[card.id] ?? card.comments ?? 0;
+  // 举报某条评论
+  const [reportTarget, setReportTarget] = useState<Comment | null>(null);
 
   // 打开详情时从后端拉取评论（原先只靠本次会话内存，刷新即丢）
   useEffect(() => {
@@ -794,6 +895,7 @@ export function DetailContent({
               onSubmitReply={(parentId, content) => {
                 if (!requireAuth()) addComment(card.id, content, parentId);
               }}
+              onReport={c => setReportTarget(c)}
             />
             {hasMoreComments(card.id) && (
               <div className="flex justify-center py-3">
@@ -811,6 +913,15 @@ export function DetailContent({
 
       <DetailActionBar card={card} />
       {extraHeader}
+
+      {reportTarget && (
+        <ReportModal
+          targetType="comment"
+          targetId={reportTarget.id}
+          targetTitle={reportTarget.content}
+          onClose={() => setReportTarget(null)}
+        />
+      )}
     </div>
   );
 }

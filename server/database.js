@@ -153,6 +153,34 @@ db.exec(`
   );
 `);
 
+// 内容举报（target_type: post / comment / user）
+db.exec(`
+  CREATE TABLE IF NOT EXISTS reports (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    reporter_id INTEGER NOT NULL,
+    target_type TEXT NOT NULL,
+    target_id INTEGER NOT NULL,
+    reason TEXT DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'pending',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    handled_by INTEGER,
+    handled_at DATETIME,
+    FOREIGN KEY (reporter_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+`);
+
+// 用户拉黑
+db.exec(`
+  CREATE TABLE IF NOT EXISTS user_blocks (
+    blocker_id INTEGER NOT NULL,
+    blocked_id INTEGER NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (blocker_id, blocked_id),
+    FOREIGN KEY (blocker_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (blocked_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+`);
+
 // 创建索引
 db.exec(`
   CREATE INDEX IF NOT EXISTS idx_posts_author ON posts(author_id);
@@ -166,6 +194,8 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_albums_user ON albums(user_id, created_at DESC);
   CREATE INDEX IF NOT EXISTS idx_album_posts_album ON album_posts(album_id, created_at DESC);
   CREATE INDEX IF NOT EXISTS idx_search_queries_created ON search_queries(created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status, created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_user_blocks_blocker ON user_blocks(blocker_id);
 `);
 
 // 轻量迁移：为旧库补齐后加的列
@@ -184,6 +214,8 @@ ensureColumn('posts', 'images_variants', "TEXT DEFAULT '[]'");
 ensureColumn('comments', 'parent_id', "INTEGER NOT NULL DEFAULT 0");
 // 通知偏好：JSON，按类型开关
 ensureColumn('users', 'notify_prefs', "TEXT DEFAULT '{}'");
+// 管理员标记（审核队列用）
+ensureColumn('users', 'is_admin', "INTEGER NOT NULL DEFAULT 0");
 
 // 历史数据迁移：早期前端把中文画板标签直接存进了 board，统一成英文 key
 const BOARD_LABEL_TO_KEY = {
@@ -222,6 +254,18 @@ seedUsers.forEach((u, i) => {
     u.username, u.nickname, hash, avatar, u.bio
   );
 });
+
+// 管理员：默认 tangyan，可用 ADMIN_USERNAMES="a,b" 覆盖
+{
+  const envAdmins = process.env.ADMIN_USERNAMES;
+  const admins = envAdmins
+    ? envAdmins.split(',').map(s => s.trim()).filter(Boolean)
+    : ['tangyan'];
+  const mark = db.prepare('UPDATE users SET is_admin = 1 WHERE username = ?');
+  for (const name of admins) {
+    try { mark.run(name); } catch { /* 忽略 */ }
+  }
+}
 
 // 仅默认开发库灌入演示内容；测试库（显式设置 DB_PATH）保持干净
 if (!process.env.DB_PATH) {

@@ -10,7 +10,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "verify": "node scripts/verify-all.mjs"
+    "verify": "node scripts/verify-all.mjs",
+    "test:server": "node scripts/run-server-tests.mjs"
   },
   "dependencies": {
     "@tiptap/pm": "^3.32.0",

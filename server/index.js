@@ -10,6 +10,7 @@ const rateLimit = require('express-rate-limit');
 const pino = require('pino');
 const pinoHttp = require('pino-http');
 const sanitizeHtml = require('sanitize-html');
+const { maskSensitive } = require('./sensitive-words');
 
 const db = require('./database');
 
@@ -65,7 +66,11 @@ function authMiddleware(req, res, next) {
   const token = req.headers.authorization?.replace('Bearer ', '');
   if (!token) return res.status(401).json({ error: '未登录' });
   try {
-    req.user = jwt.verify(token, JWT_SECRET);
+    const payload = jwt.verify(token, JWT_SECRET);
+    // 管理员标记每次查库，避免权限被撤销后旧 token 仍可用
+    const row = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(payload.id);
+    if (!row) return res.status(401).json({ error: '用户不存在' });
+    req.user = { ...payload, is_admin: !!row.is_admin };
     next();
   } catch {
     res.status(401).json({ error: '登录已过期' });
@@ -77,7 +82,14 @@ function issueToken(user) {
 }
 
 function publicUser(user) {
-  return { ...user, password_hash: undefined };
+  const { password_hash, ...rest } = user;
+  return { ...rest, is_admin: !!user.is_admin };
+}
+
+/** 管理员校验（审核队列用） */
+function requireAdmin(req, res, next) {
+  if (!req.user?.is_admin) return res.status(403).json({ error: '需要管理员权限' });
+  next();
 }
 
 // ─────────────────────────────────────────────
@@ -418,6 +430,15 @@ app.get('/api/posts', (req, res) => {
       } catch { /* 统计失败不影响搜索 */ }
     }
   }
+  // 拉黑过滤：登录用户看不到被自己拉黑者的内容
+  const blockedAuthors = blockedIdsFor(req);
+  if (blockedAuthors.length) {
+    const ph = blockedAuthors.map(() => '?').join(',');
+    sql += ` AND p.author_id NOT IN (${ph})`;
+    countSql += ` AND p.author_id NOT IN (${ph})`;
+    params.push(...blockedAuthors);
+    countParams.push(...blockedAuthors);
+  }
   sql += ' ORDER BY p.created_at DESC LIMIT ? OFFSET ?';
   params.push(limitNum, offset);
 
@@ -471,7 +492,7 @@ app.post('/api/posts', authMiddleware, (req, res) => {
     ? JSON.stringify(sizes.map(s => ({ w: Number(s?.w) || 400, h: Number(s?.h) || 300 })))
     : '[]';
   const info = db.prepare('INSERT INTO posts (author_id, title, description, board, images, tags, sizes, thumbs, images_variants) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(
-    req.user.id, title.trim(), cleanRichText(description), normalizeBoard(board), imageStr, tagStr, sizeStr, thumbStr, variantStr
+    req.user.id, maskSensitive(title.trim()), maskSensitive(cleanRichText(description)), normalizeBoard(board), imageStr, tagStr, sizeStr, thumbStr, variantStr
   );
 
   const post = db.prepare('SELECT p.*, u.nickname as author_nickname, u.avatar as author_avatar FROM posts p JOIN users u ON p.author_id = u.id WHERE p.id = ?').get(info.lastInsertRowid);
@@ -492,8 +513,8 @@ app.put('/api/posts/:id', authMiddleware, (req, res) => {
 
   // 只更新请求里显式给出的字段，未传的保持原值
   const next = {
-    title: title !== undefined ? title.trim() : post.title,
-    description: description !== undefined ? cleanRichText(description) : post.description,
+    title: title !== undefined ? maskSensitive(title.trim()) : post.title,
+    description: description !== undefined ? maskSensitive(cleanRichText(description)) : post.description,
     board: board !== undefined ? normalizeBoard(board) : post.board,
     tags: tags !== undefined ? JSON.stringify((tags || []).slice(0, 5)) : post.tags,
   };
@@ -602,20 +623,31 @@ app.get('/api/posts/:id/comments', (req, res) => {
   const postId = parseInt(req.params.id);
   const { pageNum, limitNum, offset } = parsePage(req, 50);
 
-  const tops = db.prepare(
-    `${COMMENT_SELECT} WHERE c.post_id = ? AND c.parent_id = 0 ORDER BY c.created_at ASC LIMIT ? OFFSET ?`
-  ).all(postId, limitNum, offset);
+  // 拉黑过滤：不展示被自己拉黑者的评论
+  const blocked = blockedIdsFor(req);
+  const blockClause = blocked.length ? ` AND c.author_id NOT IN (${blocked.map(() => '?').join(',')})` : '';
+  const blockArgs = blocked.length ? blocked : [];
 
-  const total = db.prepare('SELECT COUNT(*) as count FROM comments WHERE post_id = ? AND parent_id = 0').get(postId).count;
-  const totalAll = db.prepare('SELECT COUNT(*) as count FROM comments WHERE post_id = ?').get(postId).count;
+  const tops = db.prepare(
+    `${COMMENT_SELECT} WHERE c.post_id = ? AND c.parent_id = 0${blockClause} ORDER BY c.created_at ASC LIMIT ? OFFSET ?`
+  ).all(postId, ...blockArgs, limitNum, offset);
+
+  const total = db.prepare(
+    `SELECT COUNT(*) as count FROM comments c WHERE c.post_id = ? AND c.parent_id = 0${blockClause}`
+  ).get(postId, ...blockArgs).count;
+  const totalAll = db.prepare(
+    `SELECT COUNT(*) as count FROM comments c WHERE c.post_id = ?${blockClause}`
+  ).get(postId, ...blockArgs).count;
 
   const replies = [];
   if (tops.length) {
     for (const top of tops) {
       const rows = db.prepare(
-        `${COMMENT_SELECT} WHERE c.parent_id = ? ORDER BY c.created_at ASC LIMIT 3`
-      ).all(top.id);
-      top.reply_count = db.prepare('SELECT COUNT(*) as count FROM comments WHERE parent_id = ?').get(top.id).count;
+        `${COMMENT_SELECT} WHERE c.parent_id = ?${blockClause} ORDER BY c.created_at ASC LIMIT 3`
+      ).all(top.id, ...blockArgs);
+      top.reply_count = db.prepare(
+        `SELECT COUNT(*) as count FROM comments c WHERE c.parent_id = ?${blockClause}`
+      ).get(top.id, ...blockArgs).count;
       top.replies = rows;
       replies.push(...rows);
     }
@@ -670,7 +702,7 @@ app.post('/api/posts/:id/comments', authMiddleware, (req, res) => {
   }
 
   const info = db.prepare('INSERT INTO comments (post_id, author_id, content, parent_id) VALUES (?, ?, ?, ?)')
-    .run(postId, req.user.id, content.trim(), parentId);
+    .run(postId, req.user.id, maskSensitive(content.trim()), parentId);
   db.prepare('UPDATE posts SET comments_count = comments_count + 1 WHERE id = ?').run(postId);
 
   if (!parentComment) {
@@ -1049,6 +1081,123 @@ app.patch('/api/users/me/notify-prefs', authMiddleware, (req, res) => {
 });
 
 // ─────────────────────────────────────────────
+// 社区治理：举报 / 审核 / 拉黑
+// ─────────────────────────────────────────────
+const REPORT_TARGETS = new Set(['post', 'comment', 'user']);
+
+/** 当前用户拉黑的人（未登录返回空） */
+function blockedIdsFor(req) {
+  const user = optionalUser(req);
+  if (!user) return [];
+  return db.prepare('SELECT blocked_id FROM user_blocks WHERE blocker_id = ?').all(user.id).map(r => r.blocked_id);
+}
+
+/** 提交举报 */
+app.post('/api/reports', authMiddleware, (req, res) => {
+  const { target_type, target_id, reason } = req.body || {};
+  if (!REPORT_TARGETS.has(target_type)) return res.status(400).json({ error: '举报对象类型不合法' });
+  const targetId = parseInt(target_id);
+  if (!targetId) return res.status(400).json({ error: '缺少 target_id' });
+
+  const table = target_type === 'post' ? 'posts' : target_type === 'comment' ? 'comments' : 'users';
+  if (!db.prepare(`SELECT 1 FROM ${table} WHERE id = ?`).get(targetId)) {
+    return res.status(404).json({ error: '举报对象不存在' });
+  }
+
+  // 同一用户对同一对象只保留一条待处理举报，避免刷屏
+  const dup = db.prepare(
+    "SELECT id FROM reports WHERE reporter_id = ? AND target_type = ? AND target_id = ? AND status = 'pending'"
+  ).get(req.user.id, target_type, targetId);
+  if (dup) return res.json({ ok: true, duplicated: true });
+
+  db.prepare('INSERT INTO reports (reporter_id, target_type, target_id, reason) VALUES (?, ?, ?, ?)')
+    .run(req.user.id, target_type, targetId, maskSensitive(String(reason || '').slice(0, 200)));
+  res.json({ ok: true });
+});
+
+/** 管理员：举报队列 */
+app.get('/api/admin/reports', authMiddleware, requireAdmin, (req, res) => {
+  const status = ['pending', 'resolved', 'rejected'].includes(req.query.status) ? req.query.status : 'pending';
+  const { pageNum, limitNum, offset } = parsePage(req, 30);
+
+  const rows = db.prepare(`
+    SELECT r.*, u.nickname AS reporter_nickname, u.avatar AS reporter_avatar
+    FROM reports r JOIN users u ON r.reporter_id = u.id
+    WHERE r.status = ? ORDER BY r.created_at DESC LIMIT ? OFFSET ?
+  `).all(status, limitNum, offset);
+
+  const reports = rows.map(r => {
+    let preview = '';
+    let authorId = null;
+    if (r.target_type === 'post') {
+      const p = db.prepare('SELECT title, author_id FROM posts WHERE id = ?').get(r.target_id);
+      if (p) { preview = p.title; authorId = p.author_id; }
+    } else if (r.target_type === 'comment') {
+      const c = db.prepare('SELECT content, author_id FROM comments WHERE id = ?').get(r.target_id);
+      if (c) { preview = String(c.content).slice(0, 60); authorId = c.author_id; }
+    } else {
+      const u = db.prepare('SELECT nickname, id FROM users WHERE id = ?').get(r.target_id);
+      if (u) { preview = u.nickname; authorId = u.id; }
+    }
+    return { ...r, target_preview: preview, target_author_id: authorId };
+  });
+
+  const total = db.prepare('SELECT COUNT(*) AS c FROM reports WHERE status = ?').get(status).c;
+  res.json({ reports, total, page: pageNum, limit: limitNum });
+});
+
+/** 管理员：处理举报（删除内容 / 驳回） */
+app.post('/api/admin/reports/:id/resolve', authMiddleware, requireAdmin, (req, res) => {
+  const report = db.prepare('SELECT * FROM reports WHERE id = ?').get(req.params.id);
+  if (!report) return res.status(404).json({ error: '举报不存在' });
+  const action = req.body?.action;
+  if (!['delete', 'reject'].includes(action)) {
+    return res.status(400).json({ error: 'action 只能是 delete 或 reject' });
+  }
+
+  if (action === 'delete') {
+    if (report.target_type === 'post') {
+      db.prepare('DELETE FROM posts WHERE id = ?').run(report.target_id);
+      db.prepare('DELETE FROM notifications WHERE post_id = ?').run(report.target_id);
+    } else if (report.target_type === 'comment') {
+      const c = db.prepare('SELECT post_id FROM comments WHERE id = ?').get(report.target_id);
+      db.prepare('DELETE FROM comments WHERE id = ?').run(report.target_id);
+      if (c) db.prepare('UPDATE posts SET comments_count = MAX(comments_count - 1, 0) WHERE id = ?').run(c.post_id);
+      db.prepare('DELETE FROM notifications WHERE comment_id = ?').run(report.target_id);
+    }
+    db.prepare("UPDATE reports SET status = 'resolved', handled_by = ?, handled_at = CURRENT_TIMESTAMP WHERE id = ?")
+      .run(req.user.id, report.id);
+  } else {
+    db.prepare("UPDATE reports SET status = 'rejected', handled_by = ?, handled_at = CURRENT_TIMESTAMP WHERE id = ?")
+      .run(req.user.id, report.id);
+  }
+  res.json({ ok: true, action });
+});
+
+/** 拉黑 / 解除拉黑（再次调用即解除） */
+app.post('/api/users/:id/block', authMiddleware, (req, res) => {
+  const targetId = parseInt(req.params.id);
+  if (targetId === req.user.id) return res.status(400).json({ error: '不能拉黑自己' });
+  if (!db.prepare('SELECT 1 FROM users WHERE id = ?').get(targetId)) {
+    return res.status(404).json({ error: '用户不存在' });
+  }
+
+  const existing = db.prepare('SELECT 1 FROM user_blocks WHERE blocker_id = ? AND blocked_id = ?').get(req.user.id, targetId);
+  if (existing) {
+    db.prepare('DELETE FROM user_blocks WHERE blocker_id = ? AND blocked_id = ?').run(req.user.id, targetId);
+    return res.json({ blocked: false });
+  }
+  db.prepare('INSERT INTO user_blocks (blocker_id, blocked_id) VALUES (?, ?)').run(req.user.id, targetId);
+  res.json({ blocked: true });
+});
+
+/** 我的拉黑列表 */
+app.get('/api/my/blocks', authMiddleware, (req, res) => {
+  const ids = db.prepare('SELECT blocked_id AS id FROM user_blocks WHERE blocker_id = ?').all(req.user.id).map(r => r.id);
+  res.json({ ids });
+});
+
+// ─────────────────────────────────────────────
 // 专辑（用户自建收藏夹）
 // ─────────────────────────────────────────────
 
@@ -1122,8 +1271,8 @@ app.post('/api/albums', authMiddleware, (req, res) => {
   const info = db.prepare('INSERT INTO albums (user_id, title, description, is_public) VALUES (?, ?, ?, ?)')
     .run(
       req.user.id,
-      String(title).trim().slice(0, 40),
-      String(description || '').slice(0, 200),
+      maskSensitive(String(title).trim()).slice(0, 40),
+      maskSensitive(String(description || '')).slice(0, 200),
       is_public === false ? 0 : 1,
     );
   const album = db.prepare('SELECT * FROM albums WHERE id = ?').get(info.lastInsertRowid);
@@ -1140,8 +1289,8 @@ app.patch('/api/albums/:id', authMiddleware, (req, res) => {
   if (title !== undefined && !String(title).trim()) return res.status(400).json({ error: '专辑名称不能为空' });
 
   db.prepare('UPDATE albums SET title = ?, description = ?, is_public = ? WHERE id = ?').run(
-    title !== undefined ? String(title).trim().slice(0, 40) : album.title,
-    description !== undefined ? String(description).slice(0, 200) : album.description,
+    title !== undefined ? maskSensitive(String(title).trim()).slice(0, 40) : album.title,
+    description !== undefined ? maskSensitive(String(description)).slice(0, 200) : album.description,
     is_public !== undefined ? (is_public ? 1 : 0) : album.is_public,
     album.id,
   );
@@ -1251,19 +1400,24 @@ app.get('/api/my/following', authMiddleware, (req, res) => {
 app.get('/api/feed/following', authMiddleware, (req, res) => {
   const { pageNum, limitNum, offset } = parsePage(req);
 
+  // 拉黑过滤：关注流里也不展示被自己拉黑者的内容
+  const blocked = blockedIdsFor(req);
+  const blockClause = blocked.length ? ` AND p.author_id NOT IN (${blocked.map(() => '?').join(',')})` : '';
+  const blockArgs = blocked.length ? blocked : [];
+
   const posts = attachInteractions(db.prepare(`
     SELECT p.*, u.nickname as author_nickname, u.avatar as author_avatar
     FROM posts p JOIN users u ON p.author_id = u.id
-    WHERE p.author_id = ?
-       OR p.author_id IN (SELECT following_id FROM user_follows WHERE follower_id = ?)
+    WHERE (p.author_id = ?
+       OR p.author_id IN (SELECT following_id FROM user_follows WHERE follower_id = ?))${blockClause}
     ORDER BY p.created_at DESC LIMIT ? OFFSET ?
-  `).all(req.user.id, req.user.id, limitNum, offset).map(hydratePost), req);
+  `).all(req.user.id, req.user.id, ...blockArgs, limitNum, offset).map(hydratePost), req);
 
   const total = db.prepare(`
     SELECT COUNT(*) as count FROM posts p
-    WHERE p.author_id = ?
-       OR p.author_id IN (SELECT following_id FROM user_follows WHERE follower_id = ?)
-  `).get(req.user.id, req.user.id).count;
+    WHERE (p.author_id = ?
+       OR p.author_id IN (SELECT following_id FROM user_follows WHERE follower_id = ?))${blockClause}
+  `).get(req.user.id, req.user.id, ...blockArgs).count;
 
   res.json({ posts, total, page: pageNum, limit: limitNum });
 });
