@@ -491,6 +491,29 @@ async function main() {
       statsReady = await cdp.eval(`!!document.querySelector('button[aria-label*="查看粉丝"]')`);
     }
     check("个人主页粉丝/关注可点击", statsReady);
+
+    // 回归：分类导航只属于首页，个人主页不应再出现（否则与页面返回栏重复）
+    const profileNavCount = await cdp.eval(`document.querySelectorAll('nav button').length`);
+    check("个人主页不显示首页分类导航", profileNavCount === 0, `nav=${profileNavCount}`);
+
+    // 回归：页面返回栏吸在 Header 下方，滚动时不被 Header 盖住
+    await cdp.eval(`window.scrollTo(0, 400)`);
+    await sleep(600);
+    const stickyBar = await cdp.eval(`(() => {
+      const bar = [...document.querySelectorAll('div')].find(d => getComputedStyle(d).position === 'sticky' && d.textContent.includes('返回'));
+      if (!bar) return 'not-found';
+      const r = bar.getBoundingClientRect();
+      const hb = document.querySelector('header').getBoundingClientRect().bottom;
+      return JSON.stringify({ top: Math.round(r.top), headerBottom: Math.round(hb) });
+    })()`);
+    let stickyOk = false;
+    if (stickyBar !== "not-found") {
+      const s = JSON.parse(stickyBar);
+      stickyOk = s.top >= s.headerBottom - 1;
+    }
+    check("个人主页返回栏吸顶位置正确", stickyOk, stickyBar);
+    await cdp.eval(`window.scrollTo(0, 0)`);
+    await sleep(300);
     await cdp.eval(`document.querySelector('button[aria-label*="查看粉丝"]').click()`);
     let followModalOpen = false;
     for (let i = 0; i < 10 && !followModalOpen; i++) {

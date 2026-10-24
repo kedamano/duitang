@@ -291,23 +291,25 @@ export default function Header({
         </div>
       </div>
 
-      {/* Nav row */}
-      <nav className="flex items-center gap-0 overflow-x-auto scrollbar-hide border-b border-gray-100 px-2">
-        {navCategories.map(cat => (
-          <button
-            key={cat}
-            onClick={() => handleNavChange(cat)}
-            className={cn(
-              "shrink-0 px-4 py-3 text-sm font-medium whitespace-nowrap transition-all duration-150 border-b-2",
-              activeNav === cat
-                ? "border-[#e05d6f] text-[#e05d6f]"
-                : "border-transparent text-gray-500 hover:text-[#e05d6f] hover:border-[#f0a0a8]",
-            )}
-          >
-            {cat}
-          </button>
-        ))}
-      </nav>
+      {/* Nav row：分类导航只属于首页，其他页面显示会与页面自身的返回栏重复 */}
+      {location.pathname === "/" && (
+        <nav className="flex items-center gap-0 overflow-x-auto scrollbar-hide border-b border-gray-100 px-2">
+          {navCategories.map(cat => (
+            <button
+              key={cat}
+              onClick={() => handleNavChange(cat)}
+              className={cn(
+                "shrink-0 px-4 py-3 text-sm font-medium whitespace-nowrap transition-all duration-150 border-b-2",
+                activeNav === cat
+                  ? "border-[#e05d6f] text-[#e05d6f]"
+                  : "border-transparent text-gray-500 hover:text-[#e05d6f] hover:border-[#f0a0a8]",
+              )}
+            >
+              {cat}
+            </button>
+          ))}
+        </nav>
+      )}
 
       {/* Mobile menu */}
       {mobileMenuOpen && (
