@@ -233,18 +233,46 @@ function optionalUser(req) {
  * like/collect/follow/comment_like 这类"可取消"的操作做去重，
  * 避免反复点赞产生重复消息；评论每条都算独立消息。
  */
+/**
+ * 通知偏好：user.notify_prefs 存 JSON，未列出的类型默认开启。
+ * 例如 { "like": false } 表示不收点赞通知。
+ */
+function isNotifyTypeEnabled(userId, type) {
+  const row = db.prepare('SELECT notify_prefs FROM users WHERE id = ?').get(userId);
+  if (!row) return true;
+  let prefs = {};
+  try { prefs = JSON.parse(row.notify_prefs || '{}'); } catch { prefs = {}; }
+  return prefs[type] !== false;
+}
+
+/** SSE 连接表：userId -> Set<res> */
+const sseClients = new Map();
+
+function pushNotification(userId, payload) {
+  const set = sseClients.get(userId);
+  if (!set || set.size === 0) return;
+  const data = JSON.stringify(payload);
+  for (const res of set) {
+    try { res.write(`event: notification\ndata: ${data}\n\n`); } catch { /* 连接已断开 */ }
+  }
+}
+
 function addNotification({ userId, actorId, type, postId = 0, commentId = 0 }) {
   if (!userId || userId === actorId) return;
-  const dedupable = type !== 'comment';
+  if (!isNotifyTypeEnabled(userId, type)) return;
+  const dedupable = type !== 'comment' && type !== 'reply';
   if (dedupable) {
     const existing = db.prepare(
       'SELECT id FROM notifications WHERE user_id = ? AND actor_id = ? AND type = ? AND post_id = ? AND comment_id = ?'
     ).get(userId, actorId, type, postId, commentId);
     if (existing) return;
   }
-  db.prepare(
+  const info = db.prepare(
     'INSERT INTO notifications (user_id, actor_id, type, post_id, comment_id) VALUES (?, ?, ?, ?, ?)'
   ).run(userId, actorId, type, postId, commentId);
+  // 实时推送给在线用户（离线用户下次拉取即可）
+  const unread = db.prepare('SELECT COUNT(*) as count FROM notifications WHERE user_id = ? AND is_read = 0').get(userId).count;
+  pushNotification(userId, { id: Number(info.lastInsertRowid), type, post_id: postId, comment_id: commentId, unread });
 }
 
 /** 取消操作时撤回对应通知 */
@@ -445,51 +473,125 @@ app.post('/api/posts/:id/collect', authMiddleware, (req, res) => {
 // 评论
 // ─────────────────────────────────────────────
 
-// 获取帖子的评论（分页，点赞状态批量查询避免 N+1）
+/** 给一批评论补上当前用户的 is_liked（批量 IN，避免 N+1） */
+function attachCommentLikes(comments, req) {
+  comments.forEach(c => { c.is_liked = false; });
+  if (!comments.length) return comments;
+  const user = optionalUser(req);
+  if (!user) return comments;
+  const ids = comments.map(c => c.id);
+  const ph = ids.map(() => '?').join(',');
+  const liked = new Set(
+    db.prepare(`SELECT comment_id FROM comment_likes WHERE user_id = ? AND comment_id IN (${ph})`)
+      .all(user.id, ...ids).map(r => r.comment_id)
+  );
+  comments.forEach(c => { c.is_liked = liked.has(c.id); });
+  return comments;
+}
+
+const COMMENT_SELECT = 'SELECT c.*, u.nickname as author_nickname, u.avatar as author_avatar FROM comments c JOIN users u ON c.author_id = u.id';
+
+// 获取帖子的评论（顶层分页，楼中楼内嵌前 3 条回复）
 app.get('/api/posts/:id/comments', (req, res) => {
   const postId = parseInt(req.params.id);
   const { pageNum, limitNum, offset } = parsePage(req, 50);
 
-  const comments = db.prepare(
-    'SELECT c.*, u.nickname as author_nickname, u.avatar as author_avatar FROM comments c JOIN users u ON c.author_id = u.id WHERE c.post_id = ? ORDER BY c.created_at ASC LIMIT ? OFFSET ?'
+  const tops = db.prepare(
+    `${COMMENT_SELECT} WHERE c.post_id = ? AND c.parent_id = 0 ORDER BY c.created_at ASC LIMIT ? OFFSET ?`
   ).all(postId, limitNum, offset);
 
-  const total = db.prepare('SELECT COUNT(*) as count FROM comments WHERE post_id = ?').get(postId).count;
+  const total = db.prepare('SELECT COUNT(*) as count FROM comments WHERE post_id = ? AND parent_id = 0').get(postId).count;
+  const totalAll = db.prepare('SELECT COUNT(*) as count FROM comments WHERE post_id = ?').get(postId).count;
 
-  // 一次性取出当前用户在这批评论里的点赞记录
-  comments.forEach(c => { c.is_liked = false; });
-  const user = optionalUser(req);
-  if (user && comments.length) {
-    const ids = comments.map(c => c.id);
-    const ph = ids.map(() => '?').join(',');
-    const liked = new Set(
-      db.prepare(`SELECT comment_id FROM comment_likes WHERE user_id = ? AND comment_id IN (${ph})`)
-        .all(user.id, ...ids).map(r => r.comment_id)
-    );
-    comments.forEach(c => { c.is_liked = liked.has(c.id); });
+  const replies = [];
+  if (tops.length) {
+    for (const top of tops) {
+      const rows = db.prepare(
+        `${COMMENT_SELECT} WHERE c.parent_id = ? ORDER BY c.created_at ASC LIMIT 3`
+      ).all(top.id);
+      top.reply_count = db.prepare('SELECT COUNT(*) as count FROM comments WHERE parent_id = ?').get(top.id).count;
+      top.replies = rows;
+      replies.push(...rows);
+    }
   }
 
-  res.json({ comments, total, page: pageNum, limit: limitNum });
+  attachCommentLikes(tops, req);
+  attachCommentLikes(replies, req);
+  // 回复的目标昵称，便于前端展示"回复 @某人"
+  for (const r of replies) {
+    if (r.parent_id) {
+      const parent = db.prepare('SELECT c.author_id, u.nickname FROM comments c JOIN users u ON c.author_id = u.id WHERE c.id = ?').get(r.parent_id);
+      if (parent) r.reply_to_nickname = parent.nickname;
+    }
+  }
+
+  res.json({ comments: tops, total, total_all: totalAll, page: pageNum, limit: limitNum });
 });
 
-// 发布评论
+/** 某条顶层评论的更多回复 */
+app.get('/api/comments/:id/replies', (req, res) => {
+  const parentId = parseInt(req.params.id);
+  const { pageNum, limitNum, offset } = parsePage(req, 20);
+  const rows = db.prepare(
+    `${COMMENT_SELECT} WHERE c.parent_id = ? ORDER BY c.created_at ASC LIMIT ? OFFSET ?`
+  ).all(parentId, limitNum, offset);
+  const total = db.prepare('SELECT COUNT(*) as count FROM comments WHERE parent_id = ?').get(parentId).count;
+  attachCommentLikes(rows, req);
+  for (const r of rows) {
+    const parent = db.prepare('SELECT u.nickname FROM comments c JOIN users u ON c.author_id = u.id WHERE c.id = ?').get(r.parent_id);
+    if (parent) r.reply_to_nickname = parent.nickname;
+  }
+  res.json({ comments: rows, total, page: pageNum, limit: limitNum });
+});
+
+// 发布评论 / 回复
 app.post('/api/posts/:id/comments', authMiddleware, (req, res) => {
   const postId = parseInt(req.params.id);
-  const { content } = req.body;
+  const { content, parent_id } = req.body;
   if (!content || !content.trim()) return res.status(400).json({ error: '内容不能为空' });
 
   const post = db.prepare('SELECT id, author_id FROM posts WHERE id = ?').get(postId);
   if (!post) return res.status(404).json({ error: '帖子不存在' });
 
-  const info = db.prepare('INSERT INTO comments (post_id, author_id, content) VALUES (?, ?, ?)').run(postId, req.user.id, content.trim());
-  db.prepare('UPDATE posts SET comments_count = comments_count + 1 WHERE id = ?').run(postId);
-  addNotification({
-    userId: post.author_id, actorId: req.user.id, type: 'comment',
-    postId, commentId: Number(info.lastInsertRowid),
-  });
+  // 回复：父评论必须存在且属于同一帖子；只允许一层嵌套，统一挂到顶层评论下
+  let parentId = 0;
+  let parentComment = null;
+  if (parent_id) {
+    parentComment = db.prepare('SELECT id, post_id, parent_id, author_id FROM comments WHERE id = ?').get(Number(parent_id));
+    if (!parentComment) return res.status(400).json({ error: '回复的评论不存在' });
+    if (parentComment.post_id !== postId) return res.status(400).json({ error: '评论不属于该帖子' });
+    parentId = parentComment.parent_id || parentComment.id;
+  }
 
-  const comment = db.prepare('SELECT c.*, u.nickname as author_nickname, u.avatar as author_avatar FROM comments c JOIN users u ON c.author_id = u.id WHERE c.id = ?').get(info.lastInsertRowid);
+  const info = db.prepare('INSERT INTO comments (post_id, author_id, content, parent_id) VALUES (?, ?, ?, ?)')
+    .run(postId, req.user.id, content.trim(), parentId);
+  db.prepare('UPDATE posts SET comments_count = comments_count + 1 WHERE id = ?').run(postId);
+
+  if (!parentComment) {
+    addNotification({
+      userId: post.author_id, actorId: req.user.id, type: 'comment',
+      postId, commentId: Number(info.lastInsertRowid),
+    });
+  } else {
+    // 回复优先通知被回复的人；若帖子作者另有其人，也告知一声
+    addNotification({
+      userId: parentComment.author_id, actorId: req.user.id, type: 'reply',
+      postId, commentId: Number(info.lastInsertRowid),
+    });
+    if (post.author_id !== parentComment.author_id) {
+      addNotification({
+        userId: post.author_id, actorId: req.user.id, type: 'comment',
+        postId, commentId: Number(info.lastInsertRowid),
+      });
+    }
+  }
+
+  const comment = db.prepare(`${COMMENT_SELECT} WHERE c.id = ?`).get(info.lastInsertRowid);
   comment.is_liked = false;
+  if (parentId) {
+    const parent = db.prepare('SELECT u.nickname FROM comments c JOIN users u ON c.author_id = u.id WHERE c.id = ?').get(parentId);
+    if (parent) comment.reply_to_nickname = parent.nickname;
+  }
   res.json({ comment });
 });
 
@@ -701,6 +803,66 @@ app.post('/api/notifications/read', authMiddleware, (req, res) => {
 app.delete('/api/notifications', authMiddleware, (req, res) => {
   const info = db.prepare('DELETE FROM notifications WHERE user_id = ?').run(req.user.id);
   res.json({ ok: true, deleted: info.changes, unread: 0 });
+});
+
+/**
+ * SSE 实时通知流。
+ * EventSource 无法自定义请求头，因此允许用 ?token= 传递凭证。
+ */
+app.get('/api/notifications/stream', (req, res) => {
+  const token = req.query.token || (req.headers.authorization || '').replace('Bearer ', '');
+  let user;
+  try { user = jwt.verify(token, JWT_SECRET); } catch {
+    return res.status(401).json({ error: '未登录' });
+  }
+
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream; charset=utf-8',
+    'Cache-Control': 'no-cache, no-transform',
+    Connection: 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  });
+  res.write(`event: ready\ndata: ${JSON.stringify({ userId: user.id })}\n\n`);
+
+  if (!sseClients.has(user.id)) sseClients.set(user.id, new Set());
+  sseClients.get(user.id).add(res);
+
+  // 心跳，防止代理/浏览器因空闲断开
+  const heartbeat = setInterval(() => {
+    try { res.write(': ping\n\n'); } catch { /* 已断开 */ }
+  }, 25000);
+
+  req.on('close', () => {
+    clearInterval(heartbeat);
+    const set = sseClients.get(user.id);
+    if (set) {
+      set.delete(res);
+      if (set.size === 0) sseClients.delete(user.id);
+    }
+  });
+});
+
+// ─────────────────────────────────────────────
+// 通知偏好
+// ─────────────────────────────────────────────
+const NOTIFY_TYPES = ['like', 'collect', 'comment', 'comment_like', 'follow', 'reply'];
+
+app.get('/api/users/me/notify-prefs', authMiddleware, (req, res) => {
+  const row = db.prepare('SELECT notify_prefs FROM users WHERE id = ?').get(req.user.id);
+  let prefs = {};
+  try { prefs = JSON.parse(row?.notify_prefs || '{}'); } catch { prefs = {}; }
+  res.json({ prefs, types: NOTIFY_TYPES });
+});
+
+app.patch('/api/users/me/notify-prefs', authMiddleware, (req, res) => {
+  const { prefs } = req.body || {};
+  if (!prefs || typeof prefs !== 'object') return res.status(400).json({ error: '参数错误' });
+  const clean = {};
+  for (const type of NOTIFY_TYPES) {
+    if (typeof prefs[type] === 'boolean') clean[type] = prefs[type];
+  }
+  db.prepare('UPDATE users SET notify_prefs = ? WHERE id = ?').run(JSON.stringify(clean), req.user.id);
+  res.json({ prefs: clean });
 });
 
 // 我的收藏（分页，默认 100 条以便个人主页一次展示）

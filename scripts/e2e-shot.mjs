@@ -565,6 +565,216 @@ async function main() {
     // 清理草稿，避免影响后续使用
     await cdp.eval(`localStorage.removeItem('duitang_publish_draft')`);
 
+    // ── 画板分组页 ──
+    await open("#/board/anime");
+    let boardReady = false;
+    for (let i = 0; i < 15 && !boardReady; i++) {
+      await sleep(800);
+      boardReady = (await cdp.eval(`document.querySelectorAll('main .break-inside-avoid').length`)) > 0;
+    }
+    const boardInfo = JSON.parse(await cdp.eval(`(() => {
+      const h1 = document.querySelector('main h1');
+      return JSON.stringify({
+        heading: h1 ? h1.textContent.trim() : '',
+        cards: document.querySelectorAll('main .break-inside-avoid').length,
+        switcher: !!document.querySelector('[data-testid="board-switcher"]'),
+      });
+    })()`));
+    check("画板页显示中文画板名与内容", boardInfo.heading === "动漫插画" && boardInfo.cards > 0, JSON.stringify(boardInfo));
+    check("画板页提供其他画板切换", boardInfo.switcher);
+    await shotPng("board-page.png");
+
+    // ── 大图预览灯箱（挑一条多图帖子）──
+    const multiPostId = await cdp.eval(`(async () => {
+      const data = await (await fetch('/api/posts?limit=100')).json();
+      const multi = (data.posts || []).find(p => {
+        if (Array.isArray(p.images)) return p.images.length > 1;
+        try { return JSON.parse(p.images || '[]').length > 1; } catch { return false; }
+      });
+      return multi ? multi.id : null;
+    })()`);
+    check("存在多图帖子用于灯箱验证", !!multiPostId, String(multiPostId));
+
+    if (multiPostId) {
+      await open("#/pin/" + multiPostId);
+      let detailImageReady = false;
+      for (let i = 0; i < 15 && !detailImageReady; i++) {
+        await sleep(800);
+        detailImageReady = await cdp.eval(`!!document.querySelector('main img[alt]')`);
+      }
+      await cdp.eval(`document.querySelector('main img[alt]')?.click()`);
+      let lightboxVisible = false;
+      for (let i = 0; i < 12 && !lightboxVisible; i++) {
+        await sleep(500);
+        lightboxVisible = await cdp.eval(`!!document.querySelector('[data-testid="image-lightbox"]')`);
+      }
+      check("详情页图片可打开大图预览", lightboxVisible);
+
+      if (lightboxVisible) {
+        const counterBefore = await cdp.eval(`document.body.innerText.match(/(\\d+) \\/ (\\d+)/)?.[0] || ''`);
+        const nextOk = await cdp.eval(`(() => {
+          const b = document.querySelector('button[aria-label="下一张"]');
+          if (!b) return 'no-next';
+          b.click();
+          return 'clicked';
+        })()`);
+        await sleep(600);
+        const counterAfter = await cdp.eval(`document.body.innerText.match(/(\\d+) \\/ (\\d+)/)?.[0] || ''`);
+        check("灯箱可切换下一张", nextOk === "clicked" && counterBefore !== counterAfter, `${counterBefore} → ${counterAfter}`);
+        await shotPng("lightbox.png");
+        await cdp.eval(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))`);
+        await sleep(500);
+        const closed = await cdp.eval(`!document.querySelector('[data-testid="image-lightbox"]')`);
+        check("Esc 可关闭大图预览", closed);
+      }
+    }
+
+    // ── 评论楼中楼 ──
+    await open("#/pin/" + ownPostId);
+    let composerReady = false;
+    for (let i = 0; i < 15 && !composerReady; i++) {
+      await sleep(800);
+      composerReady = await cdp.eval(`!!document.querySelector('input[placeholder="说点什么吧..."]')`);
+    }
+    check("详情页有评论输入框", composerReady);
+
+    const topCommentText = "E2E 顶层评论 " + Date.now();
+    await cdp.eval(`(() => {
+      const i = document.querySelector('input[placeholder="说点什么吧..."]');
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+      setter.call(i, ${JSON.stringify(topCommentText)});
+      i.dispatchEvent(new Event('input', { bubbles: true }));
+      i.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    })()`);
+    let topShown = false;
+    for (let i = 0; i < 10 && !topShown; i++) {
+      await sleep(700);
+      text = await cdp.eval("document.body.innerText");
+      topShown = text.includes(topCommentText);
+    }
+    check("可以发表顶层评论", topShown);
+
+    // 点"回复"并提交
+    const replyText = "E2E 回复 " + Date.now();
+    const replyClicked = await cdp.eval(`(() => {
+      const b = [...document.querySelectorAll('button')].filter(x => x.textContent.trim() === '回复').pop();
+      if (!b) return 'no-reply-button';
+      b.click();
+      return 'clicked';
+    })()`);
+    await sleep(500);
+    await cdp.eval(`(() => {
+      const i = document.querySelector('input[aria-label="回复内容"]');
+      if (!i) return;
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+      setter.call(i, ${JSON.stringify(replyText)});
+      i.dispatchEvent(new Event('input', { bubbles: true }));
+    })()`);
+    await sleep(300);
+    await cdp.eval(`[...document.querySelectorAll('button')].find(b => b.textContent.trim() === '发送' && !b.disabled)?.click()`);
+    let replyShown = false;
+    for (let i = 0; i < 10 && !replyShown; i++) {
+      await sleep(700);
+      text = await cdp.eval("document.body.innerText");
+      replyShown = text.includes(replyText);
+    }
+    check("可以回复评论（楼中楼）", replyClicked === "clicked" && replyShown, replyClicked);
+    await shotPng("threaded-comments.png");
+
+    // 清理：删除这条测试帖子（连带评论）避免污染
+    await cdp.eval(`fetch('/api/posts/${ownPostId}/comments').then(r => r.json()).then(d => {
+      return Promise.all((d.comments || []).filter(c => c.content.includes('E2E')).map(c =>
+        fetch('/api/comments/' + c.id, { method: 'DELETE', headers: { Authorization: 'Bearer ' + localStorage.getItem('duitang_token') } })));
+    })`);
+
+    // ── SSE 实时通知（不依赖 focus/轮询）──
+    await cdp.eval(`localStorage.setItem('duitang_token', ${JSON.stringify(loginToken)})`);
+    // 先清空后端通知，再重新加载页面让角标归零，确保基线干净
+    await cdp.eval(`fetch('/api/notifications', { method: 'DELETE', headers: { Authorization: 'Bearer ' + localStorage.getItem('duitang_token') } })`);
+    await sleep(600);
+    await open("#/");
+    await sleep(2500);
+    const badgeBefore = await cdp.eval(`!!document.querySelector('[data-testid="unread-badge"]')`);
+
+    await cdp.eval(`(async () => {
+      const other = await (await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: 'tangtu', password: '123456' }) })).json();
+      const oh = { Authorization: 'Bearer ' + other.token };
+      const me = await (await fetch('/api/auth/me', { headers: { Authorization: 'Bearer ' + localStorage.getItem('duitang_token') } })).json();
+      const mine = await (await fetch('/api/posts?user_id=' + me.user.id + '&limit=1', { headers: oh })).json();
+      const pid = mine.posts[0].id;
+      if (mine.posts[0].is_liked) await fetch('/api/posts/' + pid + '/like', { method: 'POST', headers: oh });
+      await fetch('/api/posts/' + pid + '/like', { method: 'POST', headers: oh });
+    })()`);
+
+    let realtimeBadge = false;
+    const sseStart = Date.now();
+    for (let i = 0; i < 12 && !realtimeBadge; i++) {
+      await sleep(400);
+      realtimeBadge = await cdp.eval(`!!document.querySelector('[data-testid="unread-badge"]')`);
+    }
+    check("SSE 实时推送（未触发 focus 也出现角标）", !badgeBefore && realtimeBadge, `${Date.now() - sseStart}ms`);
+    await shotPng("sse-notification.png");
+
+    // ── 通知偏好设置 ──
+    // 通过头像按钮展开个人菜单（按钮内含当前昵称）
+    await cdp.eval(`(() => {
+      const btn = [...document.querySelectorAll('header button')].find(b => b.textContent.includes(${JSON.stringify(nickname)}));
+      if (btn) btn.click();
+    })()`);
+    await sleep(700);
+    const clickedPrefs = await cdp.eval(`(() => {
+      const b = [...document.querySelectorAll('button')].find(x => x.textContent.trim() === '通知设置');
+      if (!b) return 'not-found';
+      b.click();
+      return 'clicked';
+    })()`);
+    await sleep(900);
+    const prefsOpen = await cdp.eval(`!!document.querySelector('[role="switch"]')`);
+    check("通知设置弹窗可打开", prefsOpen, clickedPrefs);
+
+    if (prefsOpen) {
+      // 关闭"点赞"通知
+      await cdp.eval(`(() => {
+        const s = [...document.querySelectorAll('[role="switch"]')].find(x => x.getAttribute('aria-label') === '点赞通知');
+        if (s && s.getAttribute('aria-checked') === 'true') s.click();
+      })()`);
+      await sleep(300);
+      await cdp.eval(`[...document.querySelectorAll('button')].find(b => b.textContent.trim() === '保存')?.click()`);
+      await sleep(1000);
+      await shotPng("notify-prefs.png");
+
+      // 确认偏好已生效，再验证"关闭后不再收到"
+      const savedPrefs = await cdp.eval(`(async () => {
+        const d = await (await fetch('/api/users/me/notify-prefs', { headers: { Authorization: 'Bearer ' + localStorage.getItem('duitang_token') } })).json();
+        return JSON.stringify(d.prefs);
+      })()`);
+      check("点赞通知已保存为关闭", savedPrefs.includes('"like":false'), savedPrefs);
+
+      // 清空通知并刷新页面，让角标基线归零（避免 UI 残留误导）
+      await cdp.eval(`fetch('/api/notifications', { method: 'DELETE', headers: { Authorization: 'Bearer ' + localStorage.getItem('duitang_token') } })`);
+      await sleep(500);
+      await open("#/");
+      await sleep(2200);
+
+      await cdp.eval(`(async () => {
+        const other = await (await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: 'tangtu', password: '123456' }) })).json();
+        const oh = { Authorization: 'Bearer ' + other.token };
+        const me = await (await fetch('/api/auth/me', { headers: { Authorization: 'Bearer ' + localStorage.getItem('duitang_token') } })).json();
+        const mine = await (await fetch('/api/posts?user_id=' + me.user.id + '&limit=1', { headers: oh })).json();
+        const pid = mine.posts[0].id;
+        await fetch('/api/posts/' + pid + '/like', { method: 'POST', headers: oh }); // 取消
+        await fetch('/api/posts/' + pid + '/like', { method: 'POST', headers: oh }); // 重新点赞
+      })()`);
+      await sleep(2000);
+      const stillNoBadge = await cdp.eval(`!!document.querySelector('[data-testid="unread-badge"]')`);
+      check("关闭点赞通知后不再收到该类型消息", !stillNoBadge);
+
+      // 恢复默认设置，避免影响手动测试
+      await cdp.eval(`fetch('/api/users/me/notify-prefs', { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + localStorage.getItem('duitang_token') }, body: JSON.stringify({ prefs: { like: true } }) })`);
+    }
+
     ws.close();
     console.log(fails ? `\n${fails} 项失败` : "\n全部通过");
     process.exitCode = fails ? 1 : 0;

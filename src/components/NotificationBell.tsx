@@ -47,24 +47,56 @@ export default function NotificationBell() {
   const [page, setPage] = useState(1);
   const panelRef = useRef<HTMLDivElement | null>(null);
 
-  // 未读数自动刷新：30s 轮询 + 窗口重新聚焦/切回前台时立即刷新
+  // 未读数：优先 SSE 实时推送；不支持或断开时回落到轮询
   useEffect(() => {
     if (!token) { setUnread(0); setItems([]); return; }
     let cancelled = false;
+    let source: EventSource | null = null;
+    let pollTimer: ReturnType<typeof setInterval> | null = null;
+
     const refresh = () => {
       if (typeof document !== "undefined" && document.hidden) return;
       api.getUnreadCount()
         .then(d => { if (!cancelled) setUnread(d.count || 0); })
         .catch(() => {});
     };
+
+    const startPolling = () => {
+      if (pollTimer) return;
+      pollTimer = setInterval(refresh, 60000);
+    };
+
     refresh();
-    const timer = setInterval(refresh, 30000);
+
+    if (typeof EventSource !== "undefined") {
+      try {
+        source = new EventSource(api.notificationStreamUrl(token));
+        source.addEventListener("notification", ev => {
+          if (cancelled) return;
+          try {
+            const data = JSON.parse((ev as MessageEvent).data);
+            if (typeof data.unread === "number") setUnread(data.unread);
+            else refresh();
+          } catch { refresh(); }
+        });
+        source.addEventListener("error", () => {
+          // 浏览器会自动重连；若被彻底关闭则回落轮询
+          if (source && source.readyState === EventSource.CLOSED) startPolling();
+        });
+      } catch {
+        startPolling();
+      }
+    } else {
+      startPolling();
+    }
+
     const onVisible = () => { if (!document.hidden) refresh(); };
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("focus", onVisible);
     return () => {
       cancelled = true;
-      clearInterval(timer);
+      source?.close();
+      if (pollTimer) clearInterval(pollTimer);
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("focus", onVisible);
     };

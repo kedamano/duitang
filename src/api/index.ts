@@ -98,6 +98,11 @@ export const api = {
     if (params?.limit) qs.set('limit', String(params.limit));
     return request<{ notifications: any[]; total: number; unread: number; page: number; limit: number }>(`/notifications?${qs}`);
   },
+  /** SSE 实时通知流地址（EventSource 不能自定义请求头，token 走 query） */
+  notificationStreamUrl: (token: string) => `${API_BASE}/notifications/stream?token=${encodeURIComponent(token)}`,
+  getNotifyPrefs: () => request<{ prefs: Record<string, boolean>; types: string[] }>('/users/me/notify-prefs'),
+  updateNotifyPrefs: (prefs: Record<string, boolean>) =>
+    request<{ prefs: Record<string, boolean> }>('/users/me/notify-prefs', { method: 'PATCH', body: JSON.stringify({ prefs }) }),
   getUnreadCount: () => request<{ count: number }>('/notifications/unread'),
   /** 不传 ids 即全部标记已读 */
   markNotificationsRead: (ids?: number[]) =>
@@ -125,10 +130,19 @@ export const api = {
     const qs = new URLSearchParams();
     if (params?.page) qs.set('page', String(params.page));
     if (params?.limit) qs.set('limit', String(params.limit));
-    return request<{ comments: any[]; total: number; page: number; limit: number }>(`/posts/${postId}/comments?${qs}`);
+    return request<{ comments: any[]; total: number; total_all?: number; page: number; limit: number }>(`/posts/${postId}/comments?${qs}`);
   },
-  addComment: (postId: number, content: string) =>
-    request<{ comment: any }>(`/posts/${postId}/comments`, { method: 'POST', body: JSON.stringify({ content }) }),
+  addComment: (postId: number, content: string, parentId?: number) =>
+    request<{ comment: any }>(`/posts/${postId}/comments`, {
+      method: 'POST',
+      body: JSON.stringify(parentId ? { content, parent_id: parentId } : { content }),
+    }),
+  getCommentReplies: (commentId: number, params?: { page?: number; limit?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.page) qs.set('page', String(params.page));
+    if (params?.limit) qs.set('limit', String(params.limit));
+    return request<{ comments: any[]; total: number; page: number; limit: number }>(`/comments/${commentId}/replies?${qs}`);
+  },
   deleteComment: (id: number) => request(`/comments/${id}`, { method: 'DELETE' }),
   likeComment: (id: number) => request<{ liked: boolean; count: number }>(`/comments/${id}/like`, { method: 'POST' }),
 

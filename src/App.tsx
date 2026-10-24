@@ -12,6 +12,7 @@ import PublishPage from "./pages/PublishPage";
 import ProfilePage from "./pages/ProfilePage";
 import PostDetailPage from "./pages/PostDetailPage";
 import TagPage from "./pages/TagPage";
+import BoardPage from "./pages/BoardPage";
 
 function AppContent() {
   const [search, setSearch] = useState("");
@@ -39,6 +40,7 @@ function AppContent() {
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/pin/:id" element={<PostDetailPage />} />
         <Route path="/tag/:tag" element={<TagPage />} />
+        <Route path="/board/:key" element={<BoardPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
 

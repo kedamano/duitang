@@ -6,42 +6,52 @@ import { useCollection, type Comment } from "../context/CollectionContext";
 import type { ImageCard } from "../data/images";
 import { normalizePost } from "../utils/normalizePost";
 import EditPostModal from "./EditPostModal";
+import ImageLightbox from "./ImageLightbox";
 
 // ─── Comment row ──────────────────────────────────────────────────────────────
-export function CommentItem({
-  comment, canDelete, onDelete, onLike,
+/** 回复行（楼中楼内层） */
+function ReplyRow({
+  reply, canDelete, onDelete, onLike, onReply,
 }: {
-  comment: Comment;
+  reply: Comment;
   canDelete: boolean;
   onDelete: (commentId: number) => void;
   onLike: (commentId: number) => void;
+  onReply: (reply: Comment) => void;
 }) {
   return (
-    <div className="flex gap-2.5 group/comment">
-      <img src={comment.avatar} alt={comment.author} loading="lazy" decoding="async" className="w-8 h-8 rounded-full bg-gray-100 shrink-0 ring-1 ring-gray-200" />
+    <div className="flex gap-2 group/reply">
+      <img src={reply.avatar} alt={reply.author} loading="lazy" decoding="async" className="w-6 h-6 rounded-full bg-gray-100 shrink-0 ring-1 ring-gray-200" />
       <div className="flex-1 min-w-0">
-        <div className="bg-gray-50 rounded-2xl rounded-tl-none px-3 py-2">
-          <p className="text-xs font-semibold text-gray-700 mb-0.5">{comment.author}</p>
-          <p className="text-sm text-gray-600 leading-relaxed">{comment.content}</p>
+        <div className="bg-gray-50 rounded-2xl rounded-tl-none px-3 py-1.5">
+          <p className="text-xs font-semibold text-gray-700 mb-0.5">
+            {reply.author}
+            {reply.reply_to_nickname && (
+              <span className="font-normal text-gray-400"> 回复 <span className="text-[#e05d6f]">@{reply.reply_to_nickname}</span></span>
+            )}
+          </p>
+          <p className="text-sm text-gray-600 leading-relaxed">{reply.content}</p>
         </div>
-        <div className="flex items-center gap-3 mt-1 ml-2">
-          <span className="text-xs text-gray-400">{new Date(comment.created_at).toLocaleDateString()}</span>
+        <div className="flex items-center gap-3 mt-0.5 ml-2">
           <button
-            onClick={() => onLike(comment.id)}
+            onClick={() => onLike(reply.id)}
             className={cn(
-              "flex items-center gap-1 text-xs transition-colors",
-              comment.liked ? "text-[#e05d6f]" : "text-gray-400 hover:text-[#e05d6f]"
+              "flex items-center gap-1 text-[11px] transition-colors",
+              reply.liked ? "text-[#e05d6f]" : "text-gray-400 hover:text-[#e05d6f]",
             )}
           >
-            <svg className="w-3 h-3" viewBox="0 0 24 24" fill={comment.liked ? "currentColor" : "none"} stroke="currentColor" strokeWidth={2}>
+            <svg className="w-3 h-3" viewBox="0 0 24 24" fill={reply.liked ? "currentColor" : "none"} stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
             </svg>
-            {comment.likes > 0 && comment.likes}
+            {reply.likes > 0 && reply.likes}
+          </button>
+          <button onClick={() => onReply(reply)} className="text-[11px] text-gray-400 hover:text-[#e05d6f] transition-colors">
+            回复
           </button>
           {canDelete && (
             <button
-              onClick={() => onDelete(comment.id)}
-              className="text-xs text-gray-400 hover:text-red-400 transition-colors opacity-0 group-hover/comment:opacity-100"
+              onClick={() => onDelete(reply.id)}
+              className="text-[11px] text-gray-400 hover:text-red-400 transition-colors opacity-0 group-hover/reply:opacity-100"
             >
               删除
             </button>
@@ -52,14 +62,143 @@ export function CommentItem({
   );
 }
 
+export function CommentItem({
+  comment, currentUserId, canDelete, onDelete, onLike, onLoadReplies, onSubmitReply,
+}: {
+  comment: Comment;
+  currentUserId: number | null;
+  canDelete: boolean;
+  onDelete: (commentId: number) => void;
+  onLike: (commentId: number) => void;
+  onLoadReplies: (commentId: number) => void;
+  onSubmitReply: (parentId: number, content: string) => void;
+}) {
+  const [replying, setReplying] = useState(false);
+  const [replyText, setReplyText] = useState("");
+  const [replyTo, setReplyTo] = useState<string | null>(null);
+  // 回复的回复也挂到同一顶层，因此提交时始终用顶层 id
+  const [targetId, setTargetId] = useState<number | null>(null);
+  const replies = comment.replies || [];
+  const replyCount = comment.reply_count || replies.length;
+
+  const submit = () => {
+    const text = replyText.trim();
+    if (!text) return;
+    onSubmitReply(targetId ?? comment.id, text);
+    setReplyText("");
+    setReplying(false);
+    setReplyTo(null);
+    setTargetId(null);
+  };
+
+  const startReply = (nickname: string | null, id?: number) => {
+    setReplying(true);
+    setReplyTo(nickname);
+    setTargetId(id ?? null);
+  };
+
+  return (
+    <div>
+      <div className="flex gap-2.5 group/comment">
+        <img src={comment.avatar} alt={comment.author} loading="lazy" decoding="async" className="w-8 h-8 rounded-full bg-gray-100 shrink-0 ring-1 ring-gray-200" />
+        <div className="flex-1 min-w-0">
+          <div className="bg-gray-50 rounded-2xl rounded-tl-none px-3 py-2">
+            <p className="text-xs font-semibold text-gray-700 mb-0.5">{comment.author}</p>
+            <p className="text-sm text-gray-600 leading-relaxed">{comment.content}</p>
+          </div>
+          <div className="flex items-center gap-3 mt-1 ml-2">
+            <span className="text-xs text-gray-400">{new Date(comment.created_at).toLocaleDateString()}</span>
+            <button
+              onClick={() => onLike(comment.id)}
+              aria-label={comment.liked ? "取消点赞评论" : "点赞评论"}
+              className={cn(
+                "flex items-center gap-1 text-xs transition-colors",
+                comment.liked ? "text-[#e05d6f]" : "text-gray-400 hover:text-[#e05d6f]"
+              )}
+            >
+              <svg className="w-3 h-3" viewBox="0 0 24 24" fill={comment.liked ? "currentColor" : "none"} stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+              </svg>
+              {comment.likes > 0 && comment.likes}
+            </button>
+            <button
+              onClick={() => startReply(null)}
+              className="text-xs text-gray-400 hover:text-[#e05d6f] transition-colors"
+            >
+              回复
+            </button>
+            {canDelete && (
+              <button
+                onClick={() => onDelete(comment.id)}
+                className="text-xs text-gray-400 hover:text-red-400 transition-colors opacity-0 group-hover/comment:opacity-100"
+              >
+                删除
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* 楼中楼回复 */}
+      {replies.length > 0 && (
+        <div className="ml-10 mt-2 space-y-2.5 border-l-2 border-gray-100 pl-3" data-testid={`replies-${comment.id}`}>
+          {replies.map(r => (
+            <ReplyRow
+              key={r.id}
+              reply={r}
+              canDelete={currentUserId != null && r.author_id === currentUserId}
+              onDelete={onDelete}
+              onLike={onLike}
+              onReply={reply => startReply(reply.author, comment.id)}
+            />
+          ))}
+          {replyCount > replies.length && (
+            <button
+              onClick={() => onLoadReplies(comment.id)}
+              className="text-xs text-[#e05d6f] hover:underline"
+            >
+              展开更多回复（{replyCount - replies.length}）
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* 回复输入框 */}
+      {replying && (
+        <div className="ml-10 mt-2">
+          <div className="flex items-center gap-2 bg-gray-50 rounded-2xl px-3 py-1.5 ring-1 ring-gray-200">
+            <input
+              autoFocus
+              value={replyText}
+              onChange={e => setReplyText(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") submit(); if (e.key === "Escape") setReplying(false); }}
+              placeholder={replyTo ? `回复 @${replyTo}` : "写下你的回复..."}
+              className="flex-1 bg-transparent text-sm focus:outline-none py-1"
+              aria-label="回复内容"
+            />
+            <button onClick={submit} disabled={!replyText.trim()} className="text-xs text-[#e05d6f] disabled:text-gray-300">
+              发送
+            </button>
+            <button onClick={() => setReplying(false)} className="text-xs text-gray-400 hover:text-gray-600">
+              取消
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Comment list (with inline delete confirmation) ───────────────────────────
 function CommentList({
-  comments, currentUserId, onDelete, onLike,
+  comments, currentUserId, onDelete, onLike, onLoadReplies, onSubmitReply,
 }: {
   comments: Comment[];
   currentUserId: number | null;
   onDelete: (commentId: number) => void;
   onLike: (commentId: number) => void;
+  onLoadReplies: (commentId: number) => void;
+  onSubmitReply: (parentId: number, content: string) => void;
 }) {
   const [confirmId, setConfirmId] = useState<number | null>(null);
 
@@ -91,9 +230,12 @@ function CommentList({
           ) : (
             <CommentItem
               comment={c}
+              currentUserId={currentUserId}
               canDelete={currentUserId != null && c.author_id === currentUserId}
               onDelete={setConfirmId}
               onLike={onLike}
+              onLoadReplies={onLoadReplies}
+              onSubmitReply={onSubmitReply}
             />
           )}
         </div>
@@ -106,11 +248,17 @@ function CommentList({
 export function DetailImage({ card, overlay }: { card: ImageCard; overlay?: React.ReactNode }) {
   const allImages = card.images && card.images.length > 0 ? card.images : [card.src];
   const [index, setIndex] = useState(0);
+  const [lightbox, setLightbox] = useState(false);
   const src = allImages[Math.min(index, allImages.length - 1)];
 
   return (
     <div className="relative md:w-1/2 bg-gray-100 flex-shrink-0 max-h-[40vh] md:max-h-full overflow-hidden">
-      <img src={src} alt={card.title} className="w-full h-full object-cover" />
+      <img
+        src={src}
+        alt={card.title}
+        onClick={() => setLightbox(true)}
+        className="w-full h-full object-cover cursor-zoom-in"
+      />
       {overlay && <div className="absolute top-3 right-3 flex gap-2">{overlay}</div>}
       {allImages.length > 1 && (
         <>
@@ -122,6 +270,7 @@ export function DetailImage({ card, overlay }: { card: ImageCard; overlay?: Reac
               <button
                 key={i}
                 onClick={() => setIndex(i)}
+                aria-label={`查看第 ${i + 1} 张`}
                 className={cn(
                   "w-2 h-2 rounded-full transition-all",
                   i === index ? "bg-white w-4" : "bg-white/50 hover:bg-white/80",
@@ -130,6 +279,14 @@ export function DetailImage({ card, overlay }: { card: ImageCard; overlay?: Reac
             ))}
           </div>
         </>
+      )}
+      {lightbox && (
+        <ImageLightbox
+          images={allImages}
+          index={index}
+          onChange={setIndex}
+          onClose={() => setLightbox(false)}
+        />
       )}
     </div>
   );
@@ -530,11 +687,11 @@ export function DetailContent({
 }) {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { comments, deleteComment, likeComment, loadComments, loadMoreComments, hasMoreComments, commentsTotal } = useCollection();
+  const { comments, deleteComment, likeComment, addComment, loadComments, loadMoreComments, loadMoreReplies, hasMoreComments, commentsAllTotal } = useCollection();
   const { requireAuth } = usePostActions(card);
   const cardComments = comments[card.id] ?? [];
-  // 优先用服务端总数，避免只加载第一页时评论数显示偏小
-  const commentCount = commentsTotal[card.id] ?? card.comments ?? 0;
+  // 展示用总数包含楼中楼回复；分页判断用顶层数量
+  const commentCount = commentsAllTotal[card.id] ?? card.comments ?? 0;
 
   // 打开详情时从后端拉取评论（原先只靠本次会话内存，刷新即丢）
   useEffect(() => {
@@ -589,6 +746,10 @@ export function DetailContent({
               currentUserId={user?.id ?? null}
               onDelete={id => deleteComment(card.id, id)}
               onLike={id => { if (!requireAuth()) likeComment(card.id, id); }}
+              onLoadReplies={commentId => loadMoreReplies(card.id, commentId)}
+              onSubmitReply={(parentId, content) => {
+                if (!requireAuth()) addComment(card.id, content, parentId);
+              }}
             />
             {hasMoreComments(card.id) && (
               <div className="flex justify-center py-3">

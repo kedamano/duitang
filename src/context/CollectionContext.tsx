@@ -15,6 +15,13 @@ export interface Comment {
   likes: number;
   liked: boolean;
   created_at: string;
+  /** 楼中楼：父评论 id（0 为顶层） */
+  parent_id?: number;
+  /** 顶层评论的回复数与内嵌回复 */
+  reply_count?: number;
+  replies?: Comment[];
+  /** 回复目标昵称，用于展示"回复 @某人" */
+  reply_to_nickname?: string;
 }
 
 /** 后端评论 → 前端 Comment（统一 liked / likes 字段名） */
@@ -30,6 +37,10 @@ function normalizeComment(c: any): Comment {
     likes: c.likes_count || 0,
     liked: !!c.is_liked,
     created_at: c.created_at,
+    parent_id: c.parent_id || 0,
+    reply_count: c.reply_count || 0,
+    replies: Array.isArray(c.replies) ? c.replies.map(normalizeComment) : [],
+    reply_to_nickname: c.reply_to_nickname || undefined,
   };
 }
 
@@ -39,7 +50,9 @@ interface CollectionContextType {
   commentsTotal: Record<number, number>;
   loadComments: (postId: number) => Promise<void>;
   loadMoreComments: (postId: number) => Promise<void>;
+  loadMoreReplies: (postId: number, commentId: number) => Promise<void>;
   hasMoreComments: (postId: number) => boolean;
+  commentsAllTotal: Record<number, number>;
   likeCounts: Record<number, number>;
   collectCounts: Record<number, number>;
   likedIds: Set<number>;
@@ -53,7 +66,7 @@ interface CollectionContextType {
   getShareCount: (id: number, base?: number) => number;
   toggleLike: (id: number) => void;
   toggleCollect: (id: number) => void;
-  addComment: (postId: number, content: string) => void;
+  addComment: (postId: number, content: string, parentId?: number) => void;
   deleteComment: (postId: number, commentId: number) => void;
   likeComment: (postId: number, commentId: number) => void;
   sharePost: (id: number) => void;
@@ -78,6 +91,7 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
   const [comments, setComments] = useState<Record<number, Comment[]>>({});
   const [commentsLoaded, setCommentsLoaded] = useState<Record<number, boolean>>({});
   const [commentsTotal, setCommentsTotal] = useState<Record<number, number>>({});
+  const [commentsAllTotal, setCommentsAllTotal] = useState<Record<number, number>>({});
   const [commentPage, setCommentPage] = useState<Record<number, number>>({});
   const [likeCounts, setLikeCounts] = useState<Record<number, number>>({});
   const [collectCounts, setCollectCounts] = useState<Record<number, number>>({});
@@ -173,6 +187,7 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
       setComments(prev => ({ ...prev, [postId]: (data.comments || []).map(normalizeComment) }));
       setCommentsLoaded(prev => ({ ...prev, [postId]: true }));
       setCommentsTotal(prev => ({ ...prev, [postId]: data.total ?? (data.comments || []).length }));
+      setCommentsAllTotal(prev => ({ ...prev, [postId]: data.total_all ?? data.total ?? (data.comments || []).length }));
       setCommentPage(prev => ({ ...prev, [postId]: 1 }));
     } catch { showToast("评论加载失败", "error"); }
   }, [showToast]);
@@ -197,16 +212,48 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
     [comments, commentsTotal],
   );
 
-  const addComment = useCallback(async (postId: number, content: string) => {
-    if (!token) return;
+  /** 加载某条顶层评论的更多回复 */
+  const loadMoreReplies = useCallback(async (postId: number, commentId: number) => {
     try {
-      const data = await api.addComment(postId, content);
-      const normalized = normalizeComment(data.comment);
+      const current = (comments[postId] || []).find(c => c.id === commentId);
+      const loaded = current?.replies?.length ?? 0;
+      const nextPage = Math.floor(loaded / 3) + 1;
+      const data = await api.getCommentReplies(commentId, { page: nextPage, limit: 20 });
+      const extra = (data.comments || []).map(normalizeComment);
       setComments(prev => ({
         ...prev,
-        [postId]: [...(prev[postId] || []), normalized],
+        [postId]: (prev[postId] || []).map(c => {
+          if (c.id !== commentId) return c;
+          const map = new Map((c.replies || []).map(r => [r.id, r]));
+          extra.forEach(r => map.set(r.id, r));
+          return { ...c, replies: Array.from(map.values()) };
+        }),
       }));
+    } catch { showToast("回复加载失败", "error"); }
+  }, [comments, showToast]);
+
+  const addComment = useCallback(async (postId: number, content: string, parentId?: number) => {
+    if (!token) return;
+    try {
+      const data = await api.addComment(postId, content, parentId);
+      const normalized = normalizeComment(data.comment);
+      setComments(prev => {
+        const list = prev[postId] || [];
+        if (normalized.parent_id) {
+          // 回复：挂到对应顶层评论下
+          return {
+            ...prev,
+            [postId]: list.map(c =>
+              c.id === normalized.parent_id
+                ? { ...c, replies: [...(c.replies || []), normalized], reply_count: (c.reply_count || 0) + 1 }
+                : c
+            ),
+          };
+        }
+        return { ...prev, [postId]: [...list, normalized] };
+      });
       setCommentsLoaded(prev => ({ ...prev, [postId]: true }));
+      if (!normalized.parent_id) setCommentsTotal(prev => ({ ...prev, [postId]: (prev[postId] || 0) + 1 }));
     } catch { showToast("操作失败，请稍后重试", "error"); }
   }, [token, showToast]);
 
@@ -216,7 +263,17 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
       await api.deleteComment(commentId);
       setComments(prev => ({
         ...prev,
-        [postId]: (prev[postId] || []).filter(c => c.id !== commentId),
+        [postId]: (prev[postId] || [])
+          .filter(c => c.id !== commentId)
+          .map(c => {
+            const replies = c.replies || [];
+            if (!replies.some(r => r.id === commentId)) return c;
+            return {
+              ...c,
+              replies: replies.filter(r => r.id !== commentId),
+              reply_count: Math.max(0, (c.reply_count || 0) - 1),
+            };
+          }),
       }));
     } catch { showToast("操作失败，请稍后重试", "error"); }
   }, [token, showToast]);
@@ -227,9 +284,15 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
       const data = await api.likeComment(commentId);
       setComments(prev => ({
         ...prev,
-        [postId]: (prev[postId] || []).map(c =>
-          c.id === commentId ? { ...c, liked: data.liked, likes: data.count } : c
-        ),
+        [postId]: (prev[postId] || []).map(c => {
+          if (c.id === commentId) return { ...c, liked: data.liked, likes: data.count };
+          const replies = c.replies || [];
+          if (!replies.some(r => r.id === commentId)) return c;
+          return {
+            ...c,
+            replies: replies.map(r => (r.id === commentId ? { ...r, liked: data.liked, likes: data.count } : r)),
+          };
+        }),
       }));
     } catch { showToast("操作失败，请稍后重试", "error"); }
   }, [token, showToast]);
@@ -294,7 +357,8 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
 
   return (
     <CollectionContext.Provider value={{
-      comments, commentsLoaded, commentsTotal, loadComments, loadMoreComments, hasMoreComments,
+      comments, commentsLoaded, commentsTotal, commentsAllTotal,
+      loadComments, loadMoreComments, loadMoreReplies, hasMoreComments,
       likeCounts, collectCounts,
       likedIds, collectedIds, userPosts,
       isLiked, isCollected, getLikeCount, getCollectCount,

@@ -141,6 +141,10 @@ function ensureColumn(table, column, definition) {
 }
 ensureColumn('posts', 'sizes', "TEXT DEFAULT '[]'");
 ensureColumn('posts', 'thumbs', "TEXT DEFAULT '[]'");
+// 楼中楼：回复指向父评论 id（0 表示顶层评论）
+ensureColumn('comments', 'parent_id', "INTEGER NOT NULL DEFAULT 0");
+// 通知偏好：JSON，按类型开关
+ensureColumn('users', 'notify_prefs', "TEXT DEFAULT '{}'");
 
 // 历史数据迁移：早期前端把中文画板标签直接存进了 board，统一成英文 key
 const BOARD_LABEL_TO_KEY = {
