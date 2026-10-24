@@ -4,6 +4,7 @@ import { useAuth } from "../context/AuthContext";
 import { cn } from "../utils/cn";
 import { navCategories, hotSearches, FOLLOW_NAV } from "../data/images";
 import { api } from "../api";
+import { useTrending } from "../hooks/useTrending";
 import NotificationBell from "./NotificationBell";
 import NotifyPrefsModal from "./NotifyPrefsModal";
 import { Icon } from "./Icons";
@@ -18,6 +19,11 @@ function SearchBar({
 }) {
   const [users, setUsers] = useState<SearchUser[]>([]);
   const navigate = useNavigate();
+  // 热搜优先用真实统计数据，没有数据时回落静态词表
+  const { data: trending } = useTrending();
+  const searchChips = trending?.searches?.length
+    ? trending.searches.map(s => s.tag)
+    : hotSearches;
 
   useEffect(() => {
     if (!value.trim()) { setUsers([]); return; }
@@ -86,7 +92,7 @@ function SearchBar({
             <Icon name="fire" className="w-3.5 h-3.5 text-[#e05d6f]" /> 热门搜索
           </p>
           <div className="flex flex-wrap gap-2">
-            {hotSearches.map(s => (
+            {searchChips.map(s => (
               <button
                 key={s}
                 onMouseDown={() => onChange(s)}
@@ -228,6 +234,13 @@ export default function Header({
                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
                       </svg>
                       我的收集
+                    </button>
+                    <button
+                      onClick={() => { navigate("/discover"); setProfileDropdown(false); }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
+                      <Icon name="fire" className="w-4 h-4 text-gray-400" />
+                      发现
                     </button>
                     <button
                       onClick={() => { setShowNotifyPrefs(true); setProfileDropdown(false); }}

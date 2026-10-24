@@ -144,6 +144,15 @@ db.exec(`
   );
 `);
 
+// 搜索词记录（用于「热搜」真实数据；只记关键词，不记用户身份关联）
+db.exec(`
+  CREATE TABLE IF NOT EXISTS search_queries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    keyword TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+`);
+
 // 创建索引
 db.exec(`
   CREATE INDEX IF NOT EXISTS idx_posts_author ON posts(author_id);
@@ -156,6 +165,7 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_notifications_unread ON notifications(user_id, is_read);
   CREATE INDEX IF NOT EXISTS idx_albums_user ON albums(user_id, created_at DESC);
   CREATE INDEX IF NOT EXISTS idx_album_posts_album ON album_posts(album_id, created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_search_queries_created ON search_queries(created_at DESC);
 `);
 
 // 轻量迁移：为旧库补齐后加的列

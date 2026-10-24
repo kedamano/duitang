@@ -93,6 +93,15 @@ export const api = {
   // ─── Tags ───
   getTags: (limit = 30) => request<{ tags: { tag: string; count: number }[] }>(`/tags?limit=${limit}`),
 
+  /** 首页聚合：热搜 / 热门话题 / 热门作者 / 新人 */
+  getTrending: () =>
+    request<{
+      searches: { tag: string; count: number }[];
+      tags: { tag: string; count: number }[];
+      authors: any[];
+      new_users: any[];
+    }>('/trending'),
+
   // ─── Notifications ───
   getNotifications: (params?: { page?: number; limit?: number }) => {
     const qs = new URLSearchParams();

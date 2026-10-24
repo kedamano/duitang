@@ -388,6 +388,12 @@ app.get('/api/posts', (req, res) => {
     sql += cond; countSql += cond;
     const kw = '%' + q + '%';
     params.push(kw, kw, kw, kw); countParams.push(kw, kw, kw, kw);
+    // 记录搜索词用于「热搜」统计：只记首页、长度≥2，避免输入过程中的半截词刷屏
+    if (pageNum === 1 && String(q).trim().length >= 2) {
+      try {
+        db.prepare('INSERT INTO search_queries (keyword) VALUES (?)').run(String(q).trim().slice(0, 30));
+      } catch { /* 统计失败不影响搜索 */ }
+    }
   }
   sql += ' ORDER BY p.created_at DESC LIMIT ? OFFSET ?';
   params.push(limitNum, offset);
@@ -818,6 +824,76 @@ app.get('/api/tags', (req, res) => {
     .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag, 'zh'))
     .slice(0, limit);
   res.json({ tags });
+});
+
+/**
+ * 首页聚合数据：热搜词、热门话题、热门作者、新人。
+ * 全部基于真实数据计算：热搜来自 search_queries 近 7 天统计，话题来自标签出现频次，
+ * 作者按近 30 天作品获得的互动总量排序。
+ */
+app.get('/api/trending', (req, res) => {
+  const searched = db.prepare(`
+    SELECT keyword AS tag, COUNT(*) AS count
+    FROM search_queries
+    WHERE created_at >= datetime('now', '-7 day')
+    GROUP BY keyword
+    ORDER BY count DESC, keyword ASC
+    LIMIT 8
+  `).all();
+
+  const tagRows = db.prepare('SELECT tags FROM posts').all();
+  const counter = new Map();
+  for (const row of tagRows) {
+    let arr = [];
+    try { arr = JSON.parse(row.tags || '[]'); } catch { arr = []; }
+    if (!Array.isArray(arr)) continue;
+    for (const raw of new Set(arr.map(t => String(t).trim()).filter(Boolean))) {
+      counter.set(raw, (counter.get(raw) || 0) + 1);
+    }
+  }
+  const hotTags = [...counter.entries()]
+    .map(([tag, count]) => ({ tag, count }))
+    .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag, 'zh'))
+    .slice(0, 8);
+
+  const authors = db.prepare(`
+    SELECT u.id, u.username, u.nickname, u.avatar, u.bio,
+           COUNT(DISTINCT p.id) AS post_count,
+           COALESCE(SUM(p.likes_count + p.collects_count + p.comments_count), 0) AS score
+    FROM users u
+    JOIN posts p ON p.author_id = u.id
+    WHERE p.created_at >= datetime('now', '-30 day')
+    GROUP BY u.id
+    ORDER BY score DESC, post_count DESC
+    LIMIT 6
+  `).all();
+
+  const newUsers = db.prepare(`
+    SELECT id, username, nickname, avatar, bio
+    FROM users ORDER BY created_at DESC, id DESC LIMIT 6
+  `).all();
+
+  // 热搜榜：搜索词优先，不足时用热门标签补齐（避免数据稀疏时列表塌成一条）
+  const mergedSearches = [];
+  const seenKeywords = new Set();
+  for (const item of searched) {
+    if (seenKeywords.has(item.tag)) continue;
+    seenKeywords.add(item.tag);
+    mergedSearches.push(item);
+  }
+  for (const item of hotTags) {
+    if (mergedSearches.length >= 8) break;
+    if (seenKeywords.has(item.tag)) continue;
+    seenKeywords.add(item.tag);
+    mergedSearches.push(item);
+  }
+
+  res.json({
+    searches: mergedSearches.slice(0, 8),
+    tags: hotTags,
+    authors,
+    new_users: newUsers,
+  });
 });
 
 // ─────────────────────────────────────────────

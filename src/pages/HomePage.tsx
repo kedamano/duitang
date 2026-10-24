@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { cn } from "../utils/cn";
 import { useAuth } from "../context/AuthContext";
 import { useCollection } from "../context/CollectionContext";
@@ -10,6 +11,7 @@ import { labelToBoard, FOLLOW_NAV, type ImageCard } from "../data/images";
 import { useDebouncedValue } from "../utils/useDebouncedValue";
 import { MasonryGrid, MasonrySkeleton } from "../components/MasonryGrid";
 import { Icon } from "../components/Icons";
+import { useTrending } from "../hooks/useTrending";
 
 // ─── Banner ───────────────────────────────────────────────────────────────────
 function Banner() {
@@ -66,43 +68,46 @@ function Banner() {
 }
 
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
-/** 侧栏话题 → 顶部导航分类 */
-const topicNavMap: Record<string, string> = {
-  "春日少女系": "壁纸头像",
-  "ins风家居": "家居生活",
-  "美食探店": "美食菜谱",
-  "旅行日记": "旅行摄影",
-  "手绘插画": "动漫插画",
-};
-
-function SideTopics({ onTopicClick }: { onTopicClick: (label: string) => void }) {
-  const topics = [
-    { icon: "flower", label: "春日少女系", count: "12.3万图片" },
-    { icon: "home", label: "ins风家居", count: "8.9万图片" },
-    { icon: "bowl", label: "美食探店", count: "6.7万图片" },
-    { icon: "plane", label: "旅行日记", count: "15.2万图片" },
-    { icon: "palette", label: "手绘插画", count: "9.4万图片" },
+/** 侧栏热门话题：优先展示真实标签，无数据时回落静态示例 */
+function SideTopics() {
+  const navigate = useNavigate();
+  const { data } = useTrending();
+  const realTags = data?.tags || [];
+  const fallback = [
+    { tag: "少女心", count: 0 },
+    { tag: "家居", count: 0 },
+    { tag: "美食", count: 0 },
+    { tag: "旅行", count: 0 },
+    { tag: "插画", count: 0 },
   ];
+  const topics = (realTags.length ? realTags : fallback).slice(0, 5);
+
   return (
     <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
       <h3 className="font-bold text-gray-800 text-sm mb-3 flex items-center gap-1">
         <Icon name="fire" className="w-4 h-4 text-[#e05d6f]" /> 热门话题
       </h3>
-      <div className="space-y-2">
+      <div className="space-y-1" data-testid="hot-topics">
         {topics.map(t => (
           <button
-            key={t.label}
-            onClick={() => onTopicClick(topicNavMap[t.label] ?? "推荐")}
+            key={t.tag}
+            onClick={() => navigate(`/tag/${encodeURIComponent(t.tag)}`)}
             className="w-full flex items-center gap-3 p-2 rounded-xl hover:bg-[#fde8eb] group transition-colors text-left"
           >
-            <Icon name={t.icon} className="w-5 h-5 text-gray-500 group-hover:text-[#e05d6f] shrink-0" />
-            <div>
-              <p className="text-sm font-medium text-gray-700 group-hover:text-[#e05d6f]">{t.label}</p>
-              <p className="text-xs text-gray-400">{t.count}</p>
+            <Icon name="tag" className="w-4 h-4 text-gray-400 group-hover:text-[#e05d6f] shrink-0" />
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-gray-700 group-hover:text-[#e05d6f] truncate">{t.tag}</p>
+              <p className="text-xs text-gray-400">{t.count > 0 ? `${t.count} 张图片` : "去看看"}</p>
             </div>
           </button>
         ))}
       </div>
+      <button
+        onClick={() => navigate("/discover")}
+        className="mt-2 w-full text-xs text-gray-400 hover:text-[#e05d6f] py-1.5 transition-colors flex items-center justify-center gap-1"
+      >
+        发现更多 <Icon name="arrowRight" className="w-3 h-3" />
+      </button>
     </div>
   );
 }
@@ -327,7 +332,7 @@ export default function HomePage({
 
         <aside className="hidden xl:block w-60 shrink-0 pt-2">
           <div className="sticky top-28 space-y-4">
-            <SideTopics onTopicClick={onNavChange} />
+            <SideTopics />
             <div className="bg-gradient-to-br from-[#e05d6f] to-[#f0a0a8] rounded-2xl p-4 text-white shadow-md">
               <h3 className="font-bold text-sm mb-1 flex items-center gap-1.5">
                 <Icon name="phone" className="w-4 h-4" /> 下载堆糖App

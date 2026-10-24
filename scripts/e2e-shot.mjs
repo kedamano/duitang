@@ -1019,6 +1019,58 @@ async function main() {
     await cdp.eval(`fetch('/api/albums/${albumSetup.albumId}', { method: 'DELETE', headers: { Authorization: 'Bearer ' + localStorage.getItem('duitang_token') } })`);
     await sleep(300);
 
+    // ── 热搜 / 发现页 ──
+    const trendingApi = JSON.parse(await cdp.eval(`(async () => {
+      const d = await (await fetch('/api/trending')).json();
+      return JSON.stringify({
+        searches: (d.searches || []).length,
+        tags: (d.tags || []).length,
+        authors: (d.authors || []).length,
+        newUsers: (d.new_users || []).length,
+      });
+    })()`));
+    check("trending 接口返回热搜/话题/作者/新人",
+      trendingApi.searches > 0 && trendingApi.tags > 0 && trendingApi.authors > 0 && trendingApi.newUsers > 0,
+      JSON.stringify(trendingApi));
+
+    await open("#/discover");
+    let discoverReady = false;
+    for (let i = 0; i < 15 && !discoverReady; i++) {
+      await sleep(700);
+      discoverReady = await cdp.eval(`!!document.querySelector('[data-testid="trending-authors"]')`);
+    }
+    const discoverInfo = JSON.parse(await cdp.eval(`(() => {
+      const authors = document.querySelector('[data-testid="trending-authors"]');
+      const tags = document.querySelector('[data-testid="trending-tags"]');
+      return JSON.stringify({
+        authors: authors ? authors.querySelectorAll('button').length : 0,
+        tags: tags ? tags.querySelectorAll('button').length : 0,
+      });
+    })()`));
+    check("发现页展示热门作者与话题", discoverReady && discoverInfo.authors > 0 && discoverInfo.tags > 0, JSON.stringify(discoverInfo));
+    await shotPng("discover.png");
+
+    // 首页侧栏热门话题来自真实标签，点击可跳转标签页
+    await open("#/");
+    let topicsReady = false;
+    for (let i = 0; i < 15 && !topicsReady; i++) {
+      await sleep(700);
+      topicsReady = await cdp.eval(`!!document.querySelector('[data-testid="hot-topics"]')`);
+    }
+    const topicsCount = await cdp.eval(`document.querySelectorAll('[data-testid="hot-topics"] button').length`);
+    check("首页侧栏热门话题来自真实数据", topicsReady && topicsCount > 0, `topics=${topicsCount}`);
+
+    const hrefAfterTopic = await cdp.eval(`(() => {
+      const btn = document.querySelector('[data-testid="hot-topics"] button');
+      if (!btn) return 'no-btn';
+      btn.click();
+      return 'clicked';
+    })()`);
+    await sleep(1500);
+    const hashNow = await cdp.eval(`location.hash`);
+    check("点击热门话题跳转标签页", hrefAfterTopic === "clicked" && hashNow.startsWith("#/tag/"), hashNow);
+    await shotPng("hot-topic-nav.png");
+
     ws.close();
     console.log(fails ? `\n${fails} 项失败` : "\n全部通过");
     process.exitCode = fails ? 1 : 0;
