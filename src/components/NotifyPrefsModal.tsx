@@ -69,7 +69,7 @@ export default function NotifyPrefsModal({ onClose }: { onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl w-full max-w-sm shadow-2xl animate-fade-in">
+      <div className="relative bg-white rounded-2xl w-full max-w-sm shadow-2xl animate-fade-in" data-testid="notify-prefs-modal">
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
           <h3 className="font-bold text-gray-800">通知设置</h3>
           <button onClick={onClose} aria-label="关闭" className="text-gray-400 hover:text-gray-600 transition-colors">

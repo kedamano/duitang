@@ -11,7 +11,8 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "verify": "node scripts/verify-all.mjs",
-    "test:server": "node scripts/run-server-tests.mjs"
+    "test:server": "node scripts/run-server-tests.mjs",
+    "test:e2e": "node scripts/e2e-all.mjs"
   },
   "dependencies": {
     "@tiptap/pm": "^3.32.0",

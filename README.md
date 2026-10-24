@@ -66,7 +66,13 @@ server/             后端
   uploads/          图片上传目录（magic bytes 校验，仅 JPG/PNG/WebP/GIF）
 scripts/
   smoke-e2e.mjs     对运行中后端的端到端冒烟脚本（node scripts/smoke-e2e.mjs）
-  e2e-shot.mjs      浏览器端端到端（CDP，截图 + 断言）
+  e2e-shot.mjs      旧版单文件 E2E（保留作参考，已由 scripts/e2e/ 拆分替代）
+  e2e-all.mjs       跑全部 E2E 脚本（npm run test:e2e）
+  e2e/harness.mjs   E2E 共享驱动（CDP 连接、登录、断言、截图、接口调用）
+  e2e/core.mjs      首页 / 详情 / 通知 SSE
+  e2e/publish.mjs   发布 / 富文本 / 多图 / 草稿 / 专辑 / 敏感词
+  e2e/social.mjs    楼中楼 / @提及 / 关注流 / 通知偏好 / 标签画板 / 灯箱
+  e2e/moderation.mjs 发现页 / 举报 / 审核队列 / 拉黑
   verify-feed.mjs   关注流页面与接口一致性校验
   verify-all.mjs    一键跑全部质量关卡（npm run verify）
   run-server-tests.mjs  后端测试隔离运行器（逐文件独立进程）
@@ -79,10 +85,10 @@ docs/
 ## 测试与构建
 
 ```bash
-npm run verify        # 一键：类型检查 → 前端单测 → 后端单测 → 生产构建
-npm test              # 前端 vitest（99 用例）
+npm run verify        # 一键：OpenAPI 生成 → 类型检查 → 前端单测 → 后端单测 → 生产构建
+npm test              # 前端 vitest（109 用例）
 npm run build         # 前端生产构建（vite-plugin-singlefile → dist/index.html）
-cd server && npm test # 后端 mocha + supertest（122 用例，独立测试库）
+npm run test:server   # 后端 mocha + supertest（逐文件独立进程，14 个文件 / 160+ 用例）
 npx tsc --noEmit      # 类型检查
 node scripts/smoke-e2e.mjs [http://127.0.0.1:3001]  # 对运行中后端的端到端冒烟
 ```
@@ -91,8 +97,10 @@ node scripts/smoke-e2e.mjs [http://127.0.0.1:3001]  # 对运行中后端的端�
 `$env:RATE_LIMIT_DISABLED="1"` 启动后端）：
 
 ```bash
-node scripts/e2e-shot.mjs .e2e-shots    # 登录态各页面截图 + 断言
-node scripts/verify-feed.mjs            # 关注流页面与接口一致性校验
+npm run test:e2e                  # 跑全部拆分后的 E2E（core / publish / social / moderation）
+node scripts/e2e-all.mjs social   # 只跑指定脚本
+node scripts/verify-feed.mjs      # 关注流页面与接口一致性校验
+```
 ```
 
 ## 约定与说明

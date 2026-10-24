@@ -207,6 +207,7 @@ export default function Header({
               <div className="relative" onClick={e => e.stopPropagation()}>
                 <button
                   onClick={() => setProfileDropdown(!profileDropdown)}
+                  data-testid="profile-menu-trigger"
                   className="flex items-center gap-2 px-2 py-1 rounded-full hover:bg-gray-50 transition-colors"
                 >
                   <img src={user.avatar} alt="" className="w-8 h-8 rounded-full bg-gray-200 ring-2 ring-[#f0a0a8]" />
@@ -253,6 +254,7 @@ export default function Header({
                     )}
                     <button
                       onClick={() => { setShowNotifyPrefs(true); setProfileDropdown(false); }}
+                      data-testid="open-notify-prefs"
                       className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
                     >
                       <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

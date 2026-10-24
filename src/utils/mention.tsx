@@ -40,6 +40,7 @@ export function renderContentWithMentions(content: string): React.ReactNode {
         <button
           key={i}
           type="button"
+          data-testid="mention"
           onClick={() => requestSearch(token.nickname!)}
           className="text-[#e05d6f] font-medium hover:underline align-baseline"
         >
