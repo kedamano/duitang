@@ -5,19 +5,22 @@
 
 ## 功能
 
-- **首页**：错落瀑布流（按图片真实宽高分配列高）、分类导航（12 个画板）、**关注流**、关键词搜索、Banner 轮播、热门话题侧栏、分页加载
+- **首页**：错落瀑布流（按图片真实宽高分配列高）、分类导航（12 个画板）、**关注流**、关键词搜索、Banner 轮播、**热门话题（真实标签统计）**、分页加载
+- **发现页**：`/#/discover` 热门作者（按近 30 天互动量）、热门话题、新鲜面孔，解决关注流冷启动
 - **帖子详情**：多图浏览与大图预览（灯箱，支持 ←/→/Esc）、点赞 / 收集 / 分享（复制链接、微博）、**评论区楼中楼**（发表、回复、点赞、删除；回复默认折叠、点击展开，支持分页加载；正文里的 @昵称 高亮并可点击跳转搜索）、关注作者、删除与编辑自己的帖子
 - **独立分享页**：`/#/pin/<id>` 直达某条帖子，可被搜索引擎外分享
-- **发布**：拖拽 / 点选上传图片（最多 9 张，**自动生成 400/800 两档尺寸变体**）、AI 生成图片（Pollinations，经 Vite 代理）、画板与标签选择、草稿自动保存
+- **发布**：**富文本描述**（TipTap：加粗/斜体/删除线/小标题/列表/引用/代码/链接）、拖拽 / 点选上传图片（最多 9 张，**自动生成 400/800 两档尺寸变体**）、AI 生成图片（Pollinations，经 Vite 代理）、画板与标签选择、可选归入专辑、草稿自动保存
+- **专辑（收藏夹）**：用户自建专辑，收藏/发布时可归入；`/#/album/<id>` 专辑详情页；支持公开/私密、改名与删除
 - **关注流**：导航「关注」标签展示已关注作者与自己的帖子（时间倒序、分页）；未登录显示登录引导，无关注显示空状态与去首页入口；关注标签下搜索会自动切回推荐
 - **消息通知**：顶部铃铛 + 未读角标，**SSE 实时推送**（断线自动回落轮询，窗口聚焦也会刷新）；点赞 / 收藏 / 评论 / 赞评论 / 回复 / 关注 / **@提及** 都会通知对应作者（自己不通知自己，取消操作与删除评论会自动撤回），面板支持加载更多与一键清空，点击跳转到对应帖子或用户
 - **通知设置**：个人菜单中可按键关闭某类通知，或设为**「仅关注的人」**（后端写入前按关注关系判定，含 SSE 推送）
-- **帖子编辑**：作者可在详情页编辑标题、描述、画板与标签，保存后详情与列表就地更新，图片与尺寸保持不变
+- **帖子编辑**：作者可在详情页编辑标题、富文本描述、画板与标签，保存后详情与列表就地更新，图片与尺寸保持不变
 - **标签聚合页**：`/#/tag/<标签名>` 展示该标签下的图片（分页 + 相关标签推荐），卡片与详情页标签均可点击跳转
 - **画板分组页**：`/#/board/<key>` 按画板浏览（分页 + 其他画板切换），可直接分享某个分类
-- **个人主页**：我的发布 / 收集 / 喜欢三个分组（服务端分页 + 加载更多）、编辑资料（头像上传、昵称、简介）、粉丝与关注列表可点击查看、查看他人主页与关注
+- **个人主页**：我的发布 / 收集 / 喜欢 / **我的专辑**四个分组（服务端分页 + 加载更多）、编辑资料（头像上传、昵称、简介）、粉丝与关注列表可点击查看、查看他人主页与关注
 - **账号**：用户名密码注册登录，JWT（7 天）持久会话；token 失效时自动登出并引导重新登录
-- **体验**：首屏骨架屏（不再闪现空状态）、搜索防抖 300ms、列表图片懒加载 + **srcset 响应式选档**（400/800/原图）、发布页草稿自动保存与恢复、上传前 10MB 体积预检、评论区按页加载
+- **体验**：首屏骨架屏（不再闪现空状态）、搜索防抖 300ms、列表图片懒加载 + **srcset 响应式选档**（400/800/原图）、发布页草稿自动保存与恢复、上传前 10MB 体积预检、评论区按页加载、**热搜来自真实搜索统计**
+- **工程**：`npm run verify` 一键跑完类型检查/前后端单测/构建，附 GitHub Actions 配置
 
 ## 快速开始
 
@@ -45,26 +48,32 @@ npm run dev
 ```
 src/                前端
   api/              fetch 封装（JWT 头、错误规范化）
-  components/       Header / 登录注册弹窗 / AI 生图弹窗 / PostDetail(共享详情组件) / MasonryGrid / NotificationBell / NotifyPrefsModal / EditPostModal / FollowListModal / ImageLightbox / Icons(统一 SVG 图标库)
+  components/       Header / 登录注册弹窗 / AI 生图弹窗 / PostDetail(共享详情组件) / MasonryGrid / NotificationBell / NotifyPrefsModal / EditPostModal / FollowListModal / ImageLightbox / Icons(统一 SVG 图标库) / AlbumPickerModal / CreateAlbumModal / RichTextEditor / RichTextContent
   context/          Auth / Collection(点赞收藏评论关注) / Toast
-  pages/            HomePage / PublishPage / ProfilePage / PostDetailPage / TagPage / BoardPage
-  utils/            normalizePost（后端→前端唯一转换入口）、mention（@解析与高亮）、searchEvent、useDebouncedValue、formatTime、cn
+  hooks/            useTrending（热搜/话题/作者聚合，模块级缓存）
+  pages/            HomePage / PublishPage / ProfilePage / PostDetailPage / TagPage / BoardPage / AlbumPage / DiscoverPage
+  utils/            normalizePost（后端→前端唯一转换入口）、mention（@解析与高亮）、richText（富文本消毒与摘要）、searchEvent、useDebouncedValue、formatTime、cn
 server/             后端
-  index.js          Express 路由（auth/posts/likes/collects/comments/follows/feed/notifications/tags/upload）
+  index.js          Express 路由（auth/posts/likes/collects/comments/follows/feed/notifications/tags/trending/albums/upload）
   database.js       node:sqlite 建表 + 轻量迁移（列补齐、中文 board → 英文 key）
   seed-demo.js      演示数据（30 帖 / 5 用户 / 评论 / 关注），仅默认库且空表时执行
   backfill-thumbs.js 为历史上传图片补生成尺寸变体（400/800）并回填 thumbs / images_variants
   uploads/          图片上传目录（magic bytes 校验，仅 JPG/PNG/WebP/GIF）
 scripts/
   smoke-e2e.mjs     对运行中后端的端到端冒烟脚本（node scripts/smoke-e2e.mjs）
+  e2e-shot.mjs      浏览器端端到端（CDP，截图 + 断言）
+  verify-feed.mjs   关注流页面与接口一致性校验
+  verify-all.mjs    一键跑全部质量关卡（npm run verify）
+.github/workflows/ci.yml  CI 配置（安装依赖 → npm run verify）
 ```
 
 ## 测试与构建
 
 ```bash
-npm test              # 前端 vitest（89 用例）
+npm run verify        # 一键：类型检查 → 前端单测 → 后端单测 → 生产构建
+npm test              # 前端 vitest（99 用例）
 npm run build         # 前端生产构建（vite-plugin-singlefile → dist/index.html）
-cd server && npm test # 后端 mocha + supertest（103 用例，独立测试库）
+cd server && npm test # 后端 mocha + supertest（122 用例，独立测试库）
 npx tsc --noEmit      # 类型检查
 node scripts/smoke-e2e.mjs [http://127.0.0.1:3001]  # 对运行中后端的端到端冒烟
 ```
@@ -88,12 +97,19 @@ node scripts/verify-feed.mjs            # 关注流页面与接口一致性校�
 - **通知偏好**：`users.notify_prefs` 存 JSON，取值 `true`（全部）/ `false`（关闭）/ `"followers"`（仅关注的人），例如 `{"like":false,"comment":"followers"}`；写入通知前即拦截，因此 SSE 也不会推送被关闭或不满足关注条件的类型。
 - **楼中楼**：评论只有一层嵌套，回复的回复统一挂到顶层评论下（`comments.parent_id`），列表接口给顶层评论内嵌前 3 条回复与 `reply_count`；前端默认折叠回复，点击展开，回复超过已加载部分可分页加载。
 - **@ 提及**：评论正文中的 `@昵称` 会通知被提到者（类型 `mention`），前端高亮为可点击链接，点击跳转到首页并以该昵称为关键词搜索。
+- **富文本描述**：帖子描述用 TipTap 编辑，存 HTML；后端 `sanitize-html` 按白名单（p/br/strong/em/u/s/ul/ol/li/a/blockquote/code/pre/h3/h4）清洗并强制链接 `rel="noopener noreferrer"`，前端渲染前再用 DOMPurify 过滤一遍。历史纯文本描述按原样渲染（保留换行），不会被当 HTML 解析。
+- **专辑**：`albums` + `album_posts` 两张表，同一张图可进多个专辑；私密专辑仅本人可见（列表过滤 + 详情 403）；收藏接口可带 `album_id` 一并归入（只接受自己的专辑）。
+- **热搜/话题**：`search_queries` 记录首页搜索词（仅关键词、长度≥2），热搜取近 7 天统计；不足 8 条时用热门标签补齐。热门作者按近 30 天作品互动量排序。
+- **搜索为何不用 FTS5**：实测 `node:sqlite` 支持 FTS5 与 trigram 分词，但 trigram 要求查询 ≥3 字符——中文最常用的 `汉服`/`壁纸`/`美食` 都是 2 字，会**搜不到结果**；`unicode61` 又不做中文分词。当前用 `LIKE '%kw%'` 在数据量未过万时更快且无召回损失，故暂不引入 FTS5。
 - **点赞/收藏/分享计数**接口返回的是**绝对总数**，前端直接覆盖基准值，不做增量叠加。
 - 上传与静态资源经 `/uploads` 由后端提供；开发环境 Vite 代理 `/api` 与 `/uploads` 到后端。
 - 生产部署：`npm run build` 产出单文件 `dist/index.html`，配合 `server/.env`（参考 `.env.example`，务必更换 `JWT_SECRET`、设置 `FRONTEND_ORIGIN`）。
 
 ## 开发路线（可选）
 
-- 通知偏好支持「仅关注的人」与「互关」等更多层级
 - 图片上传后生成更多档位（如 1200/1600）与 WebP/AVIF 格式
 - 评论支持富文本 / 图片 / 表情
+- 举报与审核队列、用户拉黑、敏感词过滤（公网运营必备）
+- 上传防盗链与水印
+- 服务端草稿箱（当前草稿只在 localStorage）
+- OpenAPI 文档 + 前后端共享类型（后端目前是纯 JS）

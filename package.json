@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "verify": "node scripts/verify-all.mjs"
   },
   "dependencies": {
     "@tiptap/pm": "^3.32.0",
