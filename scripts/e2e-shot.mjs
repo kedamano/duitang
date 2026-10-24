@@ -1071,6 +1071,91 @@ async function main() {
     check("点击热门话题跳转标签页", hrefAfterTopic === "clicked" && hashNow.startsWith("#/tag/"), hashNow);
     await shotPng("hot-topic-nav.png");
 
+    // ── 富文本编辑器 ──
+    await open("#/publish");
+    let editorReady = false;
+    for (let i = 0; i < 15 && !editorReady; i++) {
+      await sleep(700);
+      editorReady = await cdp.eval(`!!document.querySelector('[data-testid="rich-text-editor"]')`);
+    }
+    check("发布页有富文本编辑器", editorReady);
+
+    const toolbarOk = await cdp.eval(`(() => {
+      const box = document.querySelector('[data-testid="rich-text-editor"]');
+      if (!box) return 'no-editor';
+      const labels = [...box.querySelectorAll('button')].map(b => b.getAttribute('aria-label'));
+      return JSON.stringify(labels);
+    })()`);
+    let hasToolbar = false;
+    if (toolbarOk !== "no-editor") {
+      const labels = JSON.parse(toolbarOk);
+      hasToolbar = ["加粗", "斜体", "小标题", "无序列表", "链接"].every(l => labels.includes(l));
+    }
+    check("富文本工具栏齐全", hasToolbar, toolbarOk);
+    await shotPng("rich-text-editor.png");
+
+    // 点击「加粗」应切换按钮激活态（React 状态更新需要一帧，读属性前要等待）
+    const boldBefore = await cdp.eval(`(() => {
+      const box = document.querySelector('[data-testid="rich-text-editor"]');
+      const btn = box && [...box.querySelectorAll('button')].find(b => b.getAttribute('aria-label') === '加粗');
+      if (!btn) return 'no-btn';
+      btn.click();
+      return btn.getAttribute('aria-pressed');
+    })()`);
+    await sleep(400);
+    const boldAfter = await cdp.eval(`(() => {
+      const box = document.querySelector('[data-testid="rich-text-editor"]');
+      const btn = box && [...box.querySelectorAll('button')].find(b => b.getAttribute('aria-label') === '加粗');
+      return btn ? btn.getAttribute('aria-pressed') : 'no-btn';
+    })()`);
+    // 复位
+    await cdp.eval(`(() => {
+      const box = document.querySelector('[data-testid="rich-text-editor"]');
+      const btn = box && [...box.querySelectorAll('button')].find(b => b.getAttribute('aria-label') === '加粗');
+      if (btn) btn.click();
+    })()`);
+    await sleep(200);
+    check("加粗按钮可切换激活态", boldBefore !== "no-btn" && boldAfter === "true", `before=${boldBefore} after=${boldAfter}`);
+
+    // 富文本描述端到端：服务端消毒 + 前端渲染
+    const richPost = await cdp.eval(`(async () => {
+      const token = localStorage.getItem('duitang_token');
+      const r = await fetch('/api/posts', { method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({
+          title: '富文本验证帖',
+          description: '<p>正文<strong>加粗内容</strong></p><script>window.__xss = 1</script><p onclick="alert(1)">安全段落</p>',
+          images: ['/uploads/r.jpg'], board: 'food', tags: ['富文本'],
+        }) });
+      const d = await r.json();
+      return d.post ? String(d.post.id) : 'failed';
+    })()`);
+    check("富文本帖子创建成功", richPost !== "failed", richPost);
+
+    if (richPost !== "failed") {
+      await open("#/pin/" + richPost);
+      let richReady = false;
+      for (let i = 0; i < 15 && !richReady; i++) {
+        await sleep(700);
+        richReady = await cdp.eval(`document.body.innerText.includes('加粗内容')`);
+      }
+      const richDom = JSON.parse(await cdp.eval(`(() => {
+        const root = document.querySelector('.rich-content');
+        return JSON.stringify({
+          hasStrong: !!document.querySelector('.rich-content strong'),
+          strongText: document.querySelector('.rich-content strong')?.textContent || '',
+          hasScript: !!document.querySelector('.rich-content script'),
+          xssRan: typeof window.__xss !== 'undefined',
+          hasOnclick: root ? /onclick/i.test(root.innerHTML) : false,
+        });
+      })()`));
+      check("富文本加粗正确渲染", richReady && richDom.hasStrong && richDom.strongText.includes("加粗内容"), JSON.stringify(richDom));
+      check("富文本 XSS 被阻断", !richDom.hasScript && !richDom.xssRan && !richDom.hasOnclick, JSON.stringify(richDom));
+      await shotPng("rich-text-rendered.png");
+      await cdp.eval(`fetch('/api/posts/${richPost}', { method: 'DELETE', headers: { Authorization: 'Bearer ' + localStorage.getItem('duitang_token') } })`);
+      await sleep(300);
+    }
+
     ws.close();
     console.log(fails ? `\n${fails} 项失败` : "\n全部通过");
     process.exitCode = fails ? 1 : 0;

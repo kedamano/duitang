@@ -9,6 +9,7 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const pino = require('pino');
 const pinoHttp = require('pino-http');
+const sanitizeHtml = require('sanitize-html');
 
 const db = require('./database');
 
@@ -230,6 +231,28 @@ function hydratePost(post) {
   return post;
 }
 
+/**
+ * 清洗富文本描述：只保留排版类标签，链接强制加 rel，杜绝 <script>/on* 注入。
+ * 纯文本（历史数据）原样返回，避免被包成 <p>。
+ */
+const RICH_TEXT_OPTIONS = {
+  allowedTags: ['p', 'br', 'strong', 'b', 'em', 'i', 'u', 's', 'ul', 'ol', 'li', 'a', 'blockquote', 'code', 'pre', 'h3', 'h4'],
+  allowedAttributes: { a: ['href', 'title', 'target', 'rel'] },
+  allowedSchemes: ['http', 'https', 'mailto'],
+  transformTags: {
+    a: sanitizeHtml.simpleTransform('a', { rel: 'noopener noreferrer', target: '_blank' }),
+  },
+};
+
+function cleanRichText(input) {
+  if (input === undefined || input === null) return '';
+  const raw = String(input);
+  if (!raw.trim()) return '';
+  // 不含任何标签时按纯文本处理（保留换行语义由前端处理）
+  if (!/<[a-z][^>]*>/i.test(raw)) return raw.slice(0, 5000);
+  return sanitizeHtml(raw, RICH_TEXT_OPTIONS).slice(0, 5000);
+}
+
 /** 统一的分页参数解析（limit 上限 100） */
 function parsePage(req, defaultLimit = 20) {
   const pageNum = Math.max(1, parseInt(req.query.page) || 1);
@@ -448,7 +471,7 @@ app.post('/api/posts', authMiddleware, (req, res) => {
     ? JSON.stringify(sizes.map(s => ({ w: Number(s?.w) || 400, h: Number(s?.h) || 300 })))
     : '[]';
   const info = db.prepare('INSERT INTO posts (author_id, title, description, board, images, tags, sizes, thumbs, images_variants) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(
-    req.user.id, title.trim(), description || '', normalizeBoard(board), imageStr, tagStr, sizeStr, thumbStr, variantStr
+    req.user.id, title.trim(), cleanRichText(description), normalizeBoard(board), imageStr, tagStr, sizeStr, thumbStr, variantStr
   );
 
   const post = db.prepare('SELECT p.*, u.nickname as author_nickname, u.avatar as author_avatar FROM posts p JOIN users u ON p.author_id = u.id WHERE p.id = ?').get(info.lastInsertRowid);
@@ -470,7 +493,7 @@ app.put('/api/posts/:id', authMiddleware, (req, res) => {
   // 只更新请求里显式给出的字段，未传的保持原值
   const next = {
     title: title !== undefined ? title.trim() : post.title,
-    description: description !== undefined ? String(description) : post.description,
+    description: description !== undefined ? cleanRichText(description) : post.description,
     board: board !== undefined ? normalizeBoard(board) : post.board,
     tags: tags !== undefined ? JSON.stringify((tags || []).slice(0, 5)) : post.tags,
   };

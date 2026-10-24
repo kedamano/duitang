@@ -12,7 +12,11 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@tiptap/pm": "^3.32.0",
+    "@tiptap/react": "^3.32.0",
+    "@tiptap/starter-kit": "^3.32.0",
     "clsx": "2.1.1",
+    "dompurify": "^3.4.17",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-router-dom": "^7.14.2",

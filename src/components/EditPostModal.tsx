@@ -4,6 +4,8 @@ import { useCollection } from "../context/CollectionContext";
 import { useToast } from "../context/ToastContext";
 import { boardToLabel, boardOptions, labelToBoard, type ImageCard } from "../data/images";
 import { cn } from "../utils/cn";
+import RichTextEditor from "./RichTextEditor";
+import { isRichTextEmpty } from "../utils/richText";
 
 /**
  * 帖子编辑弹窗（仅作者可见）。
@@ -50,7 +52,7 @@ export default function EditPostModal({
       const tags = tagText.split(/[,，\s]+/).map(t => t.trim().replace(/^#/, "")).filter(Boolean).slice(0, 5);
       const data = await api.updatePost(card.id, {
         title: title.trim(),
-        description: description.trim(),
+        description: isRichTextEmpty(description) ? "" : description,
         board: labelToBoard[board] || board,
         tags,
       });
@@ -93,14 +95,12 @@ export default function EditPostModal({
           </div>
 
           <div>
-            <label htmlFor="edit-desc" className="block text-xs font-medium text-gray-500 mb-1.5">描述</label>
-            <textarea
-              id="edit-desc"
+            <label className="block text-xs font-medium text-gray-500 mb-1.5">描述</label>
+            <RichTextEditor
               value={description}
-              onChange={e => setDescription(e.target.value)}
-              rows={3}
-              className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm resize-none focus:outline-none focus:border-[#e05d6f] focus:ring-2 focus:ring-[#e05d6f]/10"
-              placeholder="补充一点描述..."
+              onChange={setDescription}
+              placeholder="补充一点描述…"
+              minHeight={100}
             />
           </div>
 

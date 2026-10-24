@@ -7,6 +7,8 @@ import { api } from "../api";
 import { cn } from "../utils/cn";
 import { labelToBoard, boardOptions } from "../data/images";
 import AiImageGenModal from "../components/AiImageGenModal";
+import RichTextEditor from "../components/RichTextEditor";
+import { isRichTextEmpty } from "../utils/richText";
 import { Icon } from "../components/Icons";
 
 /** 与后端 multer 限制保持一致 */
@@ -90,7 +92,7 @@ export default function PublishPage() {
   // 输入过程中自动保存草稿（防抖），全部清空时删除
   useEffect(() => {
     const timer = setTimeout(() => {
-      const empty = !title.trim() && !description.trim() && tags.length === 0 && !board;
+      const empty = !title.trim() && isRichTextEmpty(description) && tags.length === 0 && !board;
       try {
         if (empty) localStorage.removeItem(DRAFT_KEY);
         else localStorage.setItem(DRAFT_KEY, JSON.stringify({ title, description, tags, board } as Draft));
@@ -222,7 +224,7 @@ export default function PublishPage() {
 
       const result = await api.createPost({
         title: title.trim(),
-        description: description.trim() || '',
+        description: isRichTextEmpty(description) ? '' : description,
         board: labelToBoard[board] ?? board,
         images: imageUrls,
         tags,
@@ -376,15 +378,13 @@ export default function PublishPage() {
         {/* Description */}
         <div className="mb-5">
           <label className="text-sm font-semibold text-gray-700 mb-2 block">描述</label>
-          <textarea
+          <RichTextEditor
             value={description}
-            onChange={e => setDescription(e.target.value)}
-            placeholder="描述一下你的内容，让大家更了解..."
-            rows={4}
-            maxLength={500}
-            className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#e05d6f]/30 focus:border-[#e05d6f] transition-all text-gray-700 placeholder-gray-400 resize-none"
+            onChange={setDescription}
+            placeholder="描述一下你的内容，支持加粗、列表、链接…"
+            minHeight={130}
           />
-          <p className="text-xs text-gray-400 mt-1 text-right">{description.length}/500</p>
+          <p className="text-xs text-gray-400 mt-1 text-right">{description.length}/5000</p>
         </div>
 
         {/* Board */}

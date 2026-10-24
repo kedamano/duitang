@@ -61,10 +61,12 @@ beforeEach(() => {
 });
 
 describe("EditPostModal", () => {
-  it("预填当前帖子的内容", () => {
+  it("预填当前帖子的内容", async () => {
     renderModal();
     expect((screen.getByLabelText("标题") as HTMLInputElement).value).toBe("原标题");
-    expect((screen.getByLabelText("描述") as HTMLTextAreaElement).value).toBe("原描述");
+    // 描述改用富文本编辑器，内容渲染在编辑器区域内
+    const editor = await screen.findByTestId("rich-text-editor");
+    await waitFor(() => expect(editor.textContent).toContain("原描述"));
     expect((screen.getByLabelText(/标签/) as HTMLInputElement).value).toBe("旧标签");
   });
 
@@ -72,6 +74,7 @@ describe("EditPostModal", () => {
     (apiModule.api.updatePost as any).mockResolvedValue({ post: { ...card, title: "新标题" } });
     const onSaved = vi.fn();
     renderModal(onSaved);
+    await screen.findByTestId("rich-text-editor");
 
     const title = screen.getByLabelText("标题");
     await userEvent.clear(title);
@@ -84,6 +87,8 @@ describe("EditPostModal", () => {
     expect(payload.title).toBe("新标题");
     expect(payload.tags).toEqual(["旧标签"]);
     expect(payload.board).toBe("anime");
+    // 描述以 HTML 形式提交，且保留原文
+    expect(payload.description).toContain("原描述");
     await waitFor(() => expect(onSaved).toHaveBeenCalled());
   });
 

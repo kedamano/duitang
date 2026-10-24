@@ -9,6 +9,7 @@ import { renderContentWithMentions } from "../utils/mention";
 import EditPostModal from "./EditPostModal";
 import ImageLightbox from "./ImageLightbox";
 import AlbumPickerModal from "./AlbumPickerModal";
+import RichTextContent from "./RichTextContent";
 import { Icon } from "./Icons";
 
 // ─── Comment row ──────────────────────────────────────────────────────────────
@@ -757,7 +758,7 @@ export function DetailContent({
       <div className="px-4 pt-4 pb-2 shrink-0">
         <h2 className="font-bold text-gray-800 text-base mb-2">{card.title}</h2>
         {card.description && (
-          <p className="text-sm text-gray-600 leading-relaxed mb-2">{card.description}</p>
+          <RichTextContent content={card.description} className="mb-2" />
         )}
         <div className="flex flex-wrap gap-1.5 mb-1">
           {card.tags.map(tag => (
