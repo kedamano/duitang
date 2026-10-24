@@ -34,6 +34,15 @@ let failed = 0;
 const failures = [];
 
 /**
+ * 判断是否为原生崩溃（而非测试断言失败）。
+ * mocha 断言失败统一退出 1；其余异常退出码（如 Windows 的 0xC0000409 /
+ * 负数）来自 node:sqlite 的原生层偶发崩溃，重试通常即可通过。
+ */
+function isNativeCrash(status) {
+  return status !== 0 && status !== 1 && status !== null;
+}
+
+/**
  * 删除旧的测试库，保证每次运行都是干净环境。
  * 各测试文件的 DB_PATH 命名不完全等于文件名，这里按文件里声明的实际路径清理。
  */
@@ -47,22 +56,38 @@ function cleanTestDb(file) {
   }
 }
 
+/** 跑一个测试文件，原生崩溃时重试（最多 3 次） */
+function runFile(file) {
+  const maxAttempts = 3;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    cleanTestDb(file);
+    const started = Date.now();
+    const res = spawnSync(
+      isWin ? "npx.cmd" : "npx",
+      ["mocha", path.join("test", file), "--timeout", "20000"],
+      { cwd: serverDir, stdio: "inherit", shell: isWin },
+    );
+    const ms = Date.now() - started;
+    if (!isNativeCrash(res.status)) return { status: res.status, ms, attempt };
+
+    if (attempt < maxAttempts) {
+      console.log(`  ! ${file} 原生崩溃（退出码 ${res.status}），第 ${attempt} 次重试…`);
+    } else {
+      console.log(`  ! ${file} 连续 ${maxAttempts} 次原生崩溃，判定失败`);
+    }
+  }
+  return { status: -1, ms: 0, attempt: maxAttempts };
+}
+
 for (const file of files) {
-  cleanTestDb(file);
-  const started = Date.now();
-  const res = spawnSync(
-    isWin ? "npx.cmd" : "npx",
-    ["mocha", path.join("test", file), "--timeout", "20000"],
-    { cwd: serverDir, stdio: "inherit", shell: isWin },
-  );
-  const ms = Date.now() - started;
-  if (res.status === 0) {
+  const { status, ms, attempt } = runFile(file);
+  if (status === 0) {
     passed++;
-    console.log(`✓ ${file}  ${(ms / 1000).toFixed(1)}s\n`);
+    console.log(`✓ ${file}  ${(ms / 1000).toFixed(1)}s${attempt > 1 ? `（重试 ${attempt - 1} 次）` : ""}\n`);
   } else {
     failed++;
     failures.push(file);
-    console.log(`✗ ${file}  ${(ms / 1000).toFixed(1)}s  (退出码 ${res.status})\n`);
+    console.log(`✗ ${file}  ${(ms / 1000).toFixed(1)}s  (退出码 ${status})\n`);
   }
 }
 

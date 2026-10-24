@@ -55,6 +55,30 @@ try {
   h.check("@提及高亮渲染", mention);
   await h.shotPng("e2e-social-mention.png");
 
+  // ── 评论行内富文本（加粗/斜体/代码） ──
+  const markup = await h.cdp.eval(`(async () => {
+    const other = await (await fetch('/api/auth/login', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ username: 'tangtu', password: '123456' }) })).json();
+    const oh = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + other.token };
+    await fetch('/api/posts/${setup.pid}/comments', { method:'POST', headers: oh,
+      body: JSON.stringify({ content: '带 **重点** 与 *强调* 以及 \`code\` 的评论' }) });
+    return 'ok';
+  })()`);
+  await h.open("#/pin/" + setup.pid);
+  const markupReady = await h.waitFor(
+    `!!document.querySelector('[data-testid="comment-bold"]')`,
+    { label: "评论富文本" },
+  );
+  const markupDom = await h.cdp.eval(`JSON.stringify({
+    bold: document.querySelector('[data-testid="comment-bold"]')?.textContent || '',
+    italic: !!document.querySelector('[data-testid="comment-italic"]'),
+    code: document.querySelector('[data-testid="comment-code"]')?.textContent || '',
+  })`);
+  const md = JSON.parse(markupDom);
+  h.check("评论加粗正确渲染", !!markupReady && md.bold === "重点", markupDom);
+  h.check("评论斜体与代码正确渲染", md.italic && md.code === "code", markupDom);
+  await h.shotPng("e2e-social-comment-markup.png");
+
   // ── @提及产生通知 ──
   const mentioned = await h.apiCall("/api/notifications?limit=20");
   const hasMention = (mentioned?.notifications || []).some(n => n.type === "mention");

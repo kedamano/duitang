@@ -294,6 +294,19 @@ function cleanRichText(input) {
   return sanitizeHtml(raw, RICH_TEXT_OPTIONS).slice(0, 5000);
 }
 
+/**
+ * 评论正文清洗：评论只支持纯文本 + 行内标记（**粗**、*斜*、`码`、@提及），
+ * 因此把 HTML 标签整体剥掉，避免粘贴进来的标签被原样展示。
+ */
+function cleanCommentText(input) {
+  if (input === undefined || input === null) return '';
+  return String(input)
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/[ \t]+/g, ' ')
+    .trim()
+    .slice(0, 1000);
+}
+
 /** 统一的分页参数解析（limit 上限 100） */
 function parsePage(req, defaultLimit = 20) {
   const pageNum = Math.max(1, parseInt(req.query.page) || 1);
@@ -731,7 +744,7 @@ app.post('/api/posts/:id/comments', authMiddleware, (req, res) => {
   }
 
   const info = db.prepare('INSERT INTO comments (post_id, author_id, content, parent_id) VALUES (?, ?, ?, ?)')
-    .run(postId, req.user.id, maskSensitive(content.trim()), parentId);
+    .run(postId, req.user.id, maskSensitive(cleanCommentText(content)), parentId);
   db.prepare('UPDATE posts SET comments_count = comments_count + 1 WHERE id = ?').run(postId);
 
   if (!parentComment) {

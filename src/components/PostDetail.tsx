@@ -704,8 +704,9 @@ export function CommentComposer({ card }: { card: ImageCard }) {
           value={text}
           onChange={e => setText(e.target.value)}
           onKeyDown={e => { if (e.key === "Enter") send(); }}
-          placeholder="说点什么吧..."
+          placeholder="说点什么吧... 可用 **加粗** 与 @提及"
           maxLength={200}
+          title="支持 **加粗**、*斜体*、`代码` 与 @提及"
           className="w-full bg-gray-100 rounded-full px-4 py-2.5 pr-16 text-sm outline-none focus:ring-2 focus:ring-[#e05d6f]/30 focus:bg-white text-gray-700 transition-all"
         />
         {user && (
