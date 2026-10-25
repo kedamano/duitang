@@ -84,12 +84,16 @@ try {
   const hasMention = (mentioned?.notifications || []).some(n => n.type === "mention");
   h.check("@提及产生通知", hasMention, `types=${(mentioned?.notifications || []).map(n => n.type).join(",")}`);
 
-  // ── 关注与关注流 ──
+  // ── 关注与关注流（follow 是切换语义，先读初始状态保证幂等） ──
+  const before = await h.apiCall("/api/users/2/profile");
+  const wasFollowing = !!before?.is_following;
   const follow = await h.apiCall("/api/users/2/follow", { method: "POST" });
-  h.check("可关注其他用户", follow?.following === true, JSON.stringify(follow));
+  h.check("可切换关注状态", follow?.following === !wasFollowing, JSON.stringify({ wasFollowing, now: follow?.following }));
+  // 确保进入关注流时处于已关注状态
+  if (!follow?.following) await h.apiCall("/api/users/2/follow", { method: "POST" });
 
   await h.open("#/");
-  await h.cdp.eval(`[...document.querySelectorAll('nav button, button')].find(b => b.textContent.trim() === '关注')?.click()`);
+  await h.cdp.eval(`document.querySelector('[data-nav="关注"]')?.click()`);
   const feedCards = await h.waitFor(`document.querySelectorAll('main .break-inside-avoid').length`, { label: "关注流" });
   h.check("关注流有内容", feedCards > 0, `cards=${feedCards}`);
   await h.shotPng("e2e-social-feed.png");

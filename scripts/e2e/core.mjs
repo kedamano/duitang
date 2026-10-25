@@ -23,9 +23,21 @@ try {
   const hs = JSON.parse(heights);
   h.check("瀑布流高度错落", new Set(hs).size > 1, heights);
 
-  // ── 分类导航只在首页 ──
-  const navOnHome = await h.cdp.eval(`document.querySelectorAll('nav button').length`);
-  h.check("首页显示分类导航", navOnHome > 0, `nav=${navOnHome}`);
+  // ── 分类导航只在首页，且单行渲染、无截断（超宽时横向滚动 + 箭头） ──
+  const navOnHome = await h.cdp.eval(`document.querySelectorAll('[data-nav]').length`);
+  h.check("首页显示分类导航", navOnHome >= 14, `nav=${navOnHome}`);
+  const navLayout = await h.cdp.eval(`(() => {
+    const items = [...document.querySelectorAll('[data-nav]')];
+    const scroller = items[0] && items[0].parentElement;
+    if (!scroller) return { truncated: -1, singleRow: false };
+    const tops = new Set(items.map(el => Math.round(el.getBoundingClientRect().top)));
+    return { truncated: items.filter(el => el.scrollWidth > el.clientWidth + 1).length, singleRow: tops.size === 1 };
+  })()`);
+  h.check(
+    "分类导航单行渲染且无截断",
+    navLayout.truncated === 0 && navLayout.singleRow,
+    JSON.stringify(navLayout),
+  );
 
   // ── 详情页 ──
   const firstPostId = await h.cdp.eval(`(async () => {
