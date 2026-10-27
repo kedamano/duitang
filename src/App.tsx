@@ -3,6 +3,7 @@ import { HashRouter, Routes, Route, Navigate, useNavigate } from "react-router-d
 import { AuthProvider } from "./context/AuthContext";
 import { CollectionProvider } from "./context/CollectionContext";
 import { ToastProvider } from "./context/ToastContext";
+import { ThemeProvider } from "./context/ThemeContext";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import Header from "./components/Header";
 import LoginModal from "./components/LoginModal";
@@ -37,7 +38,7 @@ function AppContent() {
   }, [navigate]);
 
   return (
-    <div className="min-h-screen bg-[#f8f8f8] font-sans">
+    <div className="min-h-screen bg-page font-sans">
       <Header
         search={search}
         onSearchChange={setSearch}
@@ -74,15 +75,17 @@ function AppContent() {
 export default function App() {
   return (
     <ErrorBoundary>
-      <HashRouter>
-        <ToastProvider>
-          <AuthProvider>
-            <CollectionProvider>
-              <AppContent />
-            </CollectionProvider>
-          </AuthProvider>
-        </ToastProvider>
-      </HashRouter>
+      <ThemeProvider>
+        <HashRouter>
+          <ToastProvider>
+            <AuthProvider>
+              <CollectionProvider>
+                <AppContent />
+              </CollectionProvider>
+            </AuthProvider>
+          </ToastProvider>
+        </HashRouter>
+      </ThemeProvider>
     </ErrorBoundary>
   );
 }

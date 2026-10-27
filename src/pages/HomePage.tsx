@@ -41,7 +41,7 @@ function Banner() {
           <div className="flex-1 px-8 md:px-12">
             <h2 className="text-white font-extrabold text-xl md:text-3xl mb-1 drop-shadow-sm">{s.title}</h2>
             <p className="text-white/80 text-sm md:text-base mb-4">{s.sub}</p>
-            <button className="bg-white text-[#e05d6f] font-bold text-sm px-5 py-2 rounded-full hover:shadow-lg transition-shadow flex items-center gap-1.5">
+            <button className="bg-surface text-[#e05d6f] font-bold text-sm px-5 py-2 rounded-full hover:shadow-lg transition-shadow flex items-center gap-1.5">
               立即探索
               <Icon name="arrowRight" className="w-4 h-4" />
             </button>
@@ -58,7 +58,7 @@ function Banner() {
             onClick={() => setActive(i)}
             className={cn(
               "rounded-full transition-all duration-300",
-              i === active ? "w-5 h-2 bg-white" : "w-2 h-2 bg-white/50",
+              i === active ? "w-5 h-2 bg-surface" : "w-2 h-2 bg-surface/50",
             )}
           />
         ))}
@@ -83,8 +83,8 @@ function SideTopics() {
   const topics = (realTags.length ? realTags : fallback).slice(0, 5);
 
   return (
-    <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
-      <h3 className="font-bold text-gray-800 text-sm mb-3 flex items-center gap-1">
+    <div className="bg-surface rounded-2xl p-4 shadow-sm border border-line">
+      <h3 className="font-bold text-ink text-sm mb-3 flex items-center gap-1">
         <Icon name="fire" className="w-4 h-4 text-[#e05d6f]" /> 热门话题
       </h3>
       <div className="space-y-1" data-testid="hot-topics">
@@ -92,19 +92,19 @@ function SideTopics() {
           <button
             key={t.tag}
             onClick={() => navigate(`/tag/${encodeURIComponent(t.tag)}`)}
-            className="w-full flex items-center gap-3 p-2 rounded-xl hover:bg-[#fde8eb] group transition-colors text-left"
+            className="w-full flex items-center gap-3 p-2 rounded-xl hover:bg-brand-soft group transition-colors text-left"
           >
-            <Icon name="tag" className="w-4 h-4 text-gray-400 group-hover:text-[#e05d6f] shrink-0" />
+            <Icon name="tag" className="w-4 h-4 text-mute group-hover:text-[#e05d6f] shrink-0" />
             <div className="min-w-0">
-              <p className="text-sm font-medium text-gray-700 group-hover:text-[#e05d6f] truncate">{t.tag}</p>
-              <p className="text-xs text-gray-400">{t.count > 0 ? `${t.count} 张图片` : "去看看"}</p>
+              <p className="text-sm font-medium text-ink2 group-hover:text-[#e05d6f] truncate">{t.tag}</p>
+              <p className="text-xs text-mute">{t.count > 0 ? `${t.count} 张图片` : "去看看"}</p>
             </div>
           </button>
         ))}
       </div>
       <button
         onClick={() => navigate("/discover")}
-        className="mt-2 w-full text-xs text-gray-400 hover:text-[#e05d6f] py-1.5 transition-colors flex items-center justify-center gap-1"
+        className="mt-2 w-full text-xs text-mute hover:text-[#e05d6f] py-1.5 transition-colors flex items-center justify-center gap-1"
       >
         发现更多 <Icon name="arrowRight" className="w-3 h-3" />
       </button>
@@ -271,7 +271,7 @@ export default function HomePage({
         <div className="flex-1 min-w-0">
           {search && !isFollowFeed && (
             <div className="mb-4 flex items-center gap-2">
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-body2">
                 搜索 <span className="text-[#e05d6f] font-semibold">"{search}"</span>，找到 {total} 张图片
               </p>
             </div>
@@ -281,8 +281,8 @@ export default function HomePage({
             <MasonrySkeleton />
           ) : isFollowFeed && allCards.length === 0 && feedEmptyReason === "not_logged_in" ? (
             <div className="flex flex-col items-center justify-center py-24 gap-4">
-              <Icon name="lock" className="w-14 h-14 text-gray-300" />
-              <p className="text-gray-400 text-base">登录后即可查看关注内容</p>
+              <Icon name="lock" className="w-14 h-14 text-mute2" />
+              <p className="text-mute text-base">登录后即可查看关注内容</p>
               <button
                 onClick={() => setShowLogin(true)}
                 className="bg-[#e05d6f] text-white text-sm font-bold px-8 py-2.5 rounded-full hover:bg-[#c94d5e] transition-colors"
@@ -292,8 +292,8 @@ export default function HomePage({
             </div>
           ) : isFollowFeed && allCards.length === 0 && feedEmptyReason === "no_following" ? (
             <div className="flex flex-col items-center justify-center py-24 gap-4">
-              <Icon name="hand" className="w-14 h-14 text-gray-300" />
-              <p className="text-gray-400 text-base">还没有关注任何人，关注 TA 们的更新会出现在这里</p>
+              <Icon name="hand" className="w-14 h-14 text-mute2" />
+              <p className="text-mute text-base">还没有关注任何人，关注 TA 们的更新会出现在这里</p>
               <div className="flex gap-3">
                 <button
                   onClick={() => onNavChange("推荐")}
@@ -306,8 +306,8 @@ export default function HomePage({
             </div>
           ) : allCards.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-24 gap-4">
-              <Icon name="flower" className="w-14 h-14 text-gray-300" />
-              <p className="text-gray-400 text-base">暂时没有找到相关内容～</p>
+              <Icon name="flower" className="w-14 h-14 text-mute2" />
+              <p className="text-mute text-base">暂时没有找到相关内容～</p>
               <button
                 onClick={() => { onSearchChange(""); onNavChange("推荐"); }}
                 className="text-sm text-[#e05d6f] hover:underline"
@@ -322,7 +322,7 @@ export default function HomePage({
                 <LoadMoreButton onClick={handleLoadMore} loading={loadingMore} />
               )}
               {!hasMore && allCards.length > 0 && (
-                <p className="text-center text-gray-300 text-sm pb-10 pt-4 flex items-center justify-center gap-1.5">
+                <p className="text-center text-mute2 text-sm pb-10 pt-4 flex items-center justify-center gap-1.5">
                   — 已经到底啦 <Icon name="flower" className="w-4 h-4 inline" /> —
                 </p>
               )}
@@ -338,11 +338,11 @@ export default function HomePage({
                 <Icon name="phone" className="w-4 h-4" /> 下载堆糖App
               </h3>
               <p className="text-xs text-white/80 mb-3">随时随地收集你喜欢的图片</p>
-              <button className="w-full bg-white text-[#e05d6f] font-bold text-xs py-2 rounded-full hover:shadow-md transition-shadow">
+              <button className="w-full bg-surface text-[#e05d6f] font-bold text-xs py-2 rounded-full hover:shadow-md transition-shadow">
                 立即下载
               </button>
             </div>
-            <div className="text-xs text-gray-400 space-y-1 px-1">
+            <div className="text-xs text-mute space-y-1 px-1">
               <div className="flex flex-wrap gap-2">
                 {["关于堆糖", "帮助中心", "意见反馈", "举报中心"].map(l => (
                   <a key={l} href="#" className="hover:text-[#e05d6f] transition-colors">{l}</a>

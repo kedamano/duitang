@@ -70,10 +70,10 @@ export default function EditPostModal({
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl animate-fade-in">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-          <h3 className="font-bold text-gray-800">编辑帖子</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors" aria-label="关闭">
+      <div className="relative bg-surface rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl animate-fade-in">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-line">
+          <h3 className="font-bold text-ink">编辑帖子</h3>
+          <button onClick={onClose} className="text-mute hover:text-body transition-colors" aria-label="关闭">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -82,20 +82,20 @@ export default function EditPostModal({
 
         <div className="px-5 py-4 space-y-4">
           <div>
-            <label htmlFor="edit-title" className="block text-xs font-medium text-gray-500 mb-1.5">标题</label>
+            <label htmlFor="edit-title" className="block text-xs font-medium text-body2 mb-1.5">标题</label>
             <input
               id="edit-title"
               value={title}
               onChange={e => setTitle(e.target.value)}
               maxLength={60}
-              className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#e05d6f] focus:ring-2 focus:ring-[#e05d6f]/10"
+              className="w-full px-3 py-2 rounded-xl border border-line2 text-sm focus:outline-none focus:border-[#e05d6f] focus:ring-2 focus:ring-[#e05d6f]/10"
               placeholder="给这张图片起个标题"
             />
-            <p className="text-[11px] text-gray-300 mt-1 text-right">{title.length}/60</p>
+            <p className="text-[11px] text-mute2 mt-1 text-right">{title.length}/60</p>
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1.5">描述</label>
+            <label className="block text-xs font-medium text-body2 mb-1.5">描述</label>
             <RichTextEditor
               value={description}
               onChange={setDescription}
@@ -105,7 +105,7 @@ export default function EditPostModal({
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1.5">画板</label>
+            <label className="block text-xs font-medium text-body2 mb-1.5">画板</label>
             <div className="flex flex-wrap gap-2">
               {boardOptions.map(label => (
                 <button
@@ -115,7 +115,7 @@ export default function EditPostModal({
                     "px-3 py-1.5 rounded-full text-xs font-medium transition-colors",
                     board === label
                       ? "bg-[#e05d6f] text-white"
-                      : "bg-gray-100 text-gray-600 hover:bg-gray-200",
+                      : "bg-soft2 text-body hover:bg-soft2",
                   )}
                 >
                   {label}
@@ -125,21 +125,21 @@ export default function EditPostModal({
           </div>
 
           <div>
-            <label htmlFor="edit-tags" className="block text-xs font-medium text-gray-500 mb-1.5">标签（逗号分隔，最多 5 个）</label>
+            <label htmlFor="edit-tags" className="block text-xs font-medium text-body2 mb-1.5">标签（逗号分隔，最多 5 个）</label>
             <input
               id="edit-tags"
               value={tagText}
               onChange={e => setTagText(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#e05d6f] focus:ring-2 focus:ring-[#e05d6f]/10"
+              className="w-full px-3 py-2 rounded-xl border border-line2 text-sm focus:outline-none focus:border-[#e05d6f] focus:ring-2 focus:ring-[#e05d6f]/10"
               placeholder="例如：少女心, 壁纸"
             />
           </div>
         </div>
 
-        <div className="flex justify-end gap-2 px-5 py-4 border-t border-gray-100">
+        <div className="flex justify-end gap-2 px-5 py-4 border-t border-line">
           <button
             onClick={onClose}
-            className="px-4 py-2 rounded-full text-sm text-gray-600 hover:bg-gray-100 transition-colors"
+            className="px-4 py-2 rounded-full text-sm text-body hover:bg-soft2 transition-colors"
           >
             取消
           </button>

@@ -85,6 +85,25 @@ function issueToken(user) {
   return jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '7d' });
 }
 
+/**
+ * 滑动续期：任何携带合法 token 的请求（含公开接口的 optionalUser 场景），
+ * 只要剩余有效期不足 1 天，就用响应头下发新 token，前端透明替换。
+ * 活跃用户不再被 7 天硬登出；长期不活跃者仍需重新登录，安全边界保留。
+ */
+app.use((req, res, next) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (token) {
+    try {
+      const payload = jwt.verify(token, JWT_SECRET);
+      if ((payload.exp || 0) * 1000 - Date.now() < 24 * 3600 * 1000) {
+        const fresh = db.prepare('SELECT id, username FROM users WHERE id = ?').get(payload.id);
+        if (fresh) res.setHeader('X-Refresh-Token', issueToken(fresh));
+      }
+    } catch { /* 无效 token 交给各接口自行处理 */ }
+  }
+  next();
+});
+
 function publicUser(user) {
   const { password_hash, ...rest } = user;
   return { ...rest, is_admin: !!user.is_admin };

@@ -23,7 +23,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           <div
             key={t.id}
             className={`pointer-events-auto px-4 py-2.5 rounded-xl shadow-lg text-sm text-white animate-fade-in max-w-xs ${
-              t.type === "success" ? "bg-green-500" : t.type === "error" ? "bg-red-500" : "bg-gray-800"
+              t.type === "success" ? "bg-green-500" : t.type === "error" ? "bg-red-500" : "bg-ink"
             }`}
           >
             {t.message}

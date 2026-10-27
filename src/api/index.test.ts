@@ -127,4 +127,29 @@ describe("api client", () => {
     expect(listener).not.toHaveBeenCalled();
     window.removeEventListener(AUTH_EXPIRED_EVENT, listener);
   });
+
+  // 滑动续期：后端通过响应头下发新 token 时透明替换本地凭证
+  it("响应头 X-Refresh-Token 出现时替换 localStorage 中的旧 token", async () => {
+    localStorage.setItem("duitang_token", "OLD");
+    fetchMock.mockResolvedValueOnce({
+      ok: true, status: 200,
+      headers: { get: (k: string) => (k === "X-Refresh-Token" ? "NEW" : null) },
+      json: async () => ({ posts: [] }),
+    });
+
+    await api.getPosts();
+    expect(localStorage.getItem("duitang_token")).toBe("NEW");
+  });
+
+  it("无续期头时不动 localStorage", async () => {
+    localStorage.setItem("duitang_token", "KEEP");
+    fetchMock.mockResolvedValueOnce({
+      ok: true, status: 200,
+      headers: { get: () => null },
+      json: async () => ({ posts: [] }),
+    });
+
+    await api.getPosts();
+    expect(localStorage.getItem("duitang_token")).toBe("KEEP");
+  });
 });

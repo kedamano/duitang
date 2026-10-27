@@ -30,16 +30,16 @@ function ReplyRow({
 }) {
   return (
     <div className="flex gap-2 group/reply">
-      <img src={reply.avatar} alt={reply.author} loading="lazy" decoding="async" className="w-6 h-6 rounded-full bg-gray-100 shrink-0 ring-1 ring-gray-200" />
+      <img src={reply.avatar} alt={reply.author} loading="lazy" decoding="async" className="w-6 h-6 rounded-full bg-soft2 shrink-0 ring-1 ring-line2" />
       <div className="flex-1 min-w-0">
-        <div className="bg-gray-50 rounded-2xl rounded-tl-none px-3 py-1.5">
-          <p className="text-xs font-semibold text-gray-700 mb-0.5">
+        <div className="bg-soft rounded-2xl rounded-tl-none px-3 py-1.5">
+          <p className="text-xs font-semibold text-ink2 mb-0.5">
             {reply.author}
             {reply.reply_to_nickname && (
-              <span className="font-normal text-gray-400"> 回复 <span className="text-[#e05d6f]">@{reply.reply_to_nickname}</span></span>
+              <span className="font-normal text-mute"> 回复 <span className="text-[#e05d6f]">@{reply.reply_to_nickname}</span></span>
             )}
           </p>
-          <p className="text-sm text-gray-600 leading-relaxed break-words whitespace-pre-wrap">
+          <p className="text-sm text-body leading-relaxed break-words whitespace-pre-wrap">
             {renderContentWithMentions(reply.content)}
           </p>
         </div>
@@ -48,7 +48,7 @@ function ReplyRow({
             onClick={() => onLike(reply.id)}
             className={cn(
               "flex items-center gap-1 text-[11px] transition-colors",
-              reply.liked ? "text-[#e05d6f]" : "text-gray-400 hover:text-[#e05d6f]",
+              reply.liked ? "text-[#e05d6f]" : "text-mute hover:text-[#e05d6f]",
             )}
           >
             <svg className="w-3 h-3" viewBox="0 0 24 24" fill={reply.liked ? "currentColor" : "none"} stroke="currentColor" strokeWidth={2}>
@@ -56,13 +56,13 @@ function ReplyRow({
             </svg>
             {reply.likes > 0 && reply.likes}
           </button>
-          <button onClick={() => onReply(reply)} className="text-[11px] text-gray-400 hover:text-[#e05d6f] transition-colors">
+          <button onClick={() => onReply(reply)} className="text-[11px] text-mute hover:text-[#e05d6f] transition-colors">
             回复
           </button>
           {canReport && (
             <button
               onClick={() => onReport?.(reply)}
-              className="text-[11px] text-gray-400 hover:text-amber-600 transition-colors opacity-0 group-hover/reply:opacity-100"
+              className="text-[11px] text-mute hover:text-amber-600 transition-colors opacity-0 group-hover/reply:opacity-100"
             >
               举报
             </button>
@@ -70,7 +70,7 @@ function ReplyRow({
           {canDelete && (
             <button
               onClick={() => onDelete(reply.id)}
-              className="text-[11px] text-gray-400 hover:text-red-400 transition-colors opacity-0 group-hover/reply:opacity-100"
+              className="text-[11px] text-mute hover:text-red-400 transition-colors opacity-0 group-hover/reply:opacity-100"
             >
               删除
             </button>
@@ -124,22 +124,22 @@ export function CommentItem({
   return (
     <div>
       <div className="flex gap-2.5 group/comment">
-        <img src={comment.avatar} alt={comment.author} loading="lazy" decoding="async" className="w-8 h-8 rounded-full bg-gray-100 shrink-0 ring-1 ring-gray-200" />
+        <img src={comment.avatar} alt={comment.author} loading="lazy" decoding="async" className="w-8 h-8 rounded-full bg-soft2 shrink-0 ring-1 ring-line2" />
         <div className="flex-1 min-w-0">
-          <div className="bg-gray-50 rounded-2xl rounded-tl-none px-3 py-2">
-            <p className="text-xs font-semibold text-gray-700 mb-0.5">{comment.author}</p>
-            <p className="text-sm text-gray-600 leading-relaxed break-words whitespace-pre-wrap">
+          <div className="bg-soft rounded-2xl rounded-tl-none px-3 py-2">
+            <p className="text-xs font-semibold text-ink2 mb-0.5">{comment.author}</p>
+            <p className="text-sm text-body leading-relaxed break-words whitespace-pre-wrap">
               {renderContentWithMentions(comment.content)}
             </p>
           </div>
           <div className="flex items-center gap-3 mt-1 ml-2">
-            <span className="text-xs text-gray-400">{new Date(comment.created_at).toLocaleDateString()}</span>
+            <span className="text-xs text-mute">{new Date(comment.created_at).toLocaleDateString()}</span>
             <button
               onClick={() => onLike(comment.id)}
               aria-label={comment.liked ? "取消点赞评论" : "点赞评论"}
               className={cn(
                 "flex items-center gap-1 text-xs transition-colors",
-                comment.liked ? "text-[#e05d6f]" : "text-gray-400 hover:text-[#e05d6f]"
+                comment.liked ? "text-[#e05d6f]" : "text-mute hover:text-[#e05d6f]"
               )}
             >
               <svg className="w-3 h-3" viewBox="0 0 24 24" fill={comment.liked ? "currentColor" : "none"} stroke="currentColor" strokeWidth={2}>
@@ -149,14 +149,14 @@ export function CommentItem({
             </button>
             <button
               onClick={() => startReply(null)}
-              className="text-xs text-gray-400 hover:text-[#e05d6f] transition-colors"
+              className="text-xs text-mute hover:text-[#e05d6f] transition-colors"
             >
               回复
             </button>
             {canDelete && (
               <button
                 onClick={() => onDelete(comment.id)}
-                className="text-xs text-gray-400 hover:text-red-400 transition-colors opacity-0 group-hover/comment:opacity-100"
+                className="text-xs text-mute hover:text-red-400 transition-colors opacity-0 group-hover/comment:opacity-100"
               >
                 删除
               </button>
@@ -164,7 +164,7 @@ export function CommentItem({
             {onReport && currentUserId != null && comment.author_id !== currentUserId && (
               <button
                 onClick={() => onReport(comment)}
-                className="text-xs text-gray-400 hover:text-amber-600 transition-colors opacity-0 group-hover/comment:opacity-100"
+                className="text-xs text-mute hover:text-amber-600 transition-colors opacity-0 group-hover/comment:opacity-100"
               >
                 举报
               </button>
@@ -178,14 +178,14 @@ export function CommentItem({
         <div data-testid={`replies-${comment.id}`}>
           <button
             onClick={() => setRepliesOpen(o => !o)}
-            className="ml-10 mt-2 inline-flex items-center gap-1 text-xs text-gray-400 hover:text-[#e05d6f] transition-colors"
+            className="ml-10 mt-2 inline-flex items-center gap-1 text-xs text-mute hover:text-[#e05d6f] transition-colors"
           >
             <span>{repliesOpen ? "收起回复" : `展开 ${replyCount} 条回复`}</span>
             <span className={cn("transition-transform", repliesOpen && "rotate-180")}>▾</span>
           </button>
 
           {repliesOpen && (
-            <div className="ml-10 mt-2 space-y-2.5 border-l-2 border-gray-100 pl-3">
+            <div className="ml-10 mt-2 space-y-2.5 border-l-2 border-line pl-3">
               {replies.map(r => (
                 <ReplyRow
                   key={r.id}
@@ -214,7 +214,7 @@ export function CommentItem({
       {/* 回复输入框 */}
       {replying && (
         <div className="ml-10 mt-2">
-          <div className="flex items-center gap-2 bg-gray-50 rounded-2xl px-3 py-1.5 ring-1 ring-gray-200">
+          <div className="flex items-center gap-2 bg-soft rounded-2xl px-3 py-1.5 ring-1 ring-line2">
             <input
               autoFocus
               value={replyText}
@@ -224,10 +224,10 @@ export function CommentItem({
               className="flex-1 bg-transparent text-sm focus:outline-none py-1"
               aria-label="回复内容"
             />
-            <button onClick={submit} disabled={!replyText.trim()} className="text-xs text-[#e05d6f] disabled:text-gray-300">
+            <button onClick={submit} disabled={!replyText.trim()} className="text-xs text-[#e05d6f] disabled:text-mute2">
               发送
             </button>
-            <button onClick={() => setReplying(false)} className="text-xs text-gray-400 hover:text-gray-600">
+            <button onClick={() => setReplying(false)} className="text-xs text-mute hover:text-body">
               取消
             </button>
           </div>
@@ -257,7 +257,7 @@ function CommentList({
         <div key={c.id}>
           {confirmId === c.id ? (
             <div className="flex gap-2.5">
-              <img src={c.avatar} alt={c.author} loading="lazy" decoding="async" className="w-8 h-8 rounded-full bg-gray-100 shrink-0" />
+              <img src={c.avatar} alt={c.author} loading="lazy" decoding="async" className="w-8 h-8 rounded-full bg-soft2 shrink-0" />
               <div className="bg-red-50 rounded-2xl px-4 py-3 flex-1">
                 <p className="text-sm text-red-600 mb-2">确定删除这条评论吗？</p>
                 <div className="flex gap-2">
@@ -269,7 +269,7 @@ function CommentList({
                   </button>
                   <button
                     onClick={() => setConfirmId(null)}
-                    className="text-xs bg-gray-200 text-gray-600 px-3 py-1 rounded-full hover:bg-gray-300 transition-colors"
+                    className="text-xs bg-soft2 text-body px-3 py-1 rounded-full hover:bg-line3 transition-colors"
                   >
                     取消
                   </button>
@@ -309,7 +309,7 @@ export function DetailImage({ card, overlay }: { card: ImageCard; overlay?: Reac
   const detailSrc = largestUrl(Math.min(index, allImages.length - 1));
 
   return (
-    <div className="relative md:w-1/2 bg-gray-100 flex-shrink-0 max-h-[40vh] md:max-h-full overflow-hidden">
+    <div className="relative md:w-1/2 bg-soft2 flex-shrink-0 max-h-[40vh] md:max-h-full overflow-hidden">
       <img
         src={detailSrc || src}
         alt={card.title}
@@ -330,7 +330,7 @@ export function DetailImage({ card, overlay }: { card: ImageCard; overlay?: Reac
                 aria-label={`查看第 ${i + 1} 张`}
                 className={cn(
                   "w-2 h-2 rounded-full transition-all",
-                  i === index ? "bg-white w-4" : "bg-white/50 hover:bg-white/80",
+                  i === index ? "bg-surface w-4" : "bg-surface/50 hover:bg-surface/80",
                 )}
               />
             ))}
@@ -419,16 +419,16 @@ export function SharePanel({
   };
 
   return (
-    <div className="absolute top-12 right-3 bg-white rounded-2xl shadow-2xl p-4 w-52 animate-fade-in z-10">
-      <p className="text-sm font-bold text-gray-700 mb-3">分享到</p>
+    <div className="absolute top-12 right-3 bg-surface rounded-2xl shadow-2xl p-4 w-52 animate-fade-in z-10">
+      <p className="text-sm font-bold text-ink2 mb-3">分享到</p>
       <div className="grid grid-cols-4 gap-3">
         <button onClick={handleCopyLink} className="flex flex-col items-center gap-1 group">
-          <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center group-hover:bg-[#fde8eb] transition-colors">
-            <svg className="w-5 h-5 text-gray-500 group-hover:text-[#e05d6f]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <div className="w-10 h-10 bg-soft2 rounded-full flex items-center justify-center group-hover:bg-brand-soft transition-colors">
+            <svg className="w-5 h-5 text-body2 group-hover:text-[#e05d6f]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
             </svg>
           </div>
-          <span className="text-xs text-gray-500">复制链接</span>
+          <span className="text-xs text-body2">复制链接</span>
         </button>
         <button onClick={handleShareWechat} className="flex flex-col items-center gap-1 group">
           <div className="w-10 h-10 bg-green-50 rounded-full flex items-center justify-center group-hover:bg-green-100 transition-colors">
@@ -436,17 +436,17 @@ export function SharePanel({
               <path d="M8.691 2.188C3.891 2.188 0 5.476 0 9.53c0 2.212 1.17 4.203 3.002 5.55a.59.59 0 01.213.665l-.39 1.48c-.019.07-.048.141-.048.213 0 .163.13.295.29.295a.326.326 0 00.167-.054l1.903-1.114a.864.864 0 01.717-.098 10.16 10.16 0 002.837.403c.276 0 .543-.027.811-.05-.857-2.578.157-4.972 1.932-6.446 1.703-1.415 3.882-1.98 5.853-1.838-.576-3.583-4.196-6.348-8.596-6.348zM5.785 5.991c.642 0 1.162.529 1.162 1.18a1.17 1.17 0 01-1.162 1.178A1.17 1.17 0 014.623 7.17c0-.651.52-1.18 1.162-1.18zm5.813 0c.642 0 1.162.529 1.162 1.18a1.17 1.17 0 01-1.162 1.178 1.17 1.17 0 01-1.162-1.178c0-.651.52-1.18 1.162-1.18zm5.34 2.867c-1.797-.052-3.746.512-5.28 1.786-1.72 1.428-2.687 3.72-1.78 6.22.942 2.453 3.666 4.229 6.884 4.229.826 0 1.622-.12 2.361-.336a.722.722 0 01.598.082l1.584.926a.272.272 0 00.14.047c.134 0 .24-.111.24-.247 0-.06-.023-.12-.038-.177l-.327-1.233a.582.582 0 01-.023-.156.49.49 0 01.201-.398C23.024 18.48 24 16.82 24 14.98c0-3.21-2.931-5.837-7.062-6.122zM14.97 13.17c.535 0 .969.44.969.982a.976.976 0 01-.969.983.976.976 0 01-.969-.983c0-.542.434-.982.97-.982zm4.3 0c.535 0 .969.44.969.982a.976.976 0 01-.969.983.976.976 0 01-.969-.983c0-.542.434-.982.969-.982z"/>
             </svg>
           </div>
-          <span className="text-xs text-gray-500">微信</span>
+          <span className="text-xs text-body2">微信</span>
         </button>
         <button onClick={handleShareWeibo} className="flex flex-col items-center gap-1 group">
           <div className="w-10 h-10 bg-red-50 rounded-full flex items-center justify-center group-hover:bg-red-100 transition-colors">
             <span className="text-sm font-bold text-red-500">微</span>
           </div>
-          <span className="text-xs text-gray-500">微博</span>
+          <span className="text-xs text-body2">微博</span>
         </button>
       </div>
       {shareCount > 0 && (
-        <p className="text-xs text-gray-400 mt-3 text-center">已分享 {shareCount} 次</p>
+        <p className="text-xs text-mute mt-3 text-center">已分享 {shareCount} 次</p>
       )}
     </div>
   );
@@ -481,7 +481,7 @@ export function ShareButton({ card }: { card: ImageCard }) {
         />
       )}
       {toast && (
-        <div className="absolute bottom-28 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-sm px-5 py-2.5 rounded-full shadow-lg animate-fade-in z-20">
+        <div className="absolute bottom-28 left-1/2 -translate-x-1/2 bg-ink text-surface text-sm px-5 py-2.5 rounded-full shadow-lg animate-fade-in z-20">
           {toast}
         </div>
       )}
@@ -502,18 +502,18 @@ export function DetailAuthorHeader({
   const navigate = useNavigate();
 
   return (
-    <div className="relative flex items-center justify-between p-4 border-b border-gray-100 shrink-0">
+    <div className="relative flex items-center justify-between p-4 border-b border-line shrink-0">
       <div className="flex items-center gap-3 min-w-0">
         <button
           onClick={() => card.authorId && navigate(`/profile?user=${card.authorId}`)}
           className="shrink-0"
           title="查看个人主页"
         >
-          <img src={card.avatar} alt={card.author} className="w-10 h-10 rounded-full bg-gray-200 ring-2 ring-[#f0a0a8]" />
+          <img src={card.avatar} alt={card.author} className="w-10 h-10 rounded-full bg-soft2 ring-2 ring-[#f0a0a8]" />
         </button>
         <div className="min-w-0">
-          <p className="font-semibold text-gray-800 text-sm truncate">{card.author}</p>
-          <p className="text-xs text-gray-400">分享了这张图片</p>
+          <p className="font-semibold text-ink text-sm truncate">{card.author}</p>
+          <p className="text-xs text-mute">分享了这张图片</p>
         </div>
         {user && card.authorId && user.id !== card.authorId && (
           <button
@@ -521,7 +521,7 @@ export function DetailAuthorHeader({
             className={cn(
               "ml-2 px-3 py-1 rounded-full text-xs font-bold transition-colors shrink-0",
               isFollowing(card.authorId!)
-                ? "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                ? "bg-soft2 text-body hover:bg-soft2"
                 : "bg-[#e05d6f] text-white hover:bg-[#c94d5e]"
             )}
           >
@@ -536,7 +536,7 @@ export function DetailAuthorHeader({
           <MoreMenu card={card} />
         )}
         {onClose && (
-          <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors">
+          <button onClick={onClose} className="p-2 rounded-full hover:bg-soft2 text-mute hover:text-body transition-colors">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -580,7 +580,7 @@ function MoreMenu({ card }: { card: ImageCard }) {
       <button
         onClick={() => setOpen(o => !o)}
         aria-label="更多操作"
-        className="p-2 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+        className="p-2 rounded-full hover:bg-soft2 text-mute hover:text-body transition-colors"
       >
         <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
           <path d="M12 8a2 2 0 110-4 2 2 0 010 4zm0 6a2 2 0 110-4 2 2 0 010 4zm0 6a2 2 0 110-4 2 2 0 010 4z" />
@@ -588,16 +588,16 @@ function MoreMenu({ card }: { card: ImageCard }) {
       </button>
 
       {open && (
-        <div className="absolute top-full right-0 mt-1 w-36 bg-white rounded-xl py-1 shadow-xl border border-gray-100 z-30 animate-fade-in">
+        <div className="absolute top-full right-0 mt-1 w-36 bg-surface rounded-xl py-1 shadow-xl border border-line z-30 animate-fade-in">
           <button
             onClick={() => { setShowReport(true); setOpen(false); }}
-            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
+            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-ink2 hover:bg-soft transition-colors"
           >
             <Icon name="flag" className="w-3.5 h-3.5" /> 举报该内容
           </button>
           <button
             onClick={toggleBlock}
-            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
+            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-ink2 hover:bg-soft transition-colors"
           >
             <Icon name="block" className="w-3.5 h-3.5" /> {blocked ? "解除拉黑" : "拉黑作者"}
           </button>
@@ -635,7 +635,7 @@ export function DeletePostControl({ card, onClose }: { card: ImageCard; onClose:
         </button>
       )}
       {confirming && (
-        <div className="absolute top-full right-2 mt-1 bg-white rounded-2xl px-4 py-3 shadow-2xl border border-red-100 z-20 w-64 animate-fade-in">
+        <div className="absolute top-full right-2 mt-1 bg-surface rounded-2xl px-4 py-3 shadow-2xl border border-red-100 z-20 w-64 animate-fade-in">
           <p className="text-sm text-red-600 mb-2">确定删除这条帖子吗？删除后不可恢复。</p>
           <div className="flex gap-2">
             <button
@@ -650,7 +650,7 @@ export function DeletePostControl({ card, onClose }: { card: ImageCard; onClose:
             </button>
             <button
               onClick={() => setConfirming(false)}
-              className="text-xs bg-gray-200 text-gray-600 px-3 py-1 rounded-full hover:bg-gray-300 transition-colors"
+              className="text-xs bg-soft2 text-body px-3 py-1 rounded-full hover:bg-line3 transition-colors"
             >
               取消
             </button>
@@ -673,7 +673,7 @@ export function EditPostControl({ card, onSaved }: { card: ImageCard; onSaved?: 
     <>
       <button
         onClick={() => setOpen(true)}
-        className="px-3 py-1.5 rounded-full text-xs font-medium text-gray-500 hover:bg-gray-100 transition-colors"
+        className="px-3 py-1.5 rounded-full text-xs font-medium text-body2 hover:bg-soft2 transition-colors"
       >
         编辑
       </button>
@@ -707,10 +707,10 @@ export function CommentComposer({ card }: { card: ImageCard }) {
           placeholder="说点什么吧... 可用 **加粗** 与 @提及"
           maxLength={200}
           title="支持 **加粗**、*斜体*、`代码` 与 @提及"
-          className="w-full bg-gray-100 rounded-full px-4 py-2.5 pr-16 text-sm outline-none focus:ring-2 focus:ring-[#e05d6f]/30 focus:bg-white text-gray-700 transition-all"
+          className="w-full bg-soft2 rounded-full px-4 py-2.5 pr-16 text-sm outline-none focus:ring-2 focus:ring-[#e05d6f]/30 focus:bg-surface text-ink2 transition-all"
         />
         {user && (
-          <img src={user.avatar} alt="" className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-gray-200" />
+          <img src={user.avatar} alt="" className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-soft2" />
         )}
       </div>
       <button
@@ -720,7 +720,7 @@ export function CommentComposer({ card }: { card: ImageCard }) {
           "px-5 py-2.5 rounded-full text-sm font-medium transition-all",
           text.trim()
             ? "bg-[#e05d6f] text-white hover:bg-[#c94d5e] shadow-sm"
-            : "bg-gray-200 text-gray-400 cursor-not-allowed",
+            : "bg-soft2 text-mute cursor-not-allowed",
         )}
       >
         发送
@@ -741,15 +741,15 @@ export function DetailActionBar({ card }: { card: ImageCard }) {
   const shareCount = getShareCount(card.id, card.shares ?? 0);
 
   return (
-    <div className="border-t border-gray-100 p-3 shrink-0 bg-white relative">
+    <div className="border-t border-line p-3 shrink-0 bg-surface relative">
       <div className="flex items-center gap-2 mb-3">
         <button
           onClick={handleLike}
           className={cn(
             "flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium transition-all",
             liked
-              ? "bg-[#fde8eb] text-[#e05d6f]"
-              : "bg-gray-100 text-gray-600 hover:bg-[#fde8eb] hover:text-[#e05d6f]",
+              ? "bg-brand-soft text-[#e05d6f]"
+              : "bg-soft2 text-body hover:bg-brand-soft hover:text-[#e05d6f]",
           )}
         >
           <svg className={cn("w-4 h-4 transition-transform", liked && "scale-110")} viewBox="0 0 24 24" fill={liked ? "currentColor" : "none"} stroke="currentColor" strokeWidth={2}>
@@ -774,7 +774,7 @@ export function DetailActionBar({ card }: { card: ImageCard }) {
         <button
           onClick={() => { if (!requireAuth()) setShowAlbumPicker(true); }}
           aria-label="收进专辑"
-          className="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium bg-gray-100 text-gray-600 hover:bg-[#fde8eb] hover:text-[#e05d6f] transition-all"
+          className="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium bg-soft2 text-body hover:bg-brand-soft hover:text-[#e05d6f] transition-all"
         >
           <Icon name="folder" className="w-4 h-4" />
           专辑
@@ -784,8 +784,8 @@ export function DetailActionBar({ card }: { card: ImageCard }) {
           className={cn(
             "flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium transition-all",
             showShare
-              ? "bg-gray-800 text-white"
-              : "bg-gray-100 text-gray-600 hover:bg-gray-200",
+              ? "bg-ink text-surface"
+              : "bg-soft2 text-body hover:bg-soft2",
           )}
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -806,7 +806,7 @@ export function DetailActionBar({ card }: { card: ImageCard }) {
         </div>
       )}
       {toast && (
-        <div className="absolute -top-12 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-sm px-5 py-2.5 rounded-full shadow-lg animate-fade-in z-30 whitespace-nowrap">
+        <div className="absolute -top-12 left-1/2 -translate-x-1/2 bg-ink text-surface text-sm px-5 py-2.5 rounded-full shadow-lg animate-fade-in z-30 whitespace-nowrap">
           {toast}
         </div>
       )}
@@ -858,7 +858,7 @@ export function DetailContent({
       />
 
       <div className="px-4 pt-4 pb-2 shrink-0">
-        <h2 className="font-bold text-gray-800 text-base mb-2">{card.title}</h2>
+        <h2 className="font-bold text-ink text-base mb-2">{card.title}</h2>
         {card.description && (
           <RichTextContent content={card.description} className="mb-2" />
         )}
@@ -867,7 +867,7 @@ export function DetailContent({
             <button
               key={tag}
               onClick={() => { onClose(); navigate(`/tag/${encodeURIComponent(tag)}`); }}
-              className="text-xs bg-[#fde8eb] text-[#e05d6f] px-3 py-1 rounded-full font-medium hover:bg-[#f8d3d9] transition-colors"
+              className="text-xs bg-brand-soft text-[#e05d6f] px-3 py-1 rounded-full font-medium hover:bg-brand-soft2 transition-colors"
             >
               #{tag}
             </button>
@@ -876,14 +876,14 @@ export function DetailContent({
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-2">
-        <p className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-1.5">
-          <Icon name="comment" className="w-4 h-4 text-gray-500" /> 评论区
-          <span className="text-xs text-gray-400 font-normal">({commentCount})</span>
+        <p className="text-sm font-semibold text-ink2 mb-3 flex items-center gap-1.5">
+          <Icon name="comment" className="w-4 h-4 text-body2" /> 评论区
+          <span className="text-xs text-mute font-normal">({commentCount})</span>
         </p>
         {cardComments.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 gap-2">
-            <Icon name="bubble" className="w-8 h-8 text-gray-300" />
-            <p className="text-sm text-gray-400">还没有评论，来说点什么吧~</p>
+            <Icon name="bubble" className="w-8 h-8 text-mute2" />
+            <p className="text-sm text-mute">还没有评论，来说点什么吧~</p>
           </div>
         ) : (
           <>
@@ -949,7 +949,7 @@ export function PostDetailModal({ card, onClose }: { card: ImageCard; onClose: (
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-2xl md:rounded-3xl overflow-hidden w-full max-w-3xl max-h-[95vh] md:max-h-[90vh] shadow-2xl flex flex-col md:flex-row animate-modal-in"
+        className="bg-surface rounded-2xl md:rounded-3xl overflow-hidden w-full max-w-3xl max-h-[95vh] md:max-h-[90vh] shadow-2xl flex flex-col md:flex-row animate-modal-in"
         onClick={e => e.stopPropagation()}
       >
         <DetailImage card={displayCard} overlay={<ShareButton card={displayCard} />} />

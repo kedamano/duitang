@@ -52,19 +52,19 @@ export default function AdminReportsPage() {
 
   return (
     <main className="max-w-3xl mx-auto px-4 md:px-6 py-6">
-      <h1 className="text-2xl font-extrabold text-gray-800 flex items-center gap-2">
+      <h1 className="text-2xl font-extrabold text-ink flex items-center gap-2">
         <Icon name="shield" className="w-6 h-6 text-[#e05d6f]" /> 审核队列
       </h1>
-      <p className="text-sm text-gray-400 mt-1">处理用户举报的违规内容</p>
+      <p className="text-sm text-mute mt-1">处理用户举报的违规内容</p>
 
-      <div className="flex border-b border-gray-100 mt-4">
+      <div className="flex border-b border-line mt-4">
         {tabs.map(t => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
             className={cn(
               "flex-1 text-center py-3 text-sm font-medium transition-colors border-b-2",
-              tab === t.key ? "border-[#e05d6f] text-[#e05d6f]" : "border-transparent text-gray-400 hover:text-gray-600",
+              tab === t.key ? "border-[#e05d6f] text-[#e05d6f]" : "border-transparent text-mute hover:text-body",
             )}
           >
             {t.label}
@@ -73,28 +73,28 @@ export default function AdminReportsPage() {
       </div>
 
       {loading ? (
-        <div className="py-16 text-center text-sm text-gray-400">加载中...</div>
+        <div className="py-16 text-center text-sm text-mute">加载中...</div>
       ) : reports.length === 0 ? (
         <div className="py-20 text-center">
-          <Icon name="shield" className="w-14 h-14 mx-auto mb-3 text-gray-300" />
-          <p className="text-gray-400 text-sm">该状态下暂无举报</p>
+          <Icon name="shield" className="w-14 h-14 mx-auto mb-3 text-mute2" />
+          <p className="text-mute text-sm">该状态下暂无举报</p>
         </div>
       ) : (
         <div className="mt-4 space-y-3" data-testid="report-list">
           {reports.map(r => (
-            <div key={r.id} className="bg-white rounded-2xl border border-gray-100 p-4">
+            <div key={r.id} className="bg-surface rounded-2xl border border-line p-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 mb-1.5">
-                    <span className="text-[11px] px-2 py-0.5 rounded-full bg-[#fde8eb] text-[#e05d6f] font-medium">
+                    <span className="text-[11px] px-2 py-0.5 rounded-full bg-brand-soft text-[#e05d6f] font-medium">
                       {TARGET_LABEL[r.target_type] || r.target_type}
                     </span>
-                    <span className="text-xs text-gray-400">
+                    <span className="text-xs text-mute">
                       {r.reporter_nickname} 举报于 {String(r.created_at).slice(0, 16)}
                     </span>
                   </div>
-                  <p className="text-sm text-gray-800 line-clamp-2">{r.target_preview || "（内容已删除）"}</p>
-                  <p className="text-xs text-gray-400 mt-1">理由：{r.reason || "未填写"}</p>
+                  <p className="text-sm text-ink line-clamp-2">{r.target_preview || "（内容已删除）"}</p>
+                  <p className="text-xs text-mute mt-1">理由：{r.reason || "未填写"}</p>
                 </div>
               </div>
 
@@ -110,7 +110,7 @@ export default function AdminReportsPage() {
                   <button
                     onClick={() => resolve(r.id, "reject")}
                     disabled={busyId === r.id}
-                    className="px-4 py-1.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-60 transition-colors"
+                    className="px-4 py-1.5 rounded-full text-xs font-medium bg-soft2 text-body hover:bg-soft2 disabled:opacity-60 transition-colors"
                   >
                     驳回
                   </button>

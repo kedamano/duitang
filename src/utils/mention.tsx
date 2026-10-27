@@ -83,7 +83,7 @@ export function renderCommentContent(content: string): React.ReactNode {
         );
       case "bold":
         return (
-          <strong key={i} data-testid="comment-bold" className="font-bold text-gray-800">
+          <strong key={i} data-testid="comment-bold" className="font-bold text-ink">
             {token.content}
           </strong>
         );
@@ -95,7 +95,7 @@ export function renderCommentContent(content: string): React.ReactNode {
         );
       case "code":
         return (
-          <code key={i} data-testid="comment-code" className="bg-gray-100 px-1 py-0.5 rounded text-[0.9em] font-mono">
+          <code key={i} data-testid="comment-code" className="bg-soft2 px-1 py-0.5 rounded text-[0.9em] font-mono">
             {token.content}
           </code>
         );

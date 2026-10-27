@@ -17,7 +17,7 @@ export default function RichTextContent({
 
   if (!looksLikeHtml(raw)) {
     return (
-      <p className={cn("text-sm text-gray-600 leading-relaxed break-words whitespace-pre-wrap", className)}>
+      <p className={cn("text-sm text-body leading-relaxed break-words whitespace-pre-wrap", className)}>
         {raw}
       </p>
     );
@@ -25,7 +25,7 @@ export default function RichTextContent({
 
   return (
     <div
-      className={cn("rich-content text-sm text-gray-600", className)}
+      className={cn("rich-content text-sm text-body", className)}
       // 内容已在后端 sanitize-html + 前端 DOMPurify 双重白名单过滤
       dangerouslySetInnerHTML={{ __html: sanitizeRichText(raw) }}
     />

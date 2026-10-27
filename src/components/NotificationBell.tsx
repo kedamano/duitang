@@ -193,7 +193,7 @@ export default function NotificationBell() {
       <button
         onClick={openPanel}
         aria-label={unread > 0 ? `通知（${unread} 条未读）` : "通知"}
-        className="relative flex items-center justify-center w-9 h-9 rounded-full text-gray-500 hover:text-[#e05d6f] hover:bg-gray-50 transition-colors"
+        className="relative flex items-center justify-center w-9 h-9 rounded-full text-body2 hover:text-[#e05d6f] hover:bg-soft transition-colors"
       >
         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
@@ -209,13 +209,13 @@ export default function NotificationBell() {
       </button>
 
       {open && (
-        <div className="absolute top-full right-0 mt-2 w-80 max-h-[420px] overflow-y-auto bg-white rounded-2xl shadow-xl border border-gray-100 z-50">
-          <div className="sticky top-0 bg-white px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-            <span className="text-sm font-bold text-gray-800">消息通知</span>
+        <div className="absolute top-full right-0 mt-2 w-80 max-h-[420px] overflow-y-auto bg-surface rounded-2xl shadow-xl border border-line z-50">
+          <div className="sticky top-0 bg-surface px-4 py-3 border-b border-line flex items-center justify-between">
+            <span className="text-sm font-bold text-ink">消息通知</span>
             <div className="flex items-center gap-3">
-              {items.length > 0 && <span className="text-xs text-gray-400">{items.length}/{total} 条</span>}
+              {items.length > 0 && <span className="text-xs text-mute">{items.length}/{total} 条</span>}
               {items.length > 0 && (
-                <button onClick={clearAll} className="text-xs text-gray-400 hover:text-[#e05d6f] transition-colors">
+                <button onClick={clearAll} className="text-xs text-mute hover:text-[#e05d6f] transition-colors">
                   清空
                 </button>
               )}
@@ -223,40 +223,40 @@ export default function NotificationBell() {
           </div>
 
           {loading && items.length === 0 ? (
-            <div className="py-10 text-center text-sm text-gray-400">加载中...</div>
+            <div className="py-10 text-center text-sm text-mute">加载中...</div>
           ) : items.length === 0 ? (
             <div className="py-12 text-center">
-              <Icon name="bell" className="w-10 h-10 mx-auto mb-2 text-gray-300" />
-              <p className="text-sm text-gray-400">还没有新消息</p>
+              <Icon name="bell" className="w-10 h-10 mx-auto mb-2 text-mute2" />
+              <p className="text-sm text-mute">还没有新消息</p>
             </div>
           ) : (
             items.map(n => {
-              const icon = TYPE_ICON[n.type] || { icon: "bell", className: "bg-gray-50 text-gray-500" };
+              const icon = TYPE_ICON[n.type] || { icon: "bell", className: "bg-soft text-body2" };
               return (
                 <button
                   key={n.id}
                   onClick={() => handleItemClick(n)}
                   className={cn(
-                    "w-full flex gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0",
+                    "w-full flex gap-3 px-4 py-3 text-left hover:bg-soft transition-colors border-b border-soft last:border-0",
                     !n.is_read && "bg-rose-50/40",
                   )}
                 >
-                  <img src={n.actor.avatar} alt="" loading="lazy" className="w-9 h-9 rounded-full bg-gray-100 shrink-0" />
+                  <img src={n.actor.avatar} alt="" loading="lazy" className="w-9 h-9 rounded-full bg-soft2 shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm text-gray-700 leading-snug">
+                    <p className="text-sm text-ink2 leading-snug">
                       <span className="font-semibold">{n.actor.nickname}</span>{" "}
                       {TYPE_TEXT[n.type] || "有新动态"}
                     </p>
                     {n.type === "comment" && n.comment_excerpt && (
-                      <p className="text-xs text-gray-400 truncate mt-0.5">“{n.comment_excerpt}”</p>
+                      <p className="text-xs text-mute truncate mt-0.5">“{n.comment_excerpt}”</p>
                     )}
                     {n.post_title && n.type !== "follow" && (
-                      <p className="text-xs text-gray-400 truncate mt-0.5">《{n.post_title}》</p>
+                      <p className="text-xs text-mute truncate mt-0.5">《{n.post_title}》</p>
                     )}
-                    <p className="text-[11px] text-gray-300 mt-1">{formatRelativeTime(n.created_at)}</p>
+                    <p className="text-[11px] text-mute2 mt-1">{formatRelativeTime(n.created_at)}</p>
                   </div>
                   {n.post_cover && n.type !== "follow" && (
-                    <img src={n.post_cover} alt="" loading="lazy" className="w-11 h-11 rounded-lg object-cover bg-gray-100 shrink-0" />
+                    <img src={n.post_cover} alt="" loading="lazy" className="w-11 h-11 rounded-lg object-cover bg-soft2 shrink-0" />
                   )}
                   <IconBadge name={icon.icon} className={icon.className} />
                 </button>
@@ -265,11 +265,11 @@ export default function NotificationBell() {
           )}
 
           {items.length > 0 && items.length < total && (
-            <div className="p-3 border-t border-gray-50">
+            <div className="p-3 border-t border-soft">
               <button
                 onClick={loadMore}
                 disabled={loadingMore}
-                className="w-full py-2 rounded-full text-xs text-gray-500 hover:text-[#e05d6f] hover:bg-gray-50 disabled:opacity-60 transition-colors"
+                className="w-full py-2 rounded-full text-xs text-body2 hover:text-[#e05d6f] hover:bg-soft disabled:opacity-60 transition-colors"
               >
                 {loadingMore ? "加载中..." : "加载更多"}
               </button>

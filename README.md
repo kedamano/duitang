@@ -11,7 +11,7 @@
 [![Frontend](https://img.shields.io/badge/frontend-React%2019-61dafb?logo=react&logoColor=white)](#技术栈)
 [![Backend](https://img.shields.io/badge/backend-Express%204-000000?logo=express&logoColor=white)](#技术栈)
 [![Database](https://img.shields.io/badge/database-SQLite%20(FTS5)-003b57?logo=sqlite&logoColor=white)](#关键设计决策)
-[![Tests](https://img.shields.io/badge/tests-301%20passing-3fb950)](#测试)
+[![Tests](https://img.shields.io/badge/tests-319%20passing-3fb950)](#测试)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 [功能特性](#-功能特性) · [快速开始](#-快速开始) · [架构](#-架构) · [设计决策](#-关键设计决策) · [API](#-api) · [测试](#-测试) · [部署](#-部署)
@@ -49,6 +49,9 @@
 | --- | --- |
 | **错落瀑布流** | 按图片真实宽高分配列高，避免等高网格的裁切尴尬 |
 | **响应式选档** | 上传时生成 400/800 两档变体，列表用 `srcset` 让浏览器按需选档 |
+| **虚拟滚动** | 瀑布流绝对定位 + 视口裁剪，只渲染可见区间（含 600px overscan），长刷 DOM 数量恒定不随翻页增长 |
+| **hover 预取** | 卡片悬停 120ms 提前拉取详情，进入详情页直接命中缓存秒开 |
+| **深色模式** | 语义色板（CSS 变量）驱动，一键切换并记忆，跟随系统偏好；品牌粉两种模式下保留 |
 | **大图灯箱** | 支持 `←` / `→` 翻页、`Esc` 关闭、缩略图切换 |
 | **独立分享页** | `/#/pin/<id>` 直达单条帖子，可外部分享（当前为 HashRouter，`#` 路径不被搜索引擎收录；站内分享与直链打开不受影响） |
 | **分类与标签** | 12 个画板 + `/#/tag/<标签>` 聚合页，卡片标签可点击跳转 |
@@ -307,6 +310,32 @@ flowchart LR
 
 </details>
 
+<details>
+<summary><b>7. 会话续期：活跃用户不被 7 天硬登出</b></summary>
+
+JWT 固定 7 天有效期，老做法是到期直接登出，体验很差。这里做**滑动续期**：
+一个全局中间件检查每个带 token 的请求（含公开接口的可选登录场景），
+只要剩余有效期不足 1 天，就用响应头 `X-Refresh-Token` 下发一枚全新的 7 天 token，
+前端 `request()` 读到后透明替换 `localStorage`。
+
+- 活跃用户：只要 7 天内来过就不会被登出；
+- 长期不活跃者：token 仍会过期需重新登录，**安全边界没有放松**（不做无限续期）。
+
+</details>
+
+<details>
+<summary><b>8. 深色模式：语义色板而非 dark: 前缀堆砌</b></summary>
+
+没有给每个元素手写 `dark:bg-xxx`（几百处、易漏、难维护）。做法是把**中性色**
+（页面底 / 卡片面 / 边框 / 各级文字）收敛成 CSS 变量语义 token
+（`--surface` / `--ink` / `--line` …），`:root` 与 `.dark` 各给一套值，
+Tailwind 通过 `@theme inline` 映射成 `bg-surface` / `text-ink` 等类。
+一次脚本化替换（27 个文件）即完成迁移，切换只改 `html` 上的 `dark` 类。
+
+品牌粉（`#e05d6f`）**刻意不 token 化**——深浅两色下都保持品牌识别。
+
+</details>
+
 ---
 
 ## 📡 API
@@ -338,8 +367,8 @@ curl -s http://localhost:3001/api/posts?limit=1 | jq
 
 | 层级 | 工具 | 用例数 | 命令 |
 | --- | --- | --- | --- |
-| 前端单测 | Vitest + Testing Library | **125** | `npm test` |
-| 后端接口 | Mocha + Supertest | **176**（16 文件） | `npm run test:server` |
+| 前端单测 | Vitest + Testing Library | **138** | `npm test` |
+| 后端接口 | Mocha + Supertest | **181**（17 文件） | `npm run test:server` |
 | 浏览器 E2E | 原生 CDP 驱动无头 Chrome | **4 套件 / 50+ 断言** | `npm run test:e2e` |
 | 类型检查 | TypeScript | - | `npx tsc --noEmit` |
 
@@ -407,7 +436,17 @@ cp server/.env.example server/.env
 | `RATE_LIMIT_DISABLED` | 关闭 | 设为 `1` 关闭限流（仅开发/测试用） |
 
 > **上线前必做**：更换 `JWT_SECRET`、设置 `FRONTEND_ORIGIN`、把 `server/.env` 排除在版本库外
-> （默认已在 `.gitignore`）、把敏感词表换成真实词库、备份 `database.sqlite`。
+> （默认已在 `.gitignore`）、把敏感词表换成真实词库、配置数据库定时备份。
+
+### 数据库备份
+
+```bash
+npm run backup                    # 快照到 server/backups/，默认保留最近 14 份
+node scripts/backup-db.mjs --out /data/bak --keep 30   # 自定义目录与保留数
+```
+
+用 SQLite 的 `VACUUM INTO` 生成**在线一致性快照**（WAL 模式下也不阻塞读写），
+比直接复制 `.sqlite` 文件可靠。配合系统计划任务（cron / 任务计划程序）每天执行一次即可。
 
 ---
 

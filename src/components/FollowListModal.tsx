@@ -78,10 +78,10 @@ export default function FollowListModal({
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl w-full max-w-sm max-h-[80vh] flex flex-col shadow-2xl animate-fade-in">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-          <h3 className="font-bold text-gray-800">{title}（{total}）</h3>
-          <button onClick={onClose} aria-label="关闭" className="text-gray-400 hover:text-gray-600 transition-colors">
+      <div className="relative bg-surface rounded-2xl w-full max-w-sm max-h-[80vh] flex flex-col shadow-2xl animate-fade-in">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-line">
+          <h3 className="font-bold text-ink">{title}（{total}）</h3>
+          <button onClick={onClose} aria-label="关闭" className="text-mute hover:text-body transition-colors">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -90,11 +90,11 @@ export default function FollowListModal({
 
         <div className="flex-1 overflow-y-auto">
           {loading ? (
-            <div className="py-12 text-center text-sm text-gray-400">加载中...</div>
+            <div className="py-12 text-center text-sm text-mute">加载中...</div>
           ) : users.length === 0 ? (
             <div className="py-14 text-center">
-              <Icon name={mode === "followers" ? "users" : "hand"} className="w-10 h-10 mx-auto mb-2 text-gray-300" />
-              <p className="text-sm text-gray-400">
+              <Icon name={mode === "followers" ? "users" : "hand"} className="w-10 h-10 mx-auto mb-2 text-mute2" />
+              <p className="text-sm text-mute">
                 {mode === "followers" ? "还没有粉丝" : "还没有关注任何人"}
               </p>
             </div>
@@ -102,15 +102,15 @@ export default function FollowListModal({
             users.map(u => {
               const followed = isFollowing(u.id) || u.is_following;
               return (
-                <div key={u.id} className="flex items-center gap-3 px-4 py-3 border-b border-gray-50 last:border-0">
+                <div key={u.id} className="flex items-center gap-3 px-4 py-3 border-b border-soft last:border-0">
                   <button
                     onClick={() => { onClose(); navigate(`/profile?user=${u.id}`); }}
                     className="flex items-center gap-3 flex-1 min-w-0 text-left"
                   >
-                    <img src={u.avatar} alt={u.nickname} loading="lazy" className="w-10 h-10 rounded-full bg-gray-100 shrink-0" />
+                    <img src={u.avatar} alt={u.nickname} loading="lazy" className="w-10 h-10 rounded-full bg-soft2 shrink-0" />
                     <div className="min-w-0">
-                      <p className="text-sm font-medium text-gray-800 truncate">{u.nickname}</p>
-                      <p className="text-xs text-gray-400 truncate">{u.bio || `@${u.username}`}</p>
+                      <p className="text-sm font-medium text-ink truncate">{u.nickname}</p>
+                      <p className="text-xs text-mute truncate">{u.bio || `@${u.username}`}</p>
                     </div>
                   </button>
                   {user && user.id !== u.id && (
@@ -119,7 +119,7 @@ export default function FollowListModal({
                       className={cn(
                         "shrink-0 px-3 py-1 rounded-full text-xs font-medium transition-colors",
                         followed
-                          ? "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                          ? "bg-soft2 text-body2 hover:bg-soft2"
                           : "bg-[#e05d6f] text-white hover:bg-[#c94d5e]",
                       )}
                     >
@@ -133,11 +133,11 @@ export default function FollowListModal({
         </div>
 
         {users.length > 0 && users.length < total && (
-          <div className="p-3 border-t border-gray-100">
+          <div className="p-3 border-t border-line">
             <button
               onClick={loadMore}
               disabled={loadingMore}
-              className="w-full py-2 rounded-full text-xs text-gray-500 hover:text-[#e05d6f] hover:bg-gray-50 disabled:opacity-60 transition-colors"
+              className="w-full py-2 rounded-full text-xs text-body2 hover:text-[#e05d6f] hover:bg-soft disabled:opacity-60 transition-colors"
             >
               {loadingMore ? "加载中..." : "加载更多"}
             </button>

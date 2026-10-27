@@ -71,15 +71,15 @@ export default function AlbumPickerModal({
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl w-full max-w-sm max-h-[80vh] flex flex-col shadow-2xl animate-fade-in" data-testid="album-picker">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-          <h3 className="font-bold text-gray-800">收进专辑</h3>
-          <button onClick={onClose} aria-label="关闭" className="text-gray-400 hover:text-gray-600 transition-colors">
+      <div className="relative bg-surface rounded-2xl w-full max-w-sm max-h-[80vh] flex flex-col shadow-2xl animate-fade-in" data-testid="album-picker">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-line">
+          <h3 className="font-bold text-ink">收进专辑</h3>
+          <button onClick={onClose} aria-label="关闭" className="text-mute hover:text-body transition-colors">
             <Icon name="close" className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="px-4 py-3 border-b border-gray-100">
+        <div className="px-4 py-3 border-b border-line">
           <div className="flex items-center gap-2">
             <input
               value={newTitle}
@@ -88,7 +88,7 @@ export default function AlbumPickerModal({
               maxLength={40}
               placeholder="新建专辑名称…"
               aria-label="新建专辑名称"
-              className="flex-1 px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#e05d6f]"
+              className="flex-1 px-3 py-2 rounded-xl border border-line2 text-sm focus:outline-none focus:border-[#e05d6f]"
             />
             <button
               onClick={createAndAdd}
@@ -97,7 +97,7 @@ export default function AlbumPickerModal({
                 "px-4 py-2 rounded-xl text-sm font-medium transition-colors",
                 newTitle.trim() && !creating
                   ? "bg-[#e05d6f] text-white hover:bg-[#c94d5e]"
-                  : "bg-gray-100 text-gray-400 cursor-not-allowed",
+                  : "bg-soft2 text-mute cursor-not-allowed",
               )}
             >
               {creating ? "创建中" : "新建"}
@@ -107,11 +107,11 @@ export default function AlbumPickerModal({
 
         <div className="flex-1 overflow-y-auto">
           {loading ? (
-            <div className="py-10 text-center text-sm text-gray-400">加载中...</div>
+            <div className="py-10 text-center text-sm text-mute">加载中...</div>
           ) : albums.length === 0 ? (
             <div className="py-10 text-center">
-              <Icon name="folder" className="w-10 h-10 mx-auto mb-2 text-gray-300" />
-              <p className="text-sm text-gray-400">还没有专辑，先在上面建一个吧</p>
+              <Icon name="folder" className="w-10 h-10 mx-auto mb-2 text-mute2" />
+              <p className="text-sm text-mute">还没有专辑，先在上面建一个吧</p>
             </div>
           ) : (
             albums.map(album => (
@@ -119,18 +119,18 @@ export default function AlbumPickerModal({
                 key={album.id}
                 onClick={() => addTo(album)}
                 disabled={busyId === album.id}
-                className="w-full flex items-center gap-3 px-4 py-3 border-b border-gray-50 last:border-0 text-left hover:bg-gray-50 disabled:opacity-60 transition-colors"
+                className="w-full flex items-center gap-3 px-4 py-3 border-b border-soft last:border-0 text-left hover:bg-soft disabled:opacity-60 transition-colors"
               >
-                <span className="w-9 h-9 rounded-xl bg-[#fde8eb] text-[#e05d6f] flex items-center justify-center shrink-0">
+                <span className="w-9 h-9 rounded-xl bg-brand-soft text-[#e05d6f] flex items-center justify-center shrink-0">
                   <Icon name="folder" className="w-4 h-4" />
                 </span>
                 <span className="flex-1 min-w-0">
-                  <span className="block text-sm font-medium text-gray-800 truncate">{album.title}</span>
-                  <span className="block text-xs text-gray-400">
+                  <span className="block text-sm font-medium text-ink truncate">{album.title}</span>
+                  <span className="block text-xs text-mute">
                     {album.post_count} 张{album.is_public ? "" : " · 私密"}
                   </span>
                 </span>
-                <Icon name="plus" className="w-4 h-4 text-gray-300" />
+                <Icon name="plus" className="w-4 h-4 text-mute2" />
               </button>
             ))
           )}

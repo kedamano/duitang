@@ -1,5 +1,65 @@
 @import "tailwindcss";
 
+/* 深色模式：html.dark 类驱动（Tailwind 4 自定义变体） */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * 语义色板：中性色一律走变量，深浅两套值。
+ * 品牌粉（#e05d6f 系）刻意不 token 化——两种模式下都保持品牌识别。
+ */
+:root {
+  --page: #f8f8f8;      /* 页面底 */
+  --surface: #ffffff;   /* 卡片/弹层 */
+  --soft: #f9fafb;      /* gray-50 浅底 */
+  --soft2: #f3f4f6;     /* gray-100 输入/占位底 */
+  --line: #f3f4f6;      /* gray-100 分隔线 */
+  --line2: #e5e7eb;     /* gray-200 边框 */
+  --line3: #d1d5db;     /* gray-300 强边框 */
+  --ink: #1f2937;       /* gray-800 主文字 */
+  --ink2: #374151;      /* gray-700 次主文字 */
+  --body: #4b5563;      /* gray-600 正文 */
+  --body2: #6b7280;     /* gray-500 次要文字 */
+  --mute: #9ca3af;      /* gray-400 弱化文字/图标 */
+  --mute2: #d1d5db;     /* gray-300 更弱 */
+  --brand-soft: #fde8eb;   /* 粉色浅底（chip/hover） */
+  --brand-soft2: #f8d3d9;  /* 粉色浅底 hover */
+}
+.dark {
+  --page: #17181c;
+  --surface: #232529;
+  --soft: #1d1f23;
+  --soft2: #2a2d32;
+  --line: #2a2d32;
+  --line2: #383b41;
+  --line3: #4b4e55;
+  --ink: #e7e8ea;
+  --ink2: #d5d7db;
+  --body: #b9bcc2;
+  --body2: #a2a6ad;
+  --mute: #8a8e96;
+  --mute2: #6b6f77;
+  --brand-soft: #3a2a2e;
+  --brand-soft2: #4a3238;
+}
+
+@theme inline {
+  --color-page: var(--page);
+  --color-surface: var(--surface);
+  --color-soft: var(--soft);
+  --color-soft2: var(--soft2);
+  --color-line: var(--line);
+  --color-line2: var(--line2);
+  --color-line3: var(--line3);
+  --color-ink: var(--ink);
+  --color-ink2: var(--ink2);
+  --color-body: var(--body);
+  --color-body2: var(--body2);
+  --color-mute: var(--mute);
+  --color-mute2: var(--mute2);
+  --color-brand-soft: var(--brand-soft);
+  --color-brand-soft2: var(--brand-soft2);
+}
+
 /* Base styles */
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
@@ -7,6 +67,9 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background-color: var(--page);
+  color: var(--ink);
+  transition: background-color 0.25s ease, color 0.25s ease;
 }
 
 /* Scrollbar hide utility */
@@ -75,17 +138,17 @@ body {
   font-size: 1rem;
   font-weight: 700;
   margin: 0.6em 0 0.35em;
-  color: #374151;
+  color: var(--body);
 }
 .rich-content h4 {
   font-size: 0.925rem;
   font-weight: 600;
   margin: 0.5em 0 0.3em;
-  color: #374151;
+  color: var(--body);
 }
 .rich-content strong {
   font-weight: 700;
-  color: #374151;
+  color: var(--ink);
 }
 .rich-content em {
   font-style: italic;
@@ -115,18 +178,18 @@ body {
 .rich-content blockquote {
   border-left: 3px solid #f0a0a8;
   padding-left: 0.75em;
-  color: #6b7280;
+  color: var(--body2);
   margin: 0.5em 0;
 }
 .rich-content code {
-  background: #f3f4f6;
+  background: var(--soft2);
   padding: 0.1em 0.35em;
   border-radius: 4px;
   font-size: 0.875em;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 .rich-content pre {
-  background: #f3f4f6;
+  background: var(--soft2);
   padding: 0.6em 0.8em;
   border-radius: 8px;
   overflow-x: auto;

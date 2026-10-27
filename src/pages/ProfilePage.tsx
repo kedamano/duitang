@@ -27,10 +27,10 @@ function MiniCard({ card, onCardClick }: { card: ImageCard; onCardClick?: (card:
 
   return (
     <div
-      className="group relative bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 cursor-pointer hover:-translate-y-0.5"
+      className="group relative bg-surface rounded-xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 cursor-pointer hover:-translate-y-0.5"
       onClick={() => onCardClick?.(card)}
     >
-      <div className="relative overflow-hidden bg-gray-100" style={{ paddingBottom: `${aspectRatio}%` }}>
+      <div className="relative overflow-hidden bg-soft2" style={{ paddingBottom: `${aspectRatio}%` }}>
         <img
           src={card.src}
           alt={card.title}
@@ -45,7 +45,7 @@ function MiniCard({ card, onCardClick }: { card: ImageCard; onCardClick?: (card:
           className={cn(
             "absolute top-2 right-2 flex items-center gap-0.5 px-2 py-1 rounded-full text-xs font-medium shadow-md",
             "opacity-0 group-hover:opacity-100 transition-all duration-200",
-            collected ? "bg-[#e05d6f] text-white" : "bg-white/90 text-gray-700 hover:bg-[#e05d6f] hover:text-white",
+            collected ? "bg-[#e05d6f] text-white" : "bg-surface/90 text-ink2 hover:bg-[#e05d6f] hover:text-white",
           )}
         >
           <svg className="w-3 h-3" viewBox="0 0 24 24" fill={collected ? "currentColor" : "none"} stroke="currentColor" strokeWidth={2.5}>
@@ -59,7 +59,7 @@ function MiniCard({ card, onCardClick }: { card: ImageCard; onCardClick?: (card:
           className={cn(
             "absolute bottom-2 right-2 flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium shadow-md",
             "opacity-0 group-hover:opacity-100 transition-all duration-200",
-            liked ? "bg-[#e05d6f] text-white" : "bg-white/90 text-gray-700",
+            liked ? "bg-[#e05d6f] text-white" : "bg-surface/90 text-ink2",
           )}
         >
           <svg className="w-3 h-3" viewBox="0 0 24 24" fill={liked ? "currentColor" : "none"} stroke="currentColor" strokeWidth={2}>
@@ -69,7 +69,7 @@ function MiniCard({ card, onCardClick }: { card: ImageCard; onCardClick?: (card:
         </button>
       </div>
       <div className="p-2.5">
-        <p className="text-xs font-medium text-gray-800 line-clamp-2 leading-snug">{card.title}</p>
+        <p className="text-xs font-medium text-ink line-clamp-2 leading-snug">{card.title}</p>
       </div>
     </div>
   );
@@ -127,12 +127,12 @@ function EditProfilePanel({ onClose }: { onClose: () => void }) {
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl animate-modal-in"
+        className="bg-surface rounded-3xl w-full max-w-md p-6 shadow-2xl animate-modal-in"
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-5">
-          <h2 className="font-bold text-gray-800">编辑资料</h2>
-          <button onClick={onClose} className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400">
+          <h2 className="font-bold text-ink">编辑资料</h2>
+          <button onClick={onClose} className="p-1.5 rounded-full hover:bg-soft2 text-mute">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -146,37 +146,37 @@ function EditProfilePanel({ onClose }: { onClose: () => void }) {
             className="relative group"
             title="更换头像"
           >
-            <img src={avatarPreview} alt="" className="w-20 h-20 rounded-full bg-gray-100 ring-2 ring-[#f0a0a8] object-cover" />
+            <img src={avatarPreview} alt="" className="w-20 h-20 rounded-full bg-soft2 ring-2 ring-[#f0a0a8] object-cover" />
             <span className="absolute inset-0 rounded-full bg-black/40 text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
               更换
             </span>
           </button>
           <input ref={fileInputRef} type="file" accept="image/*" onChange={pickAvatar} className="hidden" />
-          <p className="text-xs text-gray-400 mt-2">点击头像上传新图片</p>
+          <p className="text-xs text-mute mt-2">点击头像上传新图片</p>
         </div>
 
         {/* Nickname */}
-        <label className="block text-sm font-medium text-gray-600 mb-1.5">昵称</label>
+        <label className="block text-sm font-medium text-body mb-1.5">昵称</label>
         <input
           type="text"
           value={nickname}
           onChange={e => setNickname(e.target.value)}
           maxLength={20}
-          className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#e05d6f]/30 text-gray-700 mb-4"
+          className="w-full bg-soft border border-line2 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#e05d6f]/30 text-ink2 mb-4"
         />
 
         {/* Bio */}
-        <label className="block text-sm font-medium text-gray-600 mb-1.5">简介</label>
+        <label className="block text-sm font-medium text-body mb-1.5">简介</label>
         <textarea
           value={bio}
           onChange={e => setBio(e.target.value)}
           maxLength={100}
           rows={3}
-          className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#e05d6f]/30 text-gray-700 resize-none mb-5"
+          className="w-full bg-soft border border-line2 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#e05d6f]/30 text-ink2 resize-none mb-5"
         />
 
         <div className="flex gap-3">
-          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl bg-gray-100 text-gray-600 text-sm font-medium hover:bg-gray-200 transition-colors">
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl bg-soft2 text-body text-sm font-medium hover:bg-soft2 transition-colors">
             取消
           </button>
           <button
@@ -316,11 +316,11 @@ export default function ProfilePage() {
 
   if (!user && !isViewingOther) {
     return (
-      <div className="min-h-screen bg-[#f8f8f8] flex items-center justify-center">
+      <div className="min-h-screen bg-page flex items-center justify-center">
         <div className="text-center">
-          <Icon name="lock" className="w-14 h-14 mx-auto mb-4 text-gray-300" />
-          <h2 className="text-xl font-bold text-gray-800 mb-2">请先登录</h2>
-          <p className="text-gray-400 text-sm mb-6">登录后查看个人主页</p>
+          <Icon name="lock" className="w-14 h-14 mx-auto mb-4 text-mute2" />
+          <h2 className="text-xl font-bold text-ink mb-2">请先登录</h2>
+          <p className="text-mute text-sm mb-6">登录后查看个人主页</p>
           <button onClick={() => setShowLogin(true)} className="bg-[#e05d6f] text-white font-bold text-sm px-8 py-3 rounded-full hover:bg-[#c94d5e] transition-colors">
             去登录
           </button>
@@ -359,21 +359,21 @@ export default function ProfilePage() {
   const postCount = isViewingOther ? (profileUser?.posts ?? profilePosts.length) : userPosts.length;
 
   return (
-    <div className="min-h-screen bg-[#f8f8f8] pb-20">
+    <div className="min-h-screen bg-page pb-20">
       {/* Back nav */}
-      <div className="sticky top-14 z-30 bg-white/80 backdrop-blur-md border-b border-gray-100">
+      <div className="sticky top-14 z-30 bg-surface/80 backdrop-blur-md border-b border-line">
         <div className="max-w-3xl mx-auto flex items-center h-14 px-4">
-          <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-gray-500 hover:text-gray-700 transition-colors">
+          <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-body2 hover:text-ink2 transition-colors">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
             </svg>
             <span className="text-sm font-medium">返回</span>
           </button>
-          <h1 className="flex-1 text-center font-bold text-gray-800 text-sm">个人主页</h1>
+          <h1 className="flex-1 text-center font-bold text-ink text-sm">个人主页</h1>
           {!isViewingOther && (
             <button
               onClick={() => setShowEditPanel(true)}
-              className="p-2 rounded-full hover:bg-gray-100 text-gray-500 transition-colors"
+              className="p-2 rounded-full hover:bg-soft2 text-body2 transition-colors"
               title="编辑资料"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -387,11 +387,11 @@ export default function ProfilePage() {
 
       {/* Profile header */}
       <div className="max-w-3xl mx-auto px-4 mt-6">
-        <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="bg-surface rounded-3xl shadow-sm border border-line overflow-hidden">
           {/* Cover */}
           <div className="h-32 bg-gradient-to-r from-[#e05d6f] via-[#f0a0a8] to-[#e8b4c0] relative">
             <div className="absolute -bottom-10 left-6">
-              <img src={profileUser?.avatar} alt="" className="w-20 h-20 rounded-full border-4 border-white shadow-md bg-white object-cover" />
+              <img src={profileUser?.avatar} alt="" className="w-20 h-20 rounded-full border-4 border-white shadow-md bg-surface object-cover" />
             </div>
           </div>
 
@@ -399,8 +399,8 @@ export default function ProfilePage() {
           <div className="pt-14 px-6 pb-6">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <h2 className="font-bold text-gray-800 text-lg truncate">{profileUser?.nickname ?? "加载中..."}</h2>
-                <p className="text-xs text-gray-400 mt-0.5 truncate">@{profileUser?.username}</p>
+                <h2 className="font-bold text-ink text-lg truncate">{profileUser?.nickname ?? "加载中..."}</h2>
+                <p className="text-xs text-mute mt-0.5 truncate">@{profileUser?.username}</p>
               </div>
               {isViewingOther ? (
                 <button
@@ -408,7 +408,7 @@ export default function ProfilePage() {
                   className={cn(
                     "px-5 py-2 rounded-full text-xs font-bold transition-colors shadow-sm shrink-0",
                     targetUserId && isFollowing(parseInt(targetUserId, 10))
-                      ? "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                      ? "bg-soft2 text-body hover:bg-soft2"
                       : "bg-[#e05d6f] text-white hover:bg-[#c94d5e]"
                   )}
                 >
@@ -429,7 +429,7 @@ export default function ProfilePage() {
 
             {/* Bio */}
             {isViewingOther ? (
-              <p className="text-sm text-gray-600 mt-3">{profileUser?.bio || "这个人很懒，什么都没写~"}</p>
+              <p className="text-sm text-body mt-3">{profileUser?.bio || "这个人很懒，什么都没写~"}</p>
             ) : editingBio ? (
               <div className="mt-3 flex gap-2">
                 <input
@@ -437,16 +437,16 @@ export default function ProfilePage() {
                   value={bio}
                   onChange={e => setBio(e.target.value)}
                   maxLength={100}
-                  className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#e05d6f]/30 text-gray-700"
+                  className="flex-1 bg-soft border border-line2 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#e05d6f]/30 text-ink2"
                   autoFocus
                 />
                 <button onClick={handleSaveBio} className="px-3 py-2 bg-[#e05d6f] text-white text-xs font-bold rounded-xl">保存</button>
-                <button onClick={() => { setBio(user?.bio ?? ""); setEditingBio(false); }} className="px-3 py-2 bg-gray-100 text-gray-600 text-xs rounded-xl">取消</button>
+                <button onClick={() => { setBio(user?.bio ?? ""); setEditingBio(false); }} className="px-3 py-2 bg-soft2 text-body text-xs rounded-xl">取消</button>
               </div>
             ) : (
-              <p onClick={() => setEditingBio(true)} className="text-sm text-gray-600 mt-3 cursor-pointer hover:bg-gray-50 rounded-lg px-2 py-1 -mx-2 transition-colors">
+              <p onClick={() => setEditingBio(true)} className="text-sm text-body mt-3 cursor-pointer hover:bg-soft rounded-lg px-2 py-1 -mx-2 transition-colors">
                 {bio || "点击编辑简介..."}
-                <svg className="w-3 h-3 inline ml-1 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg className="w-3 h-3 inline ml-1 text-mute" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                 </svg>
               </p>
@@ -455,46 +455,46 @@ export default function ProfilePage() {
             {/* Stats */}
             <div className="flex items-center gap-6 mt-4">
               <div className="text-center">
-                <p className="font-bold text-gray-800">{postCount}</p>
-                <p className="text-xs text-gray-400">发布</p>
+                <p className="font-bold text-ink">{postCount}</p>
+                <p className="text-xs text-mute">发布</p>
               </div>
               <button
                 onClick={() => setFollowModal("followers")}
                 className="text-center hover:opacity-70 transition-opacity"
                 aria-label={`查看粉丝（${profileUser?.followers ?? 0}）`}
               >
-                <p className="font-bold text-gray-800">{profileUser?.followers ?? 0}</p>
-                <p className="text-xs text-gray-400">粉丝</p>
+                <p className="font-bold text-ink">{profileUser?.followers ?? 0}</p>
+                <p className="text-xs text-mute">粉丝</p>
               </button>
               <button
                 onClick={() => setFollowModal("following")}
                 className="text-center hover:opacity-70 transition-opacity"
                 aria-label={`查看关注（${profileUser?.following ?? 0}）`}
               >
-                <p className="font-bold text-gray-800">{profileUser?.following ?? 0}</p>
-                <p className="text-xs text-gray-400">关注</p>
+                <p className="font-bold text-ink">{profileUser?.following ?? 0}</p>
+                <p className="text-xs text-mute">关注</p>
               </button>
               {!isViewingOther && (
                 <div className="text-center">
-                  <p className="font-bold text-gray-800">{collectTotal}</p>
-                  <p className="text-xs text-gray-400">收集</p>
+                  <p className="font-bold text-ink">{collectTotal}</p>
+                  <p className="text-xs text-mute">收集</p>
                 </div>
               )}
             </div>
 
             {/* Tabs */}
-            <div className="flex border-b border-gray-100 mt-5 -mx-6 px-6">
+            <div className="flex border-b border-line mt-5 -mx-6 px-6">
               {tabs.map(tab => (
                 <button
                   key={tab.key}
                   onClick={() => setActiveTab(tab.key)}
                   className={cn(
                     "flex-1 text-center py-3 text-sm font-medium transition-all relative",
-                    activeTab === tab.key ? "text-[#e05d6f]" : "text-gray-400 hover:text-gray-600",
+                    activeTab === tab.key ? "text-[#e05d6f]" : "text-mute hover:text-body",
                   )}
                 >
                   {tab.label}
-                  <span className="ml-1 text-xs bg-gray-100 px-1.5 py-0.5 rounded-full">{tab.count}</span>
+                  <span className="ml-1 text-xs bg-soft2 px-1.5 py-0.5 rounded-full">{tab.count}</span>
                   {activeTab === tab.key && (
                     <div className="absolute bottom-0 left-1/4 right-1/4 h-0.5 bg-[#e05d6f] rounded-full" />
                   )}
@@ -518,11 +518,11 @@ export default function ProfilePage() {
               </div>
             )}
             {albumsLoading ? (
-              <div className="py-16 text-center text-sm text-gray-400">加载中...</div>
+              <div className="py-16 text-center text-sm text-mute">加载中...</div>
             ) : albums.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-20 gap-3">
-                <Icon name="folder" className="w-12 h-12 text-gray-300" />
-                <p className="text-gray-400 text-sm">
+                <Icon name="folder" className="w-12 h-12 text-mute2" />
+                <p className="text-mute text-sm">
                   {isViewingOther ? "TA 还没有创建专辑" : "还没有专辑，创建一个来收藏喜欢的图吧"}
                 </p>
                 {!isViewingOther && (
@@ -537,13 +537,13 @@ export default function ProfilePage() {
                   <button
                     key={album.id}
                     onClick={() => navigate(`/album/${album.id}`)}
-                    className="group text-left bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-lg transition-all hover:-translate-y-0.5"
+                    className="group text-left bg-surface rounded-xl overflow-hidden shadow-sm hover:shadow-lg transition-all hover:-translate-y-0.5"
                   >
-                    <div className="relative aspect-[4/3] bg-gray-100 overflow-hidden">
+                    <div className="relative aspect-[4/3] bg-soft2 overflow-hidden">
                       {album.cover ? (
                         <img src={album.cover} alt="" loading="lazy" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                       ) : (
-                        <div className="w-full h-full flex items-center justify-center text-gray-300">
+                        <div className="w-full h-full flex items-center justify-center text-mute2">
                           <Icon name="folder" className="w-8 h-8" />
                         </div>
                       )}
@@ -552,8 +552,8 @@ export default function ProfilePage() {
                       )}
                     </div>
                     <div className="p-3">
-                      <p className="text-sm font-medium text-gray-800 truncate">{album.title}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">{album.post_count} 张图片</p>
+                      <p className="text-sm font-medium text-ink truncate">{album.title}</p>
+                      <p className="text-xs text-mute mt-0.5">{album.post_count} 张图片</p>
                     </div>
                   </button>
                 ))}
@@ -571,10 +571,10 @@ export default function ProfilePage() {
               <div className="text-5xl">
               <Icon
                 name={activeTab === "collection" ? "bookmark" : activeTab === "likes" ? "heart" : "edit"}
-                className="w-12 h-12 text-gray-300"
+                className="w-12 h-12 text-mute2"
               />
             </div>
-              <p className="text-gray-400 text-sm">
+              <p className="text-mute text-sm">
                 {activeTab === "collection"
                   ? "还没有收集内容哦，去首页逛逛吧～"
                   : activeTab === "likes"
@@ -602,7 +602,7 @@ export default function ProfilePage() {
               <button
                 onClick={loadMoreList}
                 disabled={loadingMoreList}
-                className="px-6 py-2 rounded-full bg-white border border-gray-200 text-sm text-gray-600 hover:border-[#e05d6f] hover:text-[#e05d6f] disabled:opacity-60 transition-colors"
+                className="px-6 py-2 rounded-full bg-surface border border-line2 text-sm text-body hover:border-[#e05d6f] hover:text-[#e05d6f] disabled:opacity-60 transition-colors"
               >
                 {loadingMoreList ? "加载中..." : "加载更多"}
               </button>
@@ -612,7 +612,7 @@ export default function ProfilePage() {
         {activeTab !== "albums" && currentCards.length > 0 &&
           !((activeTab === "collection" || activeTab === "likes") &&
             currentCards.length < (activeTab === "collection" ? collectTotal : likesTotal)) && (
-            <p className="text-center text-gray-300 text-sm py-8 flex items-center justify-center gap-1.5">
+            <p className="text-center text-mute2 text-sm py-8 flex items-center justify-center gap-1.5">
               — 已经到底啦 <Icon name="flower" className="w-4 h-4 inline" /> —
             </p>
           )}

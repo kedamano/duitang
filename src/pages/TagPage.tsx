@@ -76,33 +76,33 @@ export default function TagPage() {
         <div className="flex items-center gap-2 mb-1">
           <button
             onClick={() => navigate("/")}
-            className="text-sm text-gray-400 hover:text-[#e05d6f] transition-colors flex items-center gap-1"
+            className="text-sm text-mute hover:text-[#e05d6f] transition-colors flex items-center gap-1"
           >
             <Icon name="arrowLeft" className="w-4 h-4" /> 返回首页
           </button>
         </div>
-        <h1 className="text-2xl font-extrabold text-gray-800">
+        <h1 className="text-2xl font-extrabold text-ink">
           <span className="text-[#e05d6f]">#</span>{tag}
         </h1>
-        <p className="text-sm text-gray-400 mt-1">
+        <p className="text-sm text-mute mt-1">
           {loading ? "正在加载..." : `共 ${total} 张相关图片`}
         </p>
       </div>
 
       {related.length > 0 && (
         <div className="mb-6 flex flex-wrap items-center gap-2" data-testid="related-tags">
-          <span className="text-xs text-gray-400">相关标签：</span>
+          <span className="text-xs text-mute">相关标签：</span>
           {related.map(t => (
             <button
               key={t.tag}
               onClick={() => navigate(`/tag/${encodeURIComponent(t.tag)}`)}
               className={cn(
                 "text-xs px-3 py-1 rounded-full transition-colors",
-                "bg-white text-gray-600 border border-gray-200 hover:border-[#e05d6f] hover:text-[#e05d6f]",
+                "bg-surface text-body border border-line2 hover:border-[#e05d6f] hover:text-[#e05d6f]",
               )}
             >
               #{t.tag}
-              <span className="text-gray-300 ml-1">{t.count}</span>
+              <span className="text-mute2 ml-1">{t.count}</span>
             </button>
           ))}
         </div>
@@ -112,8 +112,8 @@ export default function TagPage() {
         <MasonrySkeleton />
       ) : cards.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-24 gap-4">
-          <Icon name="tag" className="w-14 h-14 text-gray-300" />
-          <p className="text-gray-400 text-base">还没有打了「{tag}」标签的图片</p>
+          <Icon name="tag" className="w-14 h-14 text-mute2" />
+          <p className="text-mute text-base">还没有打了「{tag}」标签的图片</p>
           <button
             onClick={() => navigate("/")}
             className="bg-[#e05d6f] text-white text-sm font-bold px-6 py-2.5 rounded-full hover:bg-[#c94d5e] transition-colors flex items-center gap-1.5"
@@ -129,14 +129,14 @@ export default function TagPage() {
               <button
                 onClick={loadMore}
                 disabled={loadingMore}
-                className="px-6 py-2.5 rounded-full bg-white border border-gray-200 text-sm text-gray-600 hover:border-[#e05d6f] hover:text-[#e05d6f] disabled:opacity-60 transition-colors"
+                className="px-6 py-2.5 rounded-full bg-surface border border-line2 text-sm text-body hover:border-[#e05d6f] hover:text-[#e05d6f] disabled:opacity-60 transition-colors"
               >
                 {loadingMore ? "加载中..." : "加载更多"}
               </button>
             </div>
           )}
           {!hasMore && (
-            <p className="text-center text-gray-300 text-sm pb-10 pt-4 flex items-center justify-center gap-1.5">
+            <p className="text-center text-mute2 text-sm pb-10 pt-4 flex items-center justify-center gap-1.5">
               — 已经到底啦 <Icon name="flower" className="w-4 h-4 inline" /> —
             </p>
           )}

@@ -100,8 +100,8 @@ export default function AlbumPage() {
   if (error !== "none") {
     return (
       <main className="max-w-screen-xl mx-auto px-4 py-24 text-center">
-        <Icon name={error === "private" ? "lock" : "folder"} className="w-14 h-14 mx-auto mb-4 text-gray-300" />
-        <p className="text-gray-500">{error === "private" ? "该专辑为私密，无法查看" : "专辑不存在或已被删除"}</p>
+        <Icon name={error === "private" ? "lock" : "folder"} className="w-14 h-14 mx-auto mb-4 text-mute2" />
+        <p className="text-body2">{error === "private" ? "该专辑为私密，无法查看" : "专辑不存在或已被删除"}</p>
         <button
           onClick={() => navigate("/")}
           className="mt-5 bg-[#e05d6f] text-white text-sm font-bold px-6 py-2.5 rounded-full hover:bg-[#c94d5e] transition-colors"
@@ -116,28 +116,28 @@ export default function AlbumPage() {
     <main className="max-w-screen-xl mx-auto px-4 md:px-6 py-6">
       <button
         onClick={() => navigate(-1)}
-        className="text-sm text-gray-400 hover:text-[#e05d6f] transition-colors flex items-center gap-1 mb-4"
+        className="text-sm text-mute hover:text-[#e05d6f] transition-colors flex items-center gap-1 mb-4"
       >
         <Icon name="arrowLeft" className="w-4 h-4" /> 返回
       </button>
 
-      <div className="bg-white rounded-2xl border border-gray-100 p-5 mb-6" data-testid="album-header">
+      <div className="bg-surface rounded-2xl border border-line p-5 mb-6" data-testid="album-header">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <h1 className="text-xl font-extrabold text-gray-800 flex items-center gap-2">
+            <h1 className="text-xl font-extrabold text-ink flex items-center gap-2">
               {album?.title || "加载中…"}
               {album && !album.is_public && (
-                <span className="text-[11px] font-medium text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">私密</span>
+                <span className="text-[11px] font-medium text-mute bg-soft2 px-2 py-0.5 rounded-full">私密</span>
               )}
             </h1>
-            {album?.description && <p className="text-sm text-gray-500 mt-1">{album.description}</p>}
-            <div className="flex items-center gap-3 mt-3 text-xs text-gray-400">
+            {album?.description && <p className="text-sm text-body2 mt-1">{album.description}</p>}
+            <div className="flex items-center gap-3 mt-3 text-xs text-mute">
               {owner && (
                 <button
                   onClick={() => navigate(`/profile?user=${owner.id}`)}
                   className="flex items-center gap-1.5 hover:text-[#e05d6f] transition-colors"
                 >
-                  <img src={owner.avatar} alt="" className="w-5 h-5 rounded-full bg-gray-100" />
+                  <img src={owner.avatar} alt="" className="w-5 h-5 rounded-full bg-soft2" />
                   {owner.nickname}
                 </button>
               )}
@@ -162,8 +162,8 @@ export default function AlbumPage() {
         <MasonrySkeleton />
       ) : cards.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 gap-3">
-          <Icon name="folder" className="w-12 h-12 text-gray-300" />
-          <p className="text-gray-400 text-sm">这个专辑还是空的</p>
+          <Icon name="folder" className="w-12 h-12 text-mute2" />
+          <p className="text-mute text-sm">这个专辑还是空的</p>
           <button onClick={() => navigate("/")} className="text-sm text-[#e05d6f] hover:underline">
             去首页找图 →
           </button>
@@ -176,7 +176,7 @@ export default function AlbumPage() {
               <button
                 onClick={loadMore}
                 disabled={loadingMore}
-                className="px-6 py-2.5 rounded-full bg-white border border-gray-200 text-sm text-gray-600 hover:border-[#e05d6f] hover:text-[#e05d6f] disabled:opacity-60 transition-colors"
+                className="px-6 py-2.5 rounded-full bg-surface border border-line2 text-sm text-body hover:border-[#e05d6f] hover:text-[#e05d6f] disabled:opacity-60 transition-colors"
               >
                 {loadingMore ? "加载中..." : "加载更多"}
               </button>
@@ -197,7 +197,7 @@ export default function AlbumPage() {
           <button
             onClick={() => removeFromAlbum(selected.id)}
             className={cn(
-              "px-4 py-2 rounded-full bg-white shadow-lg border border-gray-200",
+              "px-4 py-2 rounded-full bg-surface shadow-lg border border-line2",
               "text-sm text-red-500 hover:bg-red-50 transition-colors",
             )}
           >

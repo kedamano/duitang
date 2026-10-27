@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useTheme } from "../context/ThemeContext";
 import { cn } from "../utils/cn";
 import { navCategories, hotSearches, FOLLOW_NAV } from "../data/images";
 import { api } from "../api";
@@ -43,10 +44,10 @@ function SearchBar({
   return (
     <div className="relative flex-1 max-w-xl">
       <div className={cn(
-        "flex items-center gap-2 bg-gray-100 rounded-full px-4 py-2 transition-all duration-200",
-        focused && "ring-2 ring-[#e05d6f] bg-white shadow-md",
+        "flex items-center gap-2 bg-soft2 rounded-full px-4 py-2 transition-all duration-200",
+        focused && "ring-2 ring-[#e05d6f] bg-surface shadow-md",
       )}>
-        <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <svg className="w-4 h-4 text-mute shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
         </svg>
         <input
@@ -56,10 +57,10 @@ function SearchBar({
           onFocus={onFocus}
           onBlur={onBlur}
           placeholder="搜索你感兴趣的内容..."
-          className="flex-1 bg-transparent text-sm outline-none text-gray-700 placeholder-gray-400"
+          className="flex-1 bg-transparent text-sm outline-none text-ink2 placeholder:text-mute"
         />
         {value && (
-          <button onClick={() => onChange("")} className="text-gray-400 hover:text-gray-600">
+          <button onClick={() => onChange("")} className="text-mute hover:text-body">
             <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" />
             </svg>
@@ -67,28 +68,28 @@ function SearchBar({
         )}
       </div>
       {focused && value && users.length > 0 && (
-        <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-xl border border-gray-100 p-2 z-50 animate-fade-in">
-          <p className="text-xs text-gray-400 px-2 pt-1.5 pb-2 font-medium flex items-center gap-1">
+        <div className="absolute top-full left-0 right-0 mt-2 bg-surface rounded-2xl shadow-xl border border-line p-2 z-50 animate-fade-in">
+          <p className="text-xs text-mute px-2 pt-1.5 pb-2 font-medium flex items-center gap-1">
             <Icon name="user" className="w-3.5 h-3.5" /> 搜索用户
           </p>
           {users.map(u => (
             <button
               key={u.id}
               onMouseDown={() => goUser(u)}
-              className="w-full flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-gray-50 transition-colors text-left"
+              className="w-full flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-soft transition-colors text-left"
             >
-              <img src={u.avatar} alt="" className="w-8 h-8 rounded-full bg-gray-100" />
+              <img src={u.avatar} alt="" className="w-8 h-8 rounded-full bg-soft2" />
               <div className="min-w-0">
-                <p className="text-sm font-medium text-gray-800 truncate">{u.nickname}</p>
-                <p className="text-xs text-gray-400 truncate">@{u.username}</p>
+                <p className="text-sm font-medium text-ink truncate">{u.nickname}</p>
+                <p className="text-xs text-mute truncate">@{u.username}</p>
               </div>
             </button>
           ))}
         </div>
       )}
       {focused && !value && (
-        <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-xl border border-gray-100 p-4 z-50 animate-fade-in">
-          <p className="text-xs text-gray-400 mb-2 font-medium flex items-center gap-1">
+        <div className="absolute top-full left-0 right-0 mt-2 bg-surface rounded-2xl shadow-xl border border-line p-4 z-50 animate-fade-in">
+          <p className="text-xs text-mute mb-2 font-medium flex items-center gap-1">
             <Icon name="fire" className="w-3.5 h-3.5 text-[#e05d6f]" /> 热门搜索
           </p>
           <div className="flex flex-wrap gap-2">
@@ -96,7 +97,7 @@ function SearchBar({
               <button
                 key={s}
                 onMouseDown={() => onChange(s)}
-                className="text-xs bg-gray-50 hover:bg-[#fde8eb] text-gray-600 hover:text-[#e05d6f] px-3 py-1.5 rounded-full transition-colors border border-gray-100"
+                className="text-xs bg-soft hover:bg-brand-soft text-body hover:text-[#e05d6f] px-3 py-1.5 rounded-full transition-colors border border-line"
               >
                 {s}
               </button>
@@ -115,6 +116,7 @@ export default function Header({
   activeNav: string; onNavChange: (v: string) => void;
 }) {
   const { user, logout, setShowLogin, setShowRegister } = useAuth();
+  const { theme, toggle: toggleTheme } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
   const [searchFocused, setSearchFocused] = useState(false);
@@ -164,11 +166,11 @@ export default function Header({
 
   return (
     <header className={cn(
-      "sticky top-0 z-40 bg-white transition-shadow duration-200",
+      "sticky top-0 z-40 bg-surface transition-shadow duration-200",
       scrolled && "shadow-md",
     )}>
       {/* Top row */}
-      <div className="flex items-center gap-3 px-4 md:px-6 h-14 border-b border-gray-100">
+      <div className="flex items-center gap-3 px-4 md:px-6 h-14 border-b border-line">
         {/* Logo */}
         <Link to="/" className="flex items-center gap-1.5 shrink-0">
           <div className="w-8 h-8 bg-gradient-to-br from-[#e05d6f] to-[#f0a0a8] rounded-lg flex items-center justify-center shadow-sm">
@@ -190,6 +192,16 @@ export default function Header({
 
         {/* Actions */}
         <div className="flex items-center gap-2 shrink-0 ml-1">
+          {/* 主题切换（对所有人可见） */}
+          <button
+            onClick={toggleTheme}
+            aria-label={theme === "dark" ? "切换到浅色模式" : "切换到深色模式"}
+            data-testid="theme-toggle"
+            title={theme === "dark" ? "浅色模式" : "深色模式"}
+            className="flex items-center justify-center w-9 h-9 rounded-full text-body2 hover:text-[#e05d6f] hover:bg-soft transition-colors"
+          >
+            <Icon name={theme === "dark" ? "sun" : "moon"} className="w-5 h-5" />
+          </button>
           {user ? (
             <>
               <NotificationBell />
@@ -208,62 +220,62 @@ export default function Header({
                 <button
                   onClick={() => setProfileDropdown(!profileDropdown)}
                   data-testid="profile-menu-trigger"
-                  className="flex items-center gap-2 px-2 py-1 rounded-full hover:bg-gray-50 transition-colors"
+                  className="flex items-center gap-2 px-2 py-1 rounded-full hover:bg-soft transition-colors"
                 >
-                  <img src={user.avatar} alt="" className="w-8 h-8 rounded-full bg-gray-200 ring-2 ring-[#f0a0a8]" />
-                  <span className="hidden md:block text-sm font-medium text-gray-700 max-w-[60px] truncate">{user.nickname}</span>
-                  <svg className={cn("w-3.5 h-3.5 text-gray-400 transition-transform", profileDropdown && "rotate-180")} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <img src={user.avatar} alt="" className="w-8 h-8 rounded-full bg-soft2 ring-2 ring-[#f0a0a8]" />
+                  <span className="hidden md:block text-sm font-medium text-ink2 max-w-[60px] truncate">{user.nickname}</span>
+                  <svg className={cn("w-3.5 h-3.5 text-mute transition-transform", profileDropdown && "rotate-180")} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                   </svg>
                 </button>
                 {profileDropdown && (
-                  <div className="absolute top-full right-0 mt-2 w-48 bg-white rounded-2xl shadow-xl border border-gray-100 py-2 z-50 animate-fade-in">
+                  <div className="absolute top-full right-0 mt-2 w-48 bg-surface rounded-2xl shadow-xl border border-line py-2 z-50 animate-fade-in">
                     <button
                       onClick={() => { navigate("/profile"); setProfileDropdown(false); }}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-ink2 hover:bg-soft transition-colors"
                     >
-                      <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <svg className="w-4 h-4 text-mute" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                       </svg>
                       个人主页
                     </button>
                     <button
                       onClick={() => { navigate("/profile?tab=collection"); setProfileDropdown(false); }}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-ink2 hover:bg-soft transition-colors"
                     >
-                      <svg className="w-4 h-4 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                      <svg className="w-4 h-4 text-mute" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
                       </svg>
                       我的收集
                     </button>
                     <button
                       onClick={() => { navigate("/discover"); setProfileDropdown(false); }}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-ink2 hover:bg-soft transition-colors"
                     >
-                      <Icon name="fire" className="w-4 h-4 text-gray-400" />
+                      <Icon name="fire" className="w-4 h-4 text-mute" />
                       发现
                     </button>
                     {user.is_admin && (
                       <button
                         onClick={() => { navigate("/admin/reports"); setProfileDropdown(false); }}
-                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-ink2 hover:bg-soft transition-colors"
                       >
-                        <Icon name="shield" className="w-4 h-4 text-gray-400" />
+                        <Icon name="shield" className="w-4 h-4 text-mute" />
                         审核队列
                       </button>
                     )}
                     <button
                       onClick={() => { setShowNotifyPrefs(true); setProfileDropdown(false); }}
                       data-testid="open-notify-prefs"
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-ink2 hover:bg-soft transition-colors"
                     >
-                      <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <svg className="w-4 h-4 text-mute" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                         <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                       </svg>
                       通知设置
                     </button>
-                    <div className="border-t border-gray-100 my-1" />
+                    <div className="border-t border-line my-1" />
                     <button
                       onClick={() => { logout(); setProfileDropdown(false); }}
                       className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition-colors"
@@ -290,13 +302,13 @@ export default function Header({
               </button>
               <button
                 onClick={() => setShowLogin(true)}
-                className="hidden md:flex items-center gap-1 text-gray-500 hover:text-[#e05d6f] text-sm px-3 py-2 rounded-full hover:bg-gray-50 transition-colors"
+                className="hidden md:flex items-center gap-1 text-body2 hover:text-[#e05d6f] text-sm px-3 py-2 rounded-full hover:bg-soft transition-colors"
               >
                 登录
               </button>
               <button
                 onClick={() => setShowRegister(true)}
-                className="hidden md:flex items-center gap-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium px-3 py-2 rounded-full transition-colors"
+                className="hidden md:flex items-center gap-1 bg-soft2 hover:bg-soft2 text-ink2 text-sm font-medium px-3 py-2 rounded-full transition-colors"
               >
                 注册
               </button>
@@ -306,9 +318,9 @@ export default function Header({
           {/* Mobile menu */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="md:hidden p-2 rounded-full hover:bg-gray-100"
+            className="md:hidden p-2 rounded-full hover:bg-soft2"
           >
-            <svg className="w-5 h-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <svg className="w-5 h-5 text-body" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
@@ -322,18 +334,18 @@ export default function Header({
 
       {/* Mobile menu */}
       {mobileMenuOpen && (
-        <div className="md:hidden absolute top-full left-0 right-0 bg-white border-b border-gray-200 shadow-lg px-4 py-4 z-50 flex gap-3">
+        <div className="md:hidden absolute top-full left-0 right-0 bg-surface border-b border-line2 shadow-lg px-4 py-4 z-50 flex gap-3">
           {user ? (
             <>
               <button onClick={() => { navigate("/publish"); setMobileMenuOpen(false); }} className="flex-1 bg-[#e05d6f] text-white text-sm font-medium py-2 rounded-full">发布</button>
-              <button onClick={() => { navigate("/profile"); setMobileMenuOpen(false); }} className="flex-1 border border-gray-200 text-gray-700 text-sm py-2 rounded-full">个人主页</button>
-              <button onClick={() => { logout(); setMobileMenuOpen(false); }} className="flex-1 bg-gray-100 text-gray-700 text-sm py-2 rounded-full">退出</button>
+              <button onClick={() => { navigate("/profile"); setMobileMenuOpen(false); }} className="flex-1 border border-line2 text-ink2 text-sm py-2 rounded-full">个人主页</button>
+              <button onClick={() => { logout(); setMobileMenuOpen(false); }} className="flex-1 bg-soft2 text-ink2 text-sm py-2 rounded-full">退出</button>
             </>
           ) : (
             <>
               <button onClick={() => { handlePublish(); setMobileMenuOpen(false); }} className="flex-1 bg-[#e05d6f] text-white text-sm font-medium py-2 rounded-full">发布</button>
-              <button onClick={() => { setShowLogin(true); setMobileMenuOpen(false); }} className="flex-1 border border-gray-200 text-gray-700 text-sm py-2 rounded-full">登录</button>
-              <button onClick={() => { setShowRegister(true); setMobileMenuOpen(false); }} className="flex-1 bg-gray-100 text-gray-700 text-sm py-2 rounded-full">注册</button>
+              <button onClick={() => { setShowLogin(true); setMobileMenuOpen(false); }} className="flex-1 border border-line2 text-ink2 text-sm py-2 rounded-full">登录</button>
+              <button onClick={() => { setShowRegister(true); setMobileMenuOpen(false); }} className="flex-1 bg-soft2 text-ink2 text-sm py-2 rounded-full">注册</button>
             </>
           )}
         </div>
@@ -406,7 +418,7 @@ function CategoryNav({ activeNav, onNavChange }: { activeNav: string; onNavChang
   };
 
   return (
-    <div className="relative border-b border-gray-100">
+    <div className="relative border-b border-line">
       <div ref={ref} className="flex items-center gap-0 overflow-x-auto scrollbar-hide px-2">
         {navCategories.map(cat => (
           <button
@@ -418,7 +430,7 @@ function CategoryNav({ activeNav, onNavChange }: { activeNav: string; onNavChang
               "shrink-0 px-4 py-3 text-sm font-medium whitespace-nowrap transition-all duration-150 border-b-2",
               activeNav === cat
                 ? "border-[#e05d6f] text-[#e05d6f]"
-                : "border-transparent text-gray-500 hover:text-[#e05d6f] hover:border-[#f0a0a8]",
+                : "border-transparent text-body2 hover:text-[#e05d6f] hover:border-[#f0a0a8]",
             )}
           >
             {cat}
@@ -428,11 +440,11 @@ function CategoryNav({ activeNav, onNavChange }: { activeNav: string; onNavChang
 
       {/* 边缘渐隐遮罩，提示两侧还有内容 */}
       <div className={cn(
-        "pointer-events-none absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-white to-transparent transition-opacity duration-200",
+        "pointer-events-none absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-surface to-transparent transition-opacity duration-200",
         canLeft ? "opacity-100" : "opacity-0",
       )} />
       <div className={cn(
-        "pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-white to-transparent transition-opacity duration-200",
+        "pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-surface to-transparent transition-opacity duration-200",
         canRight ? "opacity-100" : "opacity-0",
       )} />
 
@@ -443,7 +455,7 @@ function CategoryNav({ activeNav, onNavChange }: { activeNav: string; onNavChang
         data-nav-arrow="left"
         onClick={() => scrollBy(-1)}
         className={cn(
-          "absolute left-1 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-white shadow-md border border-gray-100 flex items-center justify-center text-gray-500 hover:text-[#e05d6f] transition-all duration-200",
+          "absolute left-1 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-surface shadow-md border border-line flex items-center justify-center text-body2 hover:text-[#e05d6f] transition-all duration-200",
           canLeft ? "opacity-100" : "opacity-0 pointer-events-none",
         )}
       >
@@ -457,7 +469,7 @@ function CategoryNav({ activeNav, onNavChange }: { activeNav: string; onNavChang
         data-nav-arrow="right"
         onClick={() => scrollBy(1)}
         className={cn(
-          "absolute right-1 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-white shadow-md border border-gray-100 flex items-center justify-center text-gray-500 hover:text-[#e05d6f] transition-all duration-200",
+          "absolute right-1 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-surface shadow-md border border-line flex items-center justify-center text-body2 hover:text-[#e05d6f] transition-all duration-200",
           canRight ? "opacity-100" : "opacity-0 pointer-events-none",
         )}
       >

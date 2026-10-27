@@ -115,20 +115,20 @@ export default function AiImageGenModal({ open, onClose, onConfirm }: Props) {
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
       onClick={e => { if (e.target === e.currentTarget) handleClose(); }}
     >
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-modal-in">
+      <div className="bg-surface rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-modal-in">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-gray-100">
+        <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-line">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-pink-500 flex items-center justify-center">
               <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
               </svg>
             </div>
-            <h2 className="text-lg font-bold text-gray-800">AI 生成图片</h2>
+            <h2 className="text-lg font-bold text-ink">AI 生成图片</h2>
             <span className="text-xs bg-violet-100 text-violet-600 px-2 py-0.5 rounded-full font-medium">Beta</span>
           </div>
-          <button onClick={handleClose} className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center transition-colors">
-            <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <button onClick={handleClose} className="w-8 h-8 rounded-full hover:bg-soft2 flex items-center justify-center transition-colors">
+            <svg className="w-4 h-4 text-mute" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
@@ -137,7 +137,7 @@ export default function AiImageGenModal({ open, onClose, onConfirm }: Props) {
         <div className="px-6 py-5 space-y-5">
           {/* Prompt input */}
           <div>
-            <label className="text-sm font-semibold text-gray-700 mb-2 block">描述你想要的图片</label>
+            <label className="text-sm font-semibold text-ink2 mb-2 block">描述你想要的图片</label>
             <div className="relative">
               <textarea
                 value={prompt}
@@ -146,16 +146,16 @@ export default function AiImageGenModal({ open, onClose, onConfirm }: Props) {
                 placeholder="例如：一只可爱的橘猫在樱花树下打盹，梦幻光影..."
                 rows={3}
                 maxLength={300}
-                className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-violet-400/30 focus:border-violet-400 transition-all text-gray-700 placeholder-gray-400 resize-none"
+                className="w-full bg-soft border border-line2 rounded-2xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-violet-400/30 focus:border-violet-400 transition-all text-ink2 placeholder:text-mute resize-none"
               />
-              <span className="absolute bottom-3 right-3 text-xs text-gray-300">{prompt.length}/300</span>
+              <span className="absolute bottom-3 right-3 text-xs text-mute2">{prompt.length}/300</span>
             </div>
-            <p className="text-xs text-gray-400 mt-1">支持中文描述，AI 会自动处理。按 Enter 快速生成。</p>
+            <p className="text-xs text-mute mt-1">支持中文描述，AI 会自动处理。按 Enter 快速生成。</p>
           </div>
 
           {/* Style selection */}
           <div>
-            <label className="text-sm font-semibold text-gray-700 mb-2 block">图片风格</label>
+            <label className="text-sm font-semibold text-ink2 mb-2 block">图片风格</label>
             <div className="flex flex-wrap gap-2">
               {styleOptions.map(s => (
                 <button
@@ -165,7 +165,7 @@ export default function AiImageGenModal({ open, onClose, onConfirm }: Props) {
                     "px-3 py-1.5 rounded-full text-xs font-medium transition-all",
                     style.label === s.label
                       ? "bg-gradient-to-r from-violet-500 to-pink-500 text-white shadow-sm"
-                      : "bg-gray-100 text-gray-600 hover:bg-gray-200",
+                      : "bg-soft2 text-body hover:bg-soft2",
                   )}
                 >
                   {s.label}
@@ -176,7 +176,7 @@ export default function AiImageGenModal({ open, onClose, onConfirm }: Props) {
 
           {/* Size selection */}
           <div>
-            <label className="text-sm font-semibold text-gray-700 mb-2 block">图片尺寸</label>
+            <label className="text-sm font-semibold text-ink2 mb-2 block">图片尺寸</label>
             <div className="flex gap-2">
               {sizeOptions.map(s => (
                 <button
@@ -186,11 +186,11 @@ export default function AiImageGenModal({ open, onClose, onConfirm }: Props) {
                     "flex-1 py-2 rounded-xl text-xs font-medium border transition-all",
                     size.label === s.label
                       ? "border-violet-400 bg-violet-50 text-violet-600"
-                      : "border-gray-200 bg-white text-gray-500 hover:border-gray-300",
+                      : "border-line2 bg-surface text-body2 hover:border-line3",
                   )}
                 >
                   {s.label}
-                  <span className="block text-[10px] text-gray-400 mt-0.5">{s.w}×{s.h}</span>
+                  <span className="block text-[10px] text-mute mt-0.5">{s.w}×{s.h}</span>
                 </button>
               ))}
             </div>
@@ -204,7 +204,7 @@ export default function AiImageGenModal({ open, onClose, onConfirm }: Props) {
               "w-full py-3 rounded-2xl font-bold text-sm transition-all",
               prompt.trim() && !loading
                 ? "bg-gradient-to-r from-violet-500 to-pink-500 text-white shadow-md shadow-violet-200 hover:shadow-lg hover:scale-[1.01] active:scale-[0.99]"
-                : "bg-gray-100 text-gray-400 cursor-not-allowed",
+                : "bg-soft2 text-mute cursor-not-allowed",
             )}
           >
             {loading ? (
@@ -228,7 +228,7 @@ export default function AiImageGenModal({ open, onClose, onConfirm }: Props) {
           {previewUrl && (
             <div className="mt-2">
               <div className="flex items-center justify-between mb-2">
-                <label className="text-sm font-semibold text-gray-700">生成结果</label>
+                <label className="text-sm font-semibold text-ink2">生成结果</label>
                 {!loading && (
                   <button
                     onClick={handleRegenerate}
@@ -243,18 +243,18 @@ export default function AiImageGenModal({ open, onClose, onConfirm }: Props) {
               </div>
 
               <div className={cn(
-                "relative rounded-2xl overflow-hidden bg-gray-100 flex items-center justify-center",
+                "relative rounded-2xl overflow-hidden bg-soft2 flex items-center justify-center",
                 size.w > size.h ? "aspect-video" : size.w === size.h ? "aspect-square" : "aspect-[2/3]",
               )}>
                 {loading && (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-gray-50 z-10">
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-soft z-10">
                     <div className="w-12 h-12 rounded-full bg-gradient-to-br from-violet-500 to-pink-500 flex items-center justify-center animate-pulse">
                       <svg className="w-6 h-6 text-white animate-spin" viewBox="0 0 24 24" fill="none">
                         <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="31" strokeDashoffset="10" />
                       </svg>
                     </div>
-                    <p className="text-sm text-gray-400">AI 正在创作中，请稍候...</p>
-                    <p className="text-xs text-gray-300">通常需要 5-15 秒</p>
+                    <p className="text-sm text-mute">AI 正在创作中，请稍候...</p>
+                    <p className="text-xs text-mute2">通常需要 5-15 秒</p>
                   </div>
                 )}
                 <img
@@ -278,7 +278,7 @@ export default function AiImageGenModal({ open, onClose, onConfirm }: Props) {
                 <div className="flex gap-3 mt-4">
                   <button
                     onClick={handleRegenerate}
-                    className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600 font-medium hover:bg-gray-50 transition-colors"
+                    className="flex-1 py-2.5 rounded-xl border border-line2 text-sm text-body font-medium hover:bg-soft transition-colors"
                   >
                     换一张
                   </button>

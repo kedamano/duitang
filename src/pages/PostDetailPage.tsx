@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { api } from "../api";
+import { takePrefetchedPost } from "../utils/prefetch";
 import { normalizePost } from "../utils/normalizePost";
 import { DetailImage, DetailContent, ShareButton } from "../components/PostDetail";
 import { Icon } from "../components/Icons";
@@ -17,6 +18,13 @@ export default function PostDetailPage() {
     const postId = parseInt(id ?? "", 10);
     if (!postId) { setStatus("missing"); return; }
     let cancelled = false;
+    // hover 预取命中时跳过网络请求，详情页秒开
+    const prefetched = takePrefetchedPost(postId);
+    if (prefetched) {
+      setCard(normalizePost(prefetched));
+      setStatus("ready");
+      return;
+    }
     setStatus("loading");
     api.getPost(postId)
       .then(data => {
@@ -33,12 +41,12 @@ export default function PostDetailPage() {
   if (status === "loading") {
     return (
       <div className="max-w-3xl mx-auto px-4 py-6">
-        <div className="bg-white rounded-3xl overflow-hidden shadow-sm flex flex-col md:flex-row min-h-[60vh]">
-          <div className="md:w-1/2 bg-gray-200 animate-pulse min-h-[30vh]" />
+        <div className="bg-surface rounded-3xl overflow-hidden shadow-sm flex flex-col md:flex-row min-h-[60vh]">
+          <div className="md:w-1/2 bg-soft2 animate-pulse min-h-[30vh]" />
           <div className="md:w-1/2 p-6 space-y-4">
-            <div className="h-10 bg-gray-100 rounded-full animate-pulse" />
-            <div className="h-5 bg-gray-100 rounded animate-pulse" />
-            <div className="h-5 w-2/3 bg-gray-100 rounded animate-pulse" />
+            <div className="h-10 bg-soft2 rounded-full animate-pulse" />
+            <div className="h-5 bg-soft2 rounded animate-pulse" />
+            <div className="h-5 w-2/3 bg-soft2 rounded animate-pulse" />
           </div>
         </div>
       </div>
@@ -49,8 +57,8 @@ export default function PostDetailPage() {
   if (status !== "ready" || !card) {
     return (
       <div className="min-h-[70vh] flex flex-col items-center justify-center gap-4">
-        <Icon name={status === "error" ? "warning" : "face"} className="w-14 h-14 text-gray-300" />
-        <p className="text-gray-500 font-medium">
+        <Icon name={status === "error" ? "warning" : "face"} className="w-14 h-14 text-mute2" />
+        <p className="text-body2 font-medium">
           {status === "error" ? "加载失败，请检查后端服务是否启动" : "这条内容不存在或已被删除"}
         </p>
         <button
@@ -68,7 +76,7 @@ export default function PostDetailPage() {
       <div className="flex items-center mb-3">
         <button
           onClick={() => navigate(-1)}
-          className="flex items-center gap-1 text-gray-500 hover:text-gray-700 transition-colors"
+          className="flex items-center gap-1 text-body2 hover:text-ink2 transition-colors"
         >
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
@@ -77,7 +85,7 @@ export default function PostDetailPage() {
         </button>
       </div>
 
-      <div className="bg-white rounded-3xl overflow-hidden shadow-sm border border-gray-100 flex flex-col md:flex-row md:min-h-[70vh]">
+      <div className="bg-surface rounded-3xl overflow-hidden shadow-sm border border-line flex flex-col md:flex-row md:min-h-[70vh]">
         <DetailImage card={card} overlay={<ShareButton card={card} />} />
         <DetailContent
           card={card}

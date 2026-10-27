@@ -23,9 +23,9 @@ export default defineConfig({
       provider: "v8",
       include: ["src/**/*.{ts,tsx}"],
       exclude: ["src/**/*.test.{ts,tsx}", "src/test/**", "src/main.tsx", "src/types/**"],
-      // 防回归底线：按当前实测（约 40/37/34/43）留 2 个点的余量，
+      // 防回归底线：按当前实测（约 41.5/38/35/44）留 2 个点的余量，
       // 新增测试后逐步上调；统计范围为全部源码（含未被单测引用的组件）
-      thresholds: { statements: 38, branches: 35, functions: 32, lines: 40 },
+      thresholds: { statements: 39, branches: 36, functions: 33, lines: 42 },
       reporter: ["text", "html"],
     },
   },

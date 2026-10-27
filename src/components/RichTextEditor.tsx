@@ -24,7 +24,7 @@ function ToolButton({
       title={label}
       className={cn(
         "w-8 h-8 flex items-center justify-center rounded-lg text-sm transition-colors",
-        active ? "bg-[#fde8eb] text-[#e05d6f]" : "text-gray-500 hover:bg-gray-100",
+        active ? "bg-brand-soft text-[#e05d6f]" : "text-body2 hover:bg-soft2",
         disabled && "opacity-40 cursor-not-allowed",
       )}
     >
@@ -63,7 +63,7 @@ export default function RichTextEditor({
     onUpdate: ({ editor: e }) => onChange(e.getHTML()),
     editorProps: {
       attributes: {
-        class: "rich-content focus:outline-none px-3 py-2 text-sm text-gray-700",
+        class: "rich-content focus:outline-none px-3 py-2 text-sm text-ink2",
         style: `min-height:${minHeight}px`,
       },
     },
@@ -77,7 +77,7 @@ export default function RichTextEditor({
   }, [editor, value]);
 
   if (!editor) {
-    return <div className="border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-400">编辑器加载中…</div>;
+    return <div className="border border-line2 rounded-xl px-3 py-2 text-sm text-mute">编辑器加载中…</div>;
   }
 
   const setLink = () => {
@@ -92,8 +92,8 @@ export default function RichTextEditor({
   };
 
   return (
-    <div className="border border-gray-200 rounded-xl overflow-hidden bg-white focus-within:border-[#e05d6f] transition-colors" data-testid="rich-text-editor">
-      <div className="flex items-center gap-0.5 px-2 py-1.5 border-b border-gray-100 bg-gray-50/60 flex-wrap">
+    <div className="border border-line2 rounded-xl overflow-hidden bg-surface focus-within:border-[#e05d6f] transition-colors" data-testid="rich-text-editor">
+      <div className="flex items-center gap-0.5 px-2 py-1.5 border-b border-line bg-soft/60 flex-wrap">
         <ToolButton label="加粗" active={editor.isActive("bold")} onClick={() => editor.chain().focus().toggleBold().run()}>
           <span className="font-bold">B</span>
         </ToolButton>
@@ -106,7 +106,7 @@ export default function RichTextEditor({
         <ToolButton label="小标题" active={editor.isActive("heading", { level: 3 })} onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}>
           H
         </ToolButton>
-        <span className="w-px h-5 bg-gray-200 mx-1" />
+        <span className="w-px h-5 bg-soft2 mx-1" />
         <ToolButton label="无序列表" active={editor.isActive("bulletList")} onClick={() => editor.chain().focus().toggleBulletList().run()}>
           <Icon name="list" className="w-4 h-4" />
         </ToolButton>
@@ -122,7 +122,7 @@ export default function RichTextEditor({
         <ToolButton label="链接" active={editor.isActive("link")} onClick={setLink}>
           <Icon name="link" className="w-4 h-4" />
         </ToolButton>
-        <span className="w-px h-5 bg-gray-200 mx-1" />
+        <span className="w-px h-5 bg-soft2 mx-1" />
         <ToolButton label="清除格式" onClick={() => editor.chain().focus().clearNodes().unsetAllMarks().run()}>
           <Icon name="eraser" className="w-4 h-4" />
         </ToolButton>
@@ -131,7 +131,7 @@ export default function RichTextEditor({
       <div className="relative">
         <EditorContent editor={editor} />
         {isEditorEmpty(editor) && (
-          <p className="pointer-events-none absolute left-3 top-2 text-sm text-gray-400">{placeholder}</p>
+          <p className="pointer-events-none absolute left-3 top-2 text-sm text-mute">{placeholder}</p>
         )}
       </div>
     </div>

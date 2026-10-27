@@ -33,6 +33,10 @@ async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
 
   const res = await fetch(API_BASE + url, { ...options, headers });
 
+  // 滑动续期：后端在旧 token 临期时通过响应头下发新 token，透明替换即可续命
+  const refreshed = res.headers?.get?.('X-Refresh-Token');
+  if (refreshed && token) localStorage.setItem('duitang_token', refreshed);
+
   // token 过期 / 被吊销：清掉本地凭证并通知全局，避免界面仍是"已登录"但操作全失败
   if (res.status === 401 && !CREDENTIAL_PATHS.some(p => url.startsWith(p))) {
     localStorage.removeItem('duitang_token');
