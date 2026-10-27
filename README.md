@@ -11,7 +11,7 @@
 [![Frontend](https://img.shields.io/badge/frontend-React%2019-61dafb?logo=react&logoColor=white)](#技术栈)
 [![Backend](https://img.shields.io/badge/backend-Express%204-000000?logo=express&logoColor=white)](#技术栈)
 [![Database](https://img.shields.io/badge/database-SQLite%20(FTS5)-003b57?logo=sqlite&logoColor=white)](#关键设计决策)
-[![Tests](https://img.shields.io/badge/tests-298%20passing-3fb950)](#测试)
+[![Tests](https://img.shields.io/badge/tests-301%20passing-3fb950)](#测试)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 [功能特性](#-功能特性) · [快速开始](#-快速开始) · [架构](#-架构) · [设计决策](#-关键设计决策) · [API](#-api) · [测试](#-测试) · [部署](#-部署)
@@ -50,7 +50,7 @@
 | **错落瀑布流** | 按图片真实宽高分配列高，避免等高网格的裁切尴尬 |
 | **响应式选档** | 上传时生成 400/800 两档变体，列表用 `srcset` 让浏览器按需选档 |
 | **大图灯箱** | 支持 `←` / `→` 翻页、`Esc` 关闭、缩略图切换 |
-| **独立分享页** | `/#/pin/<id>` 直达单条帖子，可外部分享 |
+| **独立分享页** | `/#/pin/<id>` 直达单条帖子，可外部分享（当前为 HashRouter，`#` 路径不被搜索引擎收录；站内分享与直链打开不受影响） |
 | **分类与标签** | 12 个画板 + `/#/tag/<标签>` 聚合页，卡片标签可点击跳转 |
 | **发现页** | `/#/discover` 热门作者（近 30 天互动量）、热门话题、新鲜面孔，缓解关注流冷启动 |
 | **真实热搜** | 热搜来自用户实际搜索统计（`search_queries`），不是写死的假数据 |
@@ -338,10 +338,13 @@ curl -s http://localhost:3001/api/posts?limit=1 | jq
 
 | 层级 | 工具 | 用例数 | 命令 |
 | --- | --- | --- | --- |
-| 前端单测 | Vitest + Testing Library | **122** | `npm test` |
+| 前端单测 | Vitest + Testing Library | **125** | `npm test` |
 | 后端接口 | Mocha + Supertest | **176**（16 文件） | `npm run test:server` |
 | 浏览器 E2E | 原生 CDP 驱动无头 Chrome | **4 套件 / 50+ 断言** | `npm run test:e2e` |
 | 类型检查 | TypeScript | - | `npx tsc --noEmit` |
+
+前端单测附带**覆盖率门槛**（`vitest.config.ts` 的 `coverage.thresholds`，按当前实测留 2 个点余量），
+低于底线时 `npm run verify` 直接失败，防止测试被悄悄删掉后无人发现。
 
 **一键跑完全部关卡**（含 OpenAPI 生成与生产构建）：
 
@@ -352,10 +355,10 @@ npm run verify
 ```
 ──────── 验证结果 ────────
 ✓ 生成 OpenAPI 规范      0.1s
-✓ 类型检查 (tsc)         3.0s
-✓ 前端单测 (vitest)      6.6s
-✓ 后端单测 (mocha)      34.3s
-✓ 生产构建 (vite build)  6.4s
+✓ 类型检查 (tsc)         4.7s
+✓ 前端单测 (vitest + 覆盖率门槛)  10.1s
+✓ 后端单测 (mocha)      43.7s
+✓ 生产构建 (vite build)  9.9s
 全部关卡通过
 ```
 

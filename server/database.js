@@ -206,6 +206,7 @@ try {
 db.exec(`
   CREATE INDEX IF NOT EXISTS idx_posts_author ON posts(author_id);
   CREATE INDEX IF NOT EXISTS idx_posts_created ON posts(created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_posts_board ON posts(board, created_at DESC);
   CREATE INDEX IF NOT EXISTS idx_comments_post ON comments(post_id, created_at DESC);
   CREATE INDEX IF NOT EXISTS idx_post_likes_user ON post_likes(user_id);
   CREATE INDEX IF NOT EXISTS idx_post_collects_user ON post_collects(user_id);

@@ -168,7 +168,6 @@ const upload = multer({
 const VARIANT_WIDTHS = [400, 800];
 
 async function makeVariants(filePath, originalWidth) {
-  const variants = [];
   const ext = path.extname(filePath);
   const read = async (width) => {
     if (width >= originalWidth) return null;
@@ -178,13 +177,15 @@ async function makeVariants(filePath, originalWidth) {
     const name = path.basename(out);
     return { url: `/uploads/${name}`, width, sign: signFile(name) };
   };
-  for (const width of VARIANT_WIDTHS) {
-    try {
-      const v = await read(width);
-      if (v) variants.push(v);
-    } catch { /* 单档失败不影响其他档位 */ }
-  }
-  return variants;
+  // 各档位互相独立，并行生成（jimp 纯 JS 串行时一次上传要串 3-4 次解码）
+  const results = await Promise.allSettled(VARIANT_WIDTHS.map(w => read(w)));
+  const variants = [];
+  results.forEach((r, i) => {
+    // 单档失败不影响其他档位
+    if (r.status === "fulfilled" && r.value) variants.push(r.value);
+  });
+  // 保持与 VARIANT_WIDTHS 相同的顺序（小档在前）
+  return VARIANT_WIDTHS.map(w => variants.find(v => v.width === w)).filter(Boolean);
 }
 
 app.post('/api/upload', authMiddleware, upload.single('file'), async (req, res) => {
@@ -204,27 +205,29 @@ app.post('/api/upload', authMiddleware, upload.single('file'), async (req, res) 
   const url = `/uploads/${req.file.filename}`;
   let width = 0, height = 0;
   let variants = [];
-  try {
+  let watermarked = null;
+  let watermarkedSign = null;
+
+  // 尺寸读取/变体生成与水印互不依赖，并行执行
+  const mainTask = (async () => {
     const img = await Jimp.read(req.file.path);
     width = img.bitmap.width;
     height = img.bitmap.height;
     variants = await makeVariants(req.file.path, width);
-  } catch (e) {
+  })().catch(e => {
     req.log?.warn?.({ err: e.message }, '图片尺寸变体生成失败，回落原图');
-  }
+  });
 
-  // 水印副本（可选）：叠字后的图片另存为 _wm.jpg，原图保持干净
-  let watermarked = null;
-  let watermarkedSign = null;
-  try {
-    const wmFile = await applyWatermark(req.file.path);
+  const wmTask = applyWatermark(req.file.path).then(wmFile => {
     if (wmFile) {
       watermarked = `/uploads/${wmFile}`;
       watermarkedSign = signFile(wmFile);
     }
-  } catch (e) {
+  }).catch(e => {
     req.log?.warn?.({ err: e.message }, '水印生成失败，跳过');
-  }
+  });
+
+  await Promise.all([mainTask, wmTask]);
 
   res.json({
     url,
