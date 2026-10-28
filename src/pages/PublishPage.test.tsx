@@ -6,6 +6,12 @@ import { AuthProvider } from "../context/AuthContext";
 import { CollectionProvider } from "../context/CollectionContext";
 import { ToastProvider } from "../context/ToastContext";
 import * as apiModule from "../api";
+import * as compressModule from "../utils/compressImage";
+
+vi.mock("../utils/compressImage", async importOriginal => {
+  const orig = await importOriginal<typeof import("../utils/compressImage")>();
+  return { ...orig, compressImage: vi.fn() };
+});
 
 vi.mock("../api", () => ({
   AUTH_EXPIRED_EVENT: "duitang:auth-expired",
@@ -87,6 +93,10 @@ beforeEach(() => {
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
     blob: async () => new Blob(["img"], { type: "image/jpeg" }),
   }));
+  // 压缩默认透传（canvas 管线由 compressImage.test.ts 单独覆盖）
+  (compressModule.compressImage as ReturnType<typeof vi.fn>).mockImplementation(async (f: File) => ({
+    file: f, bytes: f.size, compressed: false,
+  }));
 });
 
 afterEach(() => {
@@ -113,6 +123,8 @@ describe("PublishPage", () => {
     await waitFor(() => expect(screen.getByText("发布新内容")).toBeInTheDocument());
     fireEvent.change(fileInput(), { target: { files: [makeImageFile("a.jpg", 10)] } });
     await waitFor(() => expect(countLabel(1)).toBeInTheDocument());
+    // 上传前经过客户端压缩管线
+    expect(compressModule.compressImage).toHaveBeenCalled();
     fireEvent.change(titleInput(), { target: { value: "测试标题" } });
     await waitFor(() => expect(screen.getByRole("button", { name: "发布" })).not.toBeDisabled());
   });

@@ -13,6 +13,22 @@ const __dirname = path.dirname(__filename);
 const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:3001";
 
 // https://vite.dev/config/
+const proxy = {
+  "/api/pollinations": {
+    target: "https://image.pollinations.ai",
+    changeOrigin: true,
+    rewrite: (p: string) => p.replace(/^\/api\/pollinations/, ""),
+  },
+  "/api": {
+    target: BACKEND_URL,
+    changeOrigin: true,
+  },
+  "/uploads": {
+    target: BACKEND_URL,
+    changeOrigin: true,
+  },
+};
+
 export default defineConfig({
   plugins: [react(), tailwindcss(), viteSingleFile()],
   resolve: {
@@ -20,21 +36,7 @@ export default defineConfig({
       "@": path.resolve(__dirname, "src"),
     },
   },
-  server: {
-    proxy: {
-      "/api/pollinations": {
-        target: "https://image.pollinations.ai",
-        changeOrigin: true,
-        rewrite: (p) => p.replace(/^\/api\/pollinations/, ""),
-      },
-      "/api": {
-        target: BACKEND_URL,
-        changeOrigin: true,
-      },
-      "/uploads": {
-        target: BACKEND_URL,
-        changeOrigin: true,
-      },
-    },
-  },
+  server: { proxy },
+  // vite preview 不继承 server.proxy，生产构建验证时需要同样指向后端
+  preview: { proxy },
 });

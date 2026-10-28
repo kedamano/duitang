@@ -11,7 +11,7 @@
 [![Frontend](https://img.shields.io/badge/frontend-React%2019-61dafb?logo=react&logoColor=white)](#技术栈)
 [![Backend](https://img.shields.io/badge/backend-Express%204-000000?logo=express&logoColor=white)](#技术栈)
 [![Database](https://img.shields.io/badge/database-SQLite%20(FTS5)-003b57?logo=sqlite&logoColor=white)](#关键设计决策)
-[![Tests](https://img.shields.io/badge/tests-372%20passing-3fb950)](#测试)
+[![Tests](https://img.shields.io/badge/tests-382%20passing-3fb950)](#测试)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 [功能特性](#-功能特性) · [快速开始](#-快速开始) · [架构](#-架构) · [设计决策](#-关键设计决策) · [API](#-api) · [测试](#-测试) · [部署](#-部署)
@@ -57,13 +57,14 @@
 | **分类与标签** | 12 个画板 + `/#/tag/<标签>` 聚合页，卡片标签可点击跳转 |
 | **发现页** | `/#/discover` 热门作者（近 30 天互动量）、热门话题、新鲜面孔，缓解关注流冷启动 |
 | **真实热搜** | 热搜来自用户实际搜索统计（`search_queries`），不是写死的假数据 |
+| **PWA 可安装** | manifest + 图标 + 手写 Service Worker：应用壳离线可开、API/图片 network-first 带离线回落，生产构建自动注册 |
 
 ### 创作与组织
 
 | 功能 | 说明 |
 | --- | --- |
 | **富文本描述** | TipTap 编辑器：加粗/斜体/删除线/小标题/列表/引用/代码/链接 |
-| **多图上传** | 最多 9 张，支持拖拽排序与一键设为封面 |
+| **多图上传** | 最多 9 张，支持拖拽排序与一键设为封面；**超大图浏览器内先压缩**（canvas 缩到最长边 ≤2560px，透明 PNG 保格式、GIF 保护动画、压大反增则保留原图） |
 | **服务端草稿箱** | 输入停止 1.2s 自动保存到服务端，换设备继续编辑 |
 | **专辑（收藏夹）** | 自建专辑、公开/私密、收藏或发布时归入、专辑详情页 |
 | **帖子编辑** | 作者可改标题/描述/画板/标签，图片与尺寸保持不变 |
@@ -367,7 +368,7 @@ curl -s http://localhost:3001/api/posts?limit=1 | jq
 
 | 层级 | 工具 | 用例数 | 命令 |
 | --- | --- | --- | --- |
-| 前端单测 | Vitest + Testing Library | **191** | `npm test` |
+| 前端单测 | Vitest + Testing Library | **201** | `npm test` |
 | 后端接口 | Mocha + Supertest | **181**（17 文件） | `npm run test:server` |
 | 浏览器 E2E | 原生 CDP 驱动无头 Chrome | **4 套件 / 50+ 断言** | `npm run test:e2e` |
 | 类型检查 | TypeScript | - | `npx tsc --noEmit` |

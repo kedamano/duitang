@@ -9,6 +9,7 @@ import { labelToBoard, boardOptions } from "../data/images";
 import AiImageGenModal from "../components/AiImageGenModal";
 import RichTextEditor from "../components/RichTextEditor";
 import { isRichTextEmpty } from "../utils/richText";
+import { compressImage, formatBytes } from "../utils/compressImage";
 import type { Album } from "../types/api";
 import { Icon } from "../components/Icons";
 
@@ -153,14 +154,24 @@ export default function PublishPage() {
     );
   }
 
+  /** 超大图先在浏览器里压一遍，省后端 jimp 时间与磁盘带宽 */
+  const prepareFile = async (file: File): Promise<File> => {
+    const r = await compressImage(file);
+    if (r.compressed) {
+      showToast(`已压缩 ${file.name}：${formatBytes(file.size)} → ${formatBytes(r.bytes)}`, "success");
+    }
+    return r.file;
+  };
+
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
     const newImages: { file?: File; preview: string }[] = [];
     for (const file of pickValidFiles(Array.from(files))) {
       if (newImages.length + images.length >= 9) break;
-      const dataUrl = await fileToDataUrl(file);
-      newImages.push({ file, preview: dataUrl });
+      const prepared = await prepareFile(file);
+      const dataUrl = await fileToDataUrl(prepared);
+      newImages.push({ file: prepared, preview: dataUrl });
     }
     setImages(prev => [...prev, ...newImages].slice(0, 9));
     e.target.value = "";
@@ -184,8 +195,9 @@ export default function PublishPage() {
     const newImages: { file?: File; preview: string }[] = [];
     for (const file of files) {
       if (newImages.length + images.length >= 9) break;
-      const dataUrl = await fileToDataUrl(file);
-      newImages.push({ file, preview: dataUrl });
+      const prepared = await prepareFile(file);
+      const dataUrl = await fileToDataUrl(prepared);
+      newImages.push({ file: prepared, preview: dataUrl });
     }
     setImages(prev => [...prev, ...newImages].slice(0, 9));
   };

@@ -1,0 +1,16 @@
+{
+  "name": "堆糖 - 高清图片美图壁纸兴趣社区",
+  "short_name": "堆糖",
+  "description": "瀑布流浏览、收集、关注与发布的高清图片兴趣社区",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f8f8f8",
+  "theme_color": "#e05d6f",
+  "icons": [
+    { "src": "./icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "./icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "./icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
