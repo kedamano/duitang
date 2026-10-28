@@ -110,7 +110,7 @@ export default function AdminReportsPage() {
                   <button
                     onClick={() => resolve(r.id, "reject")}
                     disabled={busyId === r.id}
-                    className="px-4 py-1.5 rounded-full text-xs font-medium bg-soft2 text-body hover:bg-soft2 disabled:opacity-60 transition-colors"
+                    className="px-4 py-1.5 rounded-full text-xs font-medium bg-soft2 text-body hover:bg-line2 disabled:opacity-60 transition-colors"
                   >
                     驳回
                   </button>

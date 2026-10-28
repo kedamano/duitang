@@ -44,6 +44,13 @@ async function preflight() {
 
 if (!(await preflight())) process.exit(1);
 
+// 测试数据清理：E2E 帖会污染「瀑布流错落」这类基于真实数据的断言，跑前后各清一次
+function cleanup(label) {
+  console.log(`\n[${label}] 清理 E2E 测试数据...`);
+  spawnSync(process.execPath, [path.join(root, "scripts", "e2e-cleanup.mjs")], { stdio: "inherit", shell: false });
+}
+cleanup("开跑前");
+
 const results = [];
 for (const name of scripts) {
   const file = path.join(e2eDir, `${name}.mjs`);

@@ -408,7 +408,7 @@ export default function ProfilePage() {
                   className={cn(
                     "px-5 py-2 rounded-full text-xs font-bold transition-colors shadow-sm shrink-0",
                     targetUserId && isFollowing(parseInt(targetUserId, 10))
-                      ? "bg-soft2 text-body hover:bg-soft2"
+                      ? "bg-soft2 text-body hover:bg-line2"
                       : "bg-[#e05d6f] text-white hover:bg-[#c94d5e]"
                   )}
                 >

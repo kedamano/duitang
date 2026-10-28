@@ -76,7 +76,7 @@ export default function ReportModal({
                     "px-3 py-1.5 rounded-full text-xs transition-colors",
                     reason === r
                       ? "bg-[#e05d6f] text-white"
-                      : "bg-soft2 text-body hover:bg-soft2",
+                      : "bg-soft2 text-body hover:bg-line2",
                   )}
                 >
                   {r}

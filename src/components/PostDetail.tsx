@@ -521,7 +521,7 @@ export function DetailAuthorHeader({
             className={cn(
               "ml-2 px-3 py-1 rounded-full text-xs font-bold transition-colors shrink-0",
               isFollowing(card.authorId!)
-                ? "bg-soft2 text-body hover:bg-soft2"
+                ? "bg-soft2 text-body hover:bg-line2"
                 : "bg-[#e05d6f] text-white hover:bg-[#c94d5e]"
             )}
           >
@@ -785,7 +785,7 @@ export function DetailActionBar({ card }: { card: ImageCard }) {
             "flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium transition-all",
             showShare
               ? "bg-ink text-surface"
-              : "bg-soft2 text-body hover:bg-soft2",
+              : "bg-soft2 text-body hover:bg-line2",
           )}
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

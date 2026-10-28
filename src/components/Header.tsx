@@ -308,7 +308,7 @@ export default function Header({
               </button>
               <button
                 onClick={() => setShowRegister(true)}
-                className="hidden md:flex items-center gap-1 bg-soft2 hover:bg-soft2 text-ink2 text-sm font-medium px-3 py-2 rounded-full transition-colors"
+                className="hidden md:flex items-center gap-1 bg-soft2 hover:bg-line2 text-ink2 text-sm font-medium px-3 py-2 rounded-full transition-colors"
               >
                 注册
               </button>

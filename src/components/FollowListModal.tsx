@@ -119,7 +119,7 @@ export default function FollowListModal({
                       className={cn(
                         "shrink-0 px-3 py-1 rounded-full text-xs font-medium transition-colors",
                         followed
-                          ? "bg-soft2 text-body2 hover:bg-soft2"
+                          ? "bg-soft2 text-body2 hover:bg-line2"
                           : "bg-[#e05d6f] text-white hover:bg-[#c94d5e]",
                       )}
                     >

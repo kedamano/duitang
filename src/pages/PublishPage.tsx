@@ -552,7 +552,7 @@ export default function PublishPage() {
               placeholder="输入标签后回车添加"
               className="flex-1 bg-surface border border-line2 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#e05d6f]/30 focus:border-[#e05d6f] transition-all text-ink2 placeholder:text-mute"
             />
-            <button onClick={addTag} disabled={!tagInput.trim()} className="px-4 py-2.5 bg-soft2 text-body rounded-xl text-sm font-medium hover:bg-soft2 transition-colors disabled:opacity-40">
+            <button onClick={addTag} disabled={!tagInput.trim()} className="px-4 py-2.5 bg-soft2 text-body rounded-xl text-sm font-medium hover:bg-line2 transition-colors disabled:opacity-40">
               添加
             </button>
           </div>

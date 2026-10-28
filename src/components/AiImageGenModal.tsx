@@ -165,7 +165,7 @@ export default function AiImageGenModal({ open, onClose, onConfirm }: Props) {
                     "px-3 py-1.5 rounded-full text-xs font-medium transition-all",
                     style.label === s.label
                       ? "bg-gradient-to-r from-violet-500 to-pink-500 text-white shadow-sm"
-                      : "bg-soft2 text-body hover:bg-soft2",
+                      : "bg-soft2 text-body hover:bg-line2",
                   )}
                 >
                   {s.label}
