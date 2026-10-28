@@ -32,7 +32,7 @@ export class ErrorBoundary extends Component<Props, State> {
               <button onClick={this.handleReset} className="bg-[#e05d6f] text-white text-sm font-medium px-5 py-2.5 rounded-full hover:bg-[#c94d5e] transition-colors">
                 回到首页
               </button>
-              <button onClick={() => window.location.reload()} className="bg-soft2 text-body text-sm font-medium px-5 py-2.5 rounded-full hover:bg-soft2 transition-colors">
+              <button onClick={() => window.location.reload()} className="bg-soft2 text-body text-sm font-medium px-5 py-2.5 rounded-full hover:bg-line2 transition-colors">
                 刷新页面
               </button>
             </div>
