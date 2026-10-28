@@ -66,6 +66,8 @@ for (const name of scripts) {
   results.push({ name, ok: res.status === 0, ms });
 }
 
+cleanup("收尾");
+
 console.log("\n──────── E2E 汇总 ────────");
 for (const r of results) {
   console.log(`${r.ok ? "✓" : "✗"} ${r.name.padEnd(12)} ${(r.ms / 1000).toFixed(1)}s`);
