@@ -226,7 +226,7 @@ export default function HomePage({
   // 输入框即时响应，只有请求跟着防抖（避免每个按键都打一次后端）
   const debouncedSearch = useDebouncedValue(effectiveSearch, 300);
 
-  // 拉取一页数据（关注流与普通流共用）
+  // 拉取一页数据（关注流/个性化精选/普通流共用）
   const fetchPage = useCallback(async (pageNum: number) => {
     if (isFollowFeed) {
       if (!user) {
@@ -240,6 +240,13 @@ export default function HomePage({
       setHasMore((data.posts || []).length >= 20);
       return (data.posts || []).map(normalizePost);
     }
+    // 每日精选（无搜索）走协同过滤个性化流
+    if (activeNav === "推荐" && !debouncedSearch) {
+      const data = await api.getRecommendFeed({ limit: 20, page: pageNum });
+      setTotal(data.total || 0);
+      setHasMore(data.hasMore ?? (data.posts || []).length >= 20);
+      return (data.posts || []).map(normalizePost);
+    }
     const data = await api.getPosts({
       limit: 20, page: pageNum,
       board: boardKey !== 'all' ? boardKey : undefined,
@@ -248,7 +255,7 @@ export default function HomePage({
     setTotal(data.total || 0);
     setHasMore((data.posts || []).length >= 20);
     return (data.posts || []).map(normalizePost);
-  }, [isFollowFeed, user, boardKey, debouncedSearch]);
+  }, [isFollowFeed, user, activeNav, debouncedSearch, boardKey]);
 
   // 分类/搜索/登录态变化时重新加载第一页
   useEffect(() => {

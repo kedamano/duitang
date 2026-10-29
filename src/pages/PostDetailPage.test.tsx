@@ -26,6 +26,7 @@ vi.mock("../api", () => ({
     unfollowUser: vi.fn(),
     sharePost: vi.fn(),
     deletePost: vi.fn(),
+    getRelatedPosts: vi.fn().mockResolvedValue({ posts: [] }),
   },
 }));
 

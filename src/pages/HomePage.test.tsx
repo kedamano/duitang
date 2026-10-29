@@ -15,6 +15,7 @@ vi.mock("../api", () => ({
     me: vi.fn(),
     getPosts: vi.fn().mockResolvedValue({ posts: [], total: 0, page: 1, limit: 20 }),
     getFollowingFeed: vi.fn().mockResolvedValue({ posts: [], total: 0, page: 1, limit: 20 }),
+    getRecommendFeed: vi.fn().mockResolvedValue({ posts: [], total: 0, page: 1, limit: 20, source: "popular", hasMore: false }),
     myCollects: vi.fn().mockResolvedValue({ posts: [] }),
     myLikes: vi.fn().mockResolvedValue({ posts: [] }),
     myPosts: vi.fn().mockResolvedValue({ posts: [] }),
@@ -45,6 +46,7 @@ beforeEach(() => {
   (apiModule.api.me as any).mockRejectedValue(new Error("no token"));
   (apiModule.api.getPosts as any).mockResolvedValue({ posts: [], total: 0, page: 1, limit: 20 });
   (apiModule.api.getFollowingFeed as any).mockResolvedValue({ posts: [], total: 0, page: 1, limit: 20 });
+  (apiModule.api.getRecommendFeed as any).mockResolvedValue({ posts: [], total: 0, page: 1, limit: 20, source: "popular", hasMore: false });
 });
 
 describe("HomePage 关注流", () => {
@@ -92,28 +94,31 @@ describe("HomePage 关注流", () => {
   // 回归：首屏数据未返回时不应闪现"暂时没有找到相关内容"
   it("加载中显示骨架屏而非空状态提示", async () => {
     let resolvePosts: (v: unknown) => void = () => {};
-    (apiModule.api.getPosts as any).mockReturnValue(new Promise(r => { resolvePosts = r; }));
+    (apiModule.api.getRecommendFeed as any).mockReturnValue(new Promise(r => { resolvePosts = r; }));
 
     renderHome("推荐");
-    // 推荐视图为整版帖子流，用帖子骨架
+    // 推荐视图为整版帖子流（走推荐接口），用帖子骨架
+    expect(apiModule.api.getRecommendFeed).toHaveBeenCalled();
     expect(screen.getByTestId("post-card-skeleton")).toBeInTheDocument();
     expect(screen.queryByText(/暂时没有找到相关内容/)).not.toBeInTheDocument();
 
-    resolvePosts({ posts: [], total: 0, page: 1, limit: 20 });
+    resolvePosts({ posts: [], total: 0, page: 1, limit: 20, source: "popular", hasMore: false });
     await waitFor(() => expect(screen.queryByTestId("post-card-skeleton")).not.toBeInTheDocument());
     // 数据回来确实是空的，这时才允许显示空状态
     expect(await screen.findByText(/暂时没有找到相关内容/)).toBeInTheDocument();
   });
 
-  it("分类画板视图用瀑布流，推荐视图用整版卡片流", async () => {
-    (apiModule.api.getPosts as any).mockResolvedValue({
+  it("分类画板视图用瀑布流，推荐视图走推荐接口渲染整版卡片流", async () => {
+    const onePost = {
       posts: [{
         id: 1, title: "帖", images: ["/u/1.jpg"], thumbs: ["/u/1.jpg"], tags: [],
         sizes: [{ w: 400, h: 300 }], author_id: 1, author_nickname: "作者", author_avatar: "/a.svg",
         likes_count: 0, collects_count: 0, created_at: "2026-01-01 00:00:00",
       }],
       total: 1, page: 1, limit: 20,
-    });
+    };
+    (apiModule.api.getPosts as any).mockResolvedValue(onePost);
+    (apiModule.api.getRecommendFeed as any).mockResolvedValue({ ...onePost, source: "popular", hasMore: false });
     const boardView = render(
       <MemoryRouter>
         <ToastProvider>
@@ -131,5 +136,8 @@ describe("HomePage 关注流", () => {
 
     renderHome("推荐");
     await waitFor(() => expect(screen.getByTestId("post-card")).toBeInTheDocument());
+    expect(apiModule.api.getRecommendFeed).toHaveBeenCalled();
+    // 精选流不再走通用列表接口
+    expect((apiModule.api.getPosts as any).mock.calls.every((c: any) => c[0]?.board === "anime")).toBe(true);
   });
 });

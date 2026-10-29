@@ -55,6 +55,9 @@ const routes = [
   { method: "delete", path: "/api/comments/{id}", tags: ["comments"], summary: "删除评论（仅作者）", auth: true, pathParams: [{ name: "id", in: "path", required: true, schema: { type: "integer" } }], response: { type: "object" } },
 
   { method: "get", path: "/api/feed/following", tags: ["feed"], summary: "关注流", auth: true, response: { $ref: "#/components/schemas/PostList" } },
+  { method: "get", path: "/api/recommend/feed", tags: ["feed"], summary: "个性化精选流（协同过滤，冷启动回落热门）", query: [{ name: "page", in: "query", schema: { type: "integer" } }, { name: "limit", in: "query", schema: { type: "integer" } }], response: { $ref: "#/components/schemas/PostList" } },
+  { method: "get", path: "/api/posts/{id}/related", tags: ["feed"], summary: "相关推荐（CF 邻居 → 内容相似 → 热门）", pathParams: [{ name: "id", in: "path", required: true, schema: { type: "integer" } }], query: [{ name: "limit", in: "query", schema: { type: "integer" } }], response: { type: "object", properties: { posts: { type: "array", items: { $ref: "#/components/schemas/Post" } } } } },
+  { method: "post", path: "/api/posts/{id}/view", tags: ["feed"], summary: "浏览上报（隐式反馈，每人每帖每天一次）", pathParams: [{ name: "id", in: "path", required: true, schema: { type: "integer" } }], response: { type: "object" } },
   { method: "get", path: "/api/trending", tags: ["feed"], summary: "首页聚合（热搜/话题/作者/新人）", response: { type: "object" } },
   { method: "get", path: "/api/tags", tags: ["tags"], summary: "热门标签", response: { type: "object" } },
 

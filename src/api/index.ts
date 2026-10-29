@@ -233,6 +233,18 @@ export const api = {
     return request<PostList>(`/feed/following?${qs}`);
   },
 
+  /** 个性化精选流（协同过滤，冷启动自动回落热门） */
+  getRecommendFeed: (params?: { page?: number; limit?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.page) qs.set('page', String(params.page));
+    if (params?.limit) qs.set('limit', String(params.limit));
+    return request<PostList & { source?: "cf" | "popular"; hasMore?: boolean }>(`/recommend/feed?${qs}`);
+  },
+
+  /** 相关推荐：CF 邻居 → 内容相似 → 热门 */
+  getRelatedPosts: (id: number, limit = 8) =>
+    request<{ posts: Post[] }>(`/posts/${id}/related?limit=${limit}`),
+
   // ─── Share ───
   sharePost: (id: number) => request<{ shared: boolean; count: number }>(`/posts/${id}/share`, { method: 'POST' }),
   getShareCount: (id: number) => request<{ count: number }>(`/posts/${id}/share`),

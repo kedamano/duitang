@@ -83,6 +83,17 @@ try {
   await h.open("#/pin/" + firstPostId);
   const detailOk = await h.waitFor(`document.body.innerText.includes('评论区')`, { label: "详情页" });
   h.check("详情页可打开", !!detailOk);
+
+  // ── 相关推荐（CF 邻居 → 内容相似 → 热门，服务端保证非空） ──
+  const related = await h.waitFor(
+    `(() => {
+      const box = document.querySelector('[data-testid="related-posts"]');
+      if (!box) return null;
+      return JSON.stringify({ count: box.querySelectorAll('button').length });
+    })()`,
+    { tries: 10, interval: 500, label: "相关推荐" },
+  );
+  h.check("详情页展示相关推荐且不含自身", related && JSON.parse(related).count > 0, String(related));
   await h.shotPng("e2e-core-detail.png");
 
   // ── 搜索（FTS5 中文二元组：2 字词也能命中） ──

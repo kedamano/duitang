@@ -41,6 +41,33 @@ db.exec(`
   );
 `);
 
+// 帖子浏览埋点（隐式反馈）：同一用户同一帖每天只记一条，
+// 既作协同过滤的浏览信号，也是后续算 CTR 的基础
+db.exec(`
+  CREATE TABLE IF NOT EXISTS post_views (
+    user_id INTEGER NOT NULL,
+    post_id INTEGER NOT NULL,
+    day TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, post_id, day),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE
+  );
+`);
+
+// 物品-物品相似度（Item-KNN 离线批任务产出，只存正相似）
+db.exec(`
+  CREATE TABLE IF NOT EXISTS item_similarities (
+    post_id INTEGER NOT NULL,
+    similar_post_id INTEGER NOT NULL,
+    score REAL NOT NULL,
+    computed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (post_id, similar_post_id),
+    FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE,
+    FOREIGN KEY (similar_post_id) REFERENCES posts(id) ON DELETE CASCADE
+  );
+`);
+
 // 帖子点赞表
 db.exec(`
   CREATE TABLE IF NOT EXISTS post_likes (

@@ -84,6 +84,31 @@ describe("api client", () => {
     expect(headers["Authorization"]).toBe("Bearer T2");
   });
 
+  it("getRecommendFeed 走推荐接口并带分页", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true, status: 200,
+      headers: { get: () => null },
+      json: async () => ({ posts: [], total: 0, page: 1, limit: 20, source: "cf", hasMore: true }),
+    });
+    const data = await api.getRecommendFeed({ page: 1, limit: 20 });
+    const url = fetchMock.mock.calls[0][0] as string;
+    expect(url).toContain("/api/recommend/feed?");
+    expect(url).toContain("limit=20");
+    expect(data.source).toBe("cf");
+    expect(data.hasMore).toBe(true);
+  });
+
+  it("getRelatedPosts 请求相关推荐接口", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true, status: 200,
+      headers: { get: () => null },
+      json: async () => ({ posts: [{ id: 3 }] }),
+    });
+    const data = await api.getRelatedPosts(3, 6);
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/posts/3/related?limit=6");
+    expect(data.posts.length).toBe(1);
+  });
+
   // 回归：token 过期时界面仍是"已登录"但所有操作失败，必须主动登出并通知全局
   it("非登录接口返回 401 时清除凭证并派发过期事件", async () => {
     localStorage.setItem("duitang_token", "EXPIRED");

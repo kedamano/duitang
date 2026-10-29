@@ -917,6 +917,8 @@ export function DetailContent({
             )}
           </>
         )}
+
+        <RelatedPosts postId={card.id} onOpen={target => onCardUpdate?.(target)} />
       </div>
 
       <DetailActionBar card={card} />
@@ -931,6 +933,53 @@ export function DetailContent({
         />
       )}
     </div>
+  );
+}
+
+// ─── 相关推荐（协同过滤邻居 → 内容相似 → 热门，服务端兜底保证非空） ────────────
+function RelatedPosts({ postId, onOpen }: { postId: number; onOpen?: (raw: any) => void }) {
+  const [items, setItems] = useState<{ raw: any; card: ImageCard }[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setItems([]);
+    api.getRelatedPosts(postId, 8)
+      .then(d => {
+        if (!cancelled) setItems((d.posts || []).map(raw => ({ raw, card: normalizePost(raw) })));
+      })
+      .catch(() => { /* 推荐失败不影响详情浏览 */ });
+    return () => { cancelled = true; };
+  }, [postId]);
+
+  if (items.length === 0) return null;
+
+  return (
+    <section className="mt-4 border-t border-line pt-4" data-testid="related-posts">
+      <p className="text-sm font-semibold text-ink2 mb-3 flex items-center gap-1.5">
+        <Icon name="sparkle" className="w-4 h-4 text-[#e05d6f]" /> 相关推荐
+      </p>
+      <div className="grid grid-cols-4 gap-2">
+        {items.slice(0, 8).map(({ raw, card: p }) => (
+          <button
+            key={p.id}
+            onClick={() => onOpen ? onOpen(raw) : window.location.assign(`#/pin/${p.id}`)}
+            className="group rounded-xl overflow-hidden bg-soft2 aspect-square relative"
+            aria-label={`查看相关推荐《${p.title}》`}
+          >
+            <img
+              src={p.thumb || p.src}
+              alt={p.title}
+              loading="lazy"
+              decoding="async"
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            />
+            <span className="absolute inset-x-0 bottom-0 bg-black/50 text-white text-[10px] px-1.5 py-1 truncate opacity-0 group-hover:opacity-100 transition-opacity">
+              {p.title}
+            </span>
+          </button>
+        ))}
+      </div>
+    </section>
   );
 }
 

@@ -36,6 +36,7 @@ vi.mock("../api", () => ({
     upload: vi.fn(),
     getPost: vi.fn(),
     getPosts: vi.fn(),
+    getRelatedPosts: vi.fn().mockResolvedValue({ posts: [] }),
     createPost: vi.fn(),
   },
 }));

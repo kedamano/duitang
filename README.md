@@ -11,7 +11,7 @@
 [![Frontend](https://img.shields.io/badge/frontend-React%2019-61dafb?logo=react&logoColor=white)](#技术栈)
 [![Backend](https://img.shields.io/badge/backend-Express%204-000000?logo=express&logoColor=white)](#技术栈)
 [![Database](https://img.shields.io/badge/database-SQLite%20(FTS5)-003b57?logo=sqlite&logoColor=white)](#关键设计决策)
-[![Tests](https://img.shields.io/badge/tests-412%20passing-3fb950)](#测试)
+[![Tests](https://img.shields.io/badge/tests-427%20passing-3fb950)](#测试)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 [功能特性](#-功能特性) · [快速开始](#-快速开始) · [架构](#-架构) · [设计决策](#-关键设计决策) · [API](#-api) · [测试](#-测试) · [部署](#-部署)
@@ -59,6 +59,7 @@
 | **分类与标签** | 分类下拉即时切换画板 + `/#/tag/<标签>` 聚合页，卡片标签可点击跳转 |
 | **发现页** | `/#/discover` 热门作者（近 30 天互动量）、热门话题、新鲜面孔，缓解关注流冷启动 |
 | **真实热搜** | 热搜来自用户实际搜索统计（`search_queries`），不是写死的假数据 |
+| **协同过滤推荐** | **Item-KNN**（收藏3/点赞2/评论2/浏览1 加权 + 余弦相似）：每日精选走个性化流、详情页底部相关推荐；离线算好 `item_similarities`，读时零计算；**CF → 内容相似 → 热门** 三层兜底，冷启动与孤立帖永不空窗 |
 | **PWA 可安装** | manifest + 图标 + 手写 Service Worker：应用壳离线可开、API/图片 network-first 带离线回落，生产构建自动注册 |
 
 ### 创作与组织
@@ -357,6 +358,26 @@ sourcemap 实测占比：react-dom 20.6%、react-router 13.8%、自有代码 12.
 
 </details>
 
+<details>
+<summary><b>10. 协同过滤：为什么是 Item-KNN 而不是矩阵分解</b></summary>
+
+**信号与权重**：收藏 3 > 点赞 2 ≈ 评论 2 > 浏览 1（浏览每人每帖每天只记 1 条，避免刷新刷权重）。
+
+**算法**：物品-物品余弦相似度。不用矩阵分解（ALS/SVD）的原因是：
+- 纯 JS 实现 ALS 要自己写迭代求解，几十行但不稳定、难调试；
+- 当前数据量（百级帖、几十用户）下 KNN 与 MF 效果差异远小于噪声；
+- KNN 的相似度**可解释**（「买过 A 的人还看 B」），也方便做「相关推荐」。
+
+**工程取舍**：
+- 相似度离线算好存 `item_similarities`（每帖保留 top-20 正相似），请求时零计算；
+- 倒排剪枝：只算「被同一用户交互过」的帖对，避免 O(n²) 全量两两比较；
+- 触发时机：点赞/收藏/评论后 5 秒节流重建；浏览这类弱信号靠 30 分钟周期任务兜底；
+- **三层兜底**：CF 结果不足 → 内容相似（同标签/同画板）→ 热门。所以新用户、新帖子、孤立帖都不会空窗，只是个性化程度递减。
+
+**诚实的预期**：数据稀疏时推荐质量 ≈ 热门 + 标签相似。价值在于把管道铺对（埋点 → 批任务 → 接口 → 兜底），交互积累后自然变准。
+
+</details>
+
 ---
 
 ## 📡 API
@@ -388,8 +409,8 @@ curl -s http://localhost:3001/api/posts?limit=1 | jq
 
 | 层级 | 工具 | 用例数 | 命令 |
 | --- | --- | --- | --- |
-| 前端单测 | Vitest + Testing Library | **231** | `npm test` |
-| 后端接口 | Mocha + Supertest | **181**（17 文件） | `npm run test:server` |
+| 前端单测 | Vitest + Testing Library | **236** | `npm test` |
+| 后端接口 | Mocha + Supertest | **191**（18 文件） | `npm run test:server` |
 | 浏览器 E2E | 原生 CDP 驱动无头 Chrome | **4 套件 / 50+ 断言** | `npm run test:e2e` |
 | 类型检查 | TypeScript | - | `npx tsc --noEmit` |
 
@@ -488,6 +509,7 @@ node scripts/backup-db.mjs --out /data/bak --keep 30   # 自定义目录与保�
 │   ├── index.js                Express 路由
 │   ├── database.js             建表 + 轻量迁移
 │   ├── search-index.js         FTS5 中文二元组索引
+│   ├── recommend.js            Item-KNN 协同过滤（相似度重建 / 个性化流 / 相关推荐）
 │   ├── upload-guard.js         防盗链签名 + 水印
 │   ├── sensitive-words.js      敏感词
 │   ├── seed-demo.js            演示数据

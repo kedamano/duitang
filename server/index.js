@@ -13,6 +13,7 @@ const sanitizeHtml = require('sanitize-html');
 const { maskSensitive } = require('./sensitive-words');
 const { signFile, hotlinkGuard, applyWatermark } = require('./upload-guard');
 const { indexPost, removeFromIndex, searchPostIds, rebuildIndex } = require('./search-index');
+const { rebuildSimilarities, recommendForUser, contentSimilar, popular, interactedIds } = require('./recommend');
 
 const db = require('./database');
 
@@ -542,10 +543,131 @@ app.get('/api/posts/:id', (req, res) => {
       const user = jwt.verify(authHeader, JWT_SECRET);
       post.is_liked = !!db.prepare('SELECT 1 FROM post_likes WHERE user_id = ? AND post_id = ?').get(user.id, post.id);
       post.is_collected = !!db.prepare('SELECT 1 FROM post_collects WHERE user_id = ? AND post_id = ?').get(user.id, post.id);
+      // 打开详情即记一次浏览（每人每帖每天一条，作协同过滤的隐式反馈）
+      recordView(user.id, post.id);
     } catch {}
   }
 
   res.json({ post });
+});
+
+/** 记录浏览：同一用户同一帖同一天只记一次（INSERT OR IGNORE + 唯一键） */
+function recordView(userId, postId) {
+  const day = new Date().toISOString().slice(0, 10);
+  try {
+    db.prepare('INSERT OR IGNORE INTO post_views (user_id, post_id, day) VALUES (?, ?, ?)').run(userId, postId, day);
+  } catch { /* 埋点失败不影响详情返回 */ }
+}
+
+// 显式浏览上报（列表卡片点击等前端主动打点用；不鉴权，匿名忽略）
+app.post('/api/posts/:id/view', (req, res) => {
+  const postId = parseInt(req.params.id);
+  const authHeader = req.headers.authorization?.replace('Bearer ', '');
+  if (authHeader && postId) {
+    try {
+      const user = jwt.verify(authHeader, JWT_SECRET);
+      if (db.prepare('SELECT 1 FROM posts WHERE id = ?').get(postId)) recordView(user.id, postId);
+    } catch {}
+  }
+  res.json({ ok: true });
+});
+
+// ─────────────────────────────────────────────
+// 协同过滤推荐
+// ─────────────────────────────────────────────
+
+/** 相似度节流重建：交互后延迟算一次，避免高频写时反复全量计算 */
+let simRebuildTimer = null;
+function scheduleSimRebuild() {
+  if (simRebuildTimer) return;
+  simRebuildTimer = setTimeout(() => {
+    simRebuildTimer = null;
+    try { rebuildSimilarities(); } catch { /* 下次交互再试 */ }
+  }, 5000);
+  if (typeof simRebuildTimer.unref === 'function') simRebuildTimer.unref();
+}
+
+/** 按 postId 列表取回完整帖子（保持推荐顺序，套用拉黑过滤） */
+function postsByIds(ids, req) {
+  if (!ids.length) return [];
+  const ph = ids.map(() => '?').join(',');
+  const rows = db.prepare(`
+    SELECT p.*, u.nickname as author_nickname, u.avatar as author_avatar
+    FROM posts p JOIN users u ON p.author_id = u.id WHERE p.id IN (${ph})
+  `).all(...ids);
+  const blocked = blockedIdsFor(req);
+  const byId = new Map(rows.map(r => [r.id, r]));
+  const posts = ids.map(id => byId.get(id)).filter(p => p && !blocked.includes(p.author_id));
+  return attachInteractions(posts.map(hydratePost), req);
+}
+
+// 个性化精选流：登录且有交互历史走 CF，否则热门兜底；未登录直接热门
+app.get('/api/recommend/feed', (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit) || 20, 50);
+  const page = Math.max(parseInt(req.query.page) || 1, 1);
+  const authHeader = req.headers.authorization?.replace('Bearer ', '');
+  let ids = [];
+  let source = 'popular';
+  let exhausted = false;
+  if (page === 1 && authHeader) {
+    try {
+      const user = jwt.verify(authHeader, JWT_SECRET);
+      ids = recommendForUser(user.id, limit);
+      if (ids.length) source = 'cf';
+    } catch {}
+  }
+  const exclude = [];
+  if (authHeader) {
+    try {
+      const user = jwt.verify(authHeader, JWT_SECRET);
+      exclude.push(...interactedIds(user.id));
+    } catch {}
+  }
+  if (!ids.length) {
+    // 热门分页：page>1 或 CF 为空
+    const offset = (page - 1) * limit;
+    const ph = exclude.map(() => '?').join(',');
+    const excl = exclude.length ? `AND p.id NOT IN (${ph})` : '';
+    ids = db.prepare(`
+      SELECT p.id FROM posts p
+      WHERE 1=1 ${excl}
+      ORDER BY (
+        (SELECT COUNT(*) FROM post_likes l WHERE l.post_id = p.id) * 2 +
+        (SELECT COUNT(*) FROM post_collects c WHERE c.post_id = p.id) * 3
+      ) DESC, p.created_at DESC
+      LIMIT ? OFFSET ?
+    `).all(...exclude, limit, offset).map(r => r.id);
+    if (ids.length < limit) exhausted = true;
+  }
+  const posts = postsByIds(ids, req);
+  // CF 不足一页时用热门补齐（排除已交互与已选中的）
+  if (page === 1 && posts.length < limit && source === 'cf') {
+    const have = new Set([...posts.map(p => p.id), ...exclude]);
+    const fill = popular(limit * 2, [...have]);
+    posts.push(...postsByIds(fill.slice(0, limit - posts.length), req));
+  }
+  res.json({ posts, total: posts.length, page, limit, source, hasMore: !exhausted });
+});
+
+// 相关推荐：CF 邻居 → 内容相似 → 热门，逐层补齐
+app.get('/api/posts/:id/related', (req, res) => {
+  const postId = parseInt(req.params.id);
+  const post = db.prepare('SELECT id FROM posts WHERE id = ?').get(postId);
+  if (!post) return res.status(404).json({ error: '帖子不存在' });
+  const limit = Math.min(parseInt(req.query.limit) || 8, 20);
+
+  const picked = [];
+  const seen = new Set([postId]);
+  const take = (list) => {
+    for (const id of list) {
+      if (picked.length >= limit) break;
+      if (!seen.has(id)) { seen.add(id); picked.push(id); }
+    }
+  };
+  take(db.prepare('SELECT similar_post_id AS id FROM item_similarities WHERE post_id = ? ORDER BY score DESC LIMIT ?').all(postId, limit * 2).map(r => r.id));
+  if (picked.length < limit) take(contentSimilar(postId, limit * 2));
+  if (picked.length < limit) take(popular(limit * 2, [...seen]));
+  res.json({ posts: postsByIds(picked, req) });
 });
 
 // 发布帖子
@@ -644,6 +766,7 @@ app.post('/api/posts/:id/like', authMiddleware, (req, res) => {
     addNotification({ userId: post.author_id, actorId: userId, type: 'like', postId });
     res.json({ liked: true, count: post.likes_count + 1 });
   }
+  scheduleSimRebuild();
 });
 
 // ─────────────────────────────────────────────
@@ -679,6 +802,7 @@ app.post('/api/posts/:id/collect', authMiddleware, (req, res) => {
     }
     res.json({ collected: true, count: post.collects_count + 1, added_to_album: addedToAlbum });
   }
+  scheduleSimRebuild();
 });
 
 // ─────────────────────────────────────────────
@@ -824,6 +948,7 @@ app.post('/api/posts/:id/comments', authMiddleware, (req, res) => {
     if (parent) comment.reply_to_nickname = parent.nickname;
   }
   comment.mentioned_users = mentioned;
+  scheduleSimRebuild();
   res.json({ comment });
 });
 
@@ -1604,6 +1729,18 @@ if (require.main === module) {
   // 首次启动或索引为空时回填全文索引
   const indexed = rebuildIndex();
   if (indexed > 0) logger.info(`已为 ${indexed} 条帖子建立全文索引`);
+
+  // 协同过滤相似度：启动算一次 + 每 30 分钟兜底重算（浏览等弱信号不即时触发）
+  setImmediate(() => {
+    try {
+      const r = rebuildSimilarities();
+      logger.info(`推荐相似度已重建: ${r.pairs} 对 / ${r.items} 帖`);
+    } catch (e) { logger.warn('相似度重建失败:', e.message); }
+  });
+  const simTimer = setInterval(() => {
+    try { rebuildSimilarities(); } catch { /* 忽略，下轮再试 */ }
+  }, 30 * 60 * 1000);
+  if (typeof simTimer.unref === 'function') simTimer.unref();
 
   app.listen(PORT, () => {
     logger.info(`Duitang API running on http://localhost:${PORT}`);
