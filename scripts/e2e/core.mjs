@@ -14,14 +14,24 @@ const OUT = process.env.E2E_OUT || path.join(root, ".e2e-shots");
 const h = await createHarness({ app: APP, api: API, outDir: OUT, port: 9241 });
 
 try {
-  // ── 首页与瀑布流 ──
+  // ── 首页：每日精选为整版卡片流（作者头 + 图网格 + 操作条） ──
   await h.open("#/");
-  const cards = await h.waitFor(`document.querySelectorAll('main .break-inside-avoid').length`, { label: "首页卡片" });
-  h.check("首页渲染卡片", cards > 0, `cards=${cards}`);
+  const feedCards = await h.waitFor(`document.querySelectorAll('[data-testid="post-card"]').length`, { label: "首页帖子卡" });
+  h.check("首页渲染整版帖子流", feedCards > 0, `cards=${feedCards}`);
 
-  const heights = await h.cdp.eval(`JSON.stringify([...document.querySelectorAll('main .break-inside-avoid')].map(e => Math.round(e.getBoundingClientRect().height)).slice(0, 6))`);
-  const hs = JSON.parse(heights);
-  h.check("瀑布流高度错落", new Set(hs).size > 1, heights);
+  const feedShape = await h.cdp.eval(`(() => {
+    const card = document.querySelector('[data-testid="post-card"]');
+    if (!card) return { ok: false };
+    const imgs = card.querySelectorAll('img').length;
+    const actions = card.querySelectorAll('footer button').length;
+    const author = !!card.querySelector('header img.rounded-full');
+    return { ok: actions === 3 && author && imgs >= 2, imgs, actions };
+  })()`);
+  h.check(
+    "帖子卡含作者头、图片与三栏操作条",
+    feedShape.ok === true,
+    JSON.stringify(feedShape),
+  );
 
   // ── 首页导航：左侧竖排入口 + 分类下拉（桌面端） ──
   const navState = await h.cdp.eval(`(() => {

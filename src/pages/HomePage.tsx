@@ -10,6 +10,7 @@ import { PostDetailModal } from "../components/PostDetail";
 import { labelToBoard, FOLLOW_NAV, type ImageCard } from "../data/images";
 import { useDebouncedValue } from "../utils/useDebouncedValue";
 import { MasonryGrid, MasonrySkeleton } from "../components/MasonryGrid";
+import PostCardFeed, { PostCardSkeleton } from "../components/PostCardFeed";
 import CategoryDropdown from "../components/CategoryDropdown";
 import { Icon } from "../components/Icons";
 import { useTrending } from "../hooks/useTrending";
@@ -302,6 +303,9 @@ export default function HomePage({
     }
   }, [loadingMore, hasMore, page, fetchPage, showToast]);
 
+  // 每日精选/关注动态/搜索结果用整版卡片流；分类画板保留瀑布流
+  const isFeedView = isFollowFeed || activeNav === "推荐" || !!effectiveSearch;
+
   return (
     <main className="max-w-screen-xl mx-auto">
       {activeNav === "推荐" && !search && <Banner />}
@@ -318,7 +322,7 @@ export default function HomePage({
           )}
 
           {initialLoading && allCards.length === 0 ? (
-            <MasonrySkeleton />
+            isFeedView ? <PostCardSkeleton /> : <MasonrySkeleton />
           ) : isFollowFeed && allCards.length === 0 && feedEmptyReason === "not_logged_in" ? (
             <div className="flex flex-col items-center justify-center py-24 gap-4">
               <Icon name="lock" className="w-14 h-14 text-mute2" />
@@ -357,7 +361,11 @@ export default function HomePage({
             </div>
           ) : (
             <>
-              <MasonryGrid cards={allCards} onCardClick={setSelectedCard} />
+              {isFeedView ? (
+                <PostCardFeed cards={allCards} onOpen={setSelectedCard} />
+              ) : (
+                <MasonryGrid cards={allCards} onCardClick={setSelectedCard} />
+              )}
               {hasMore && (
                 <LoadMoreButton onClick={handleLoadMore} loading={loadingMore} />
               )}

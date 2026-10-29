@@ -95,12 +95,41 @@ describe("HomePage 关注流", () => {
     (apiModule.api.getPosts as any).mockReturnValue(new Promise(r => { resolvePosts = r; }));
 
     renderHome("推荐");
-    expect(screen.getByTestId("masonry-skeleton")).toBeInTheDocument();
+    // 推荐视图为整版帖子流，用帖子骨架
+    expect(screen.getByTestId("post-card-skeleton")).toBeInTheDocument();
     expect(screen.queryByText(/暂时没有找到相关内容/)).not.toBeInTheDocument();
 
     resolvePosts({ posts: [], total: 0, page: 1, limit: 20 });
-    await waitFor(() => expect(screen.queryByTestId("masonry-skeleton")).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByTestId("post-card-skeleton")).not.toBeInTheDocument());
     // 数据回来确实是空的，这时才允许显示空状态
     expect(await screen.findByText(/暂时没有找到相关内容/)).toBeInTheDocument();
+  });
+
+  it("分类画板视图用瀑布流，推荐视图用整版卡片流", async () => {
+    (apiModule.api.getPosts as any).mockResolvedValue({
+      posts: [{
+        id: 1, title: "帖", images: ["/u/1.jpg"], thumbs: ["/u/1.jpg"], tags: [],
+        sizes: [{ w: 400, h: 300 }], author_id: 1, author_nickname: "作者", author_avatar: "/a.svg",
+        likes_count: 0, collects_count: 0, created_at: "2026-01-01 00:00:00",
+      }],
+      total: 1, page: 1, limit: 20,
+    });
+    const boardView = render(
+      <MemoryRouter>
+        <ToastProvider>
+          <AuthProvider>
+            <CollectionProvider>
+              <HomePage search="" onSearchChange={() => {}} activeNav="动漫插画" onNavChange={() => {}} />
+            </CollectionProvider>
+          </AuthProvider>
+        </ToastProvider>
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(boardView.container.querySelector(".break-inside-avoid")).toBeTruthy());
+    expect(boardView.queryByTestId("post-card")).not.toBeInTheDocument();
+    boardView.unmount();
+
+    renderHome("推荐");
+    await waitFor(() => expect(screen.getByTestId("post-card")).toBeInTheDocument());
   });
 });

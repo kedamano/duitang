@@ -94,7 +94,7 @@ try {
 
   await h.open("#/");
   await h.cdp.eval(`document.querySelector('[data-nav="关注"]')?.click()`);
-  const feedCards = await h.waitFor(`document.querySelectorAll('main .break-inside-avoid').length`, { label: "关注流" });
+  const feedCards = await h.waitFor(`document.querySelectorAll('[data-testid="post-card"]').length`, { label: "关注流" });
   h.check("关注流有内容", feedCards > 0, `cards=${feedCards}`);
   await h.shotPng("e2e-social-feed.png");
 

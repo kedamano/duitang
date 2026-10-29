@@ -100,6 +100,7 @@ export function normalizePost(p: any): ImageCard {
     collects: p.collects_count || 0,
     comments: p.comments_count || 0,
     shares: p.shares_count || 0,
+    date: p.created_at || "",
     width,
     height,
     is_liked: p.is_liked || false,

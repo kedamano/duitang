@@ -24,6 +24,8 @@ export interface ImageCard {
   description?: string;
   comments?: number;
   shares?: number;
+  /** 发布时间（后端 created_at，UTC 字符串），整版卡片流显示相对时间用 */
+  date?: string;
   is_liked?: boolean;
   is_collected?: boolean;
 }
