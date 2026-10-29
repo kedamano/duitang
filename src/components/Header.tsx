@@ -1,9 +1,10 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import { cn } from "../utils/cn";
-import { navCategories, hotSearches, FOLLOW_NAV } from "../data/images";
+import { hotSearches, FOLLOW_NAV } from "../data/images";
+import CategoryDropdown from "./CategoryDropdown";
 import { api } from "../api";
 import { useTrending } from "../hooks/useTrending";
 import NotificationBell from "./NotificationBell";
@@ -327,9 +328,27 @@ export default function Header({
         </div>
       </div>
 
-      {/* Nav row：分类导航只属于首页，其他页面显示会与页面自身的返回栏重复 */}
+      {/* Nav row：仅移动端/平板；桌面端首页有左侧竖排导航 */}
       {location.pathname === "/" && (
-        <CategoryNav activeNav={activeNav} onNavChange={handleNavChange} />
+        <nav className="flex items-center border-b border-line px-2 lg:hidden" data-testid="home-nav">
+          {["推荐", FOLLOW_NAV].map(cat => (
+            <button
+              key={cat}
+              type="button"
+              data-nav={cat}
+              onClick={() => handleNavChange(cat)}
+              className={cn(
+                "px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors border-b-2",
+                activeNav === cat
+                  ? "border-[#e05d6f] text-[#e05d6f]"
+                  : "border-transparent text-body2 hover:text-[#e05d6f]",
+              )}
+            >
+              {cat}
+            </button>
+          ))}
+          <CategoryDropdown activeNav={activeNav} onSelect={handleNavChange} />
+        </nav>
       )}
 
       {/* Mobile menu */}
@@ -353,130 +372,5 @@ export default function Header({
 
       {showNotifyPrefs && <NotifyPrefsModal onClose={() => setShowNotifyPrefs(false)} />}
     </header>
-  );
-}
-
-/**
- * 单行分类导航。
- * 分类数量超过容器宽度时，靠左右箭头 + 边缘渐隐提示可滚动；
- * 激活项自动滚动居中。所有分类始终排在同一行（nowrap），不会被截断或换行。
- */
-
-// jsdom 未实现 Element.prototype.scrollTo/scrollBy，做一层兜底以便单测与老浏览器
-function smoothTo(el: HTMLElement, left: number) {
-  const target = Math.max(0, left);
-  if (typeof el.scrollTo === "function") el.scrollTo({ left: target, behavior: "smooth" });
-  else el.scrollLeft = target;
-}
-function smoothBy(el: HTMLElement, delta: number) {
-  if (typeof el.scrollBy === "function") el.scrollBy({ left: delta, behavior: "smooth" });
-  else el.scrollLeft = el.scrollLeft + delta;
-}
-
-function CategoryNav({ activeNav, onNavChange }: { activeNav: string; onNavChange: (c: string) => void }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [canLeft, setCanLeft] = useState(false);
-  const [canRight, setCanRight] = useState(false);
-
-  const update = useCallback(() => {
-    const el = ref.current;
-    if (!el) return;
-    setCanLeft(el.scrollLeft > 4);
-    setCanRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
-  }, []);
-
-  const centerActive = useCallback(() => {
-    const el = ref.current;
-    if (!el) return;
-    const item = el.querySelector<HTMLElement>(`[data-nav="${activeNav}"]`);
-    if (!item) return;
-    const target = item.offsetLeft - (el.clientWidth - item.offsetWidth) / 2;
-    smoothTo(el, target);
-  }, [activeNav]);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    update();
-    centerActive();
-    el.addEventListener("scroll", update, { passive: true });
-    window.addEventListener("resize", update);
-    return () => {
-      el.removeEventListener("scroll", update);
-      window.removeEventListener("resize", update);
-    };
-  }, [update, centerActive]);
-
-  // 激活项变化时跟随居中（切分类/切关注时）
-  useEffect(() => {
-    centerActive();
-  }, [activeNav, centerActive]);
-
-  const scrollBy = (dir: 1 | -1) => {
-    const el = ref.current;
-    if (el) smoothBy(el, dir * 240);
-  };
-
-  return (
-    <div className="relative border-b border-line">
-      <div ref={ref} className="flex items-center gap-0 overflow-x-auto scrollbar-hide px-2">
-        {navCategories.map(cat => (
-          <button
-            key={cat}
-            type="button"
-            data-nav={cat}
-            onClick={() => onNavChange(cat)}
-            className={cn(
-              "shrink-0 px-4 py-3 text-sm font-medium whitespace-nowrap transition-all duration-150 border-b-2",
-              activeNav === cat
-                ? "border-[#e05d6f] text-[#e05d6f]"
-                : "border-transparent text-body2 hover:text-[#e05d6f] hover:border-[#f0a0a8]",
-            )}
-          >
-            {cat}
-          </button>
-        ))}
-      </div>
-
-      {/* 边缘渐隐遮罩，提示两侧还有内容 */}
-      <div className={cn(
-        "pointer-events-none absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-surface to-transparent transition-opacity duration-200",
-        canLeft ? "opacity-100" : "opacity-0",
-      )} />
-      <div className={cn(
-        "pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-surface to-transparent transition-opacity duration-200",
-        canRight ? "opacity-100" : "opacity-0",
-      )} />
-
-      {/* 左右滚动箭头：仅在对应方向还有内容时显示 */}
-      <button
-        type="button"
-        aria-label="向左滚动分类"
-        data-nav-arrow="left"
-        onClick={() => scrollBy(-1)}
-        className={cn(
-          "absolute left-1 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-surface shadow-md border border-line flex items-center justify-center text-body2 hover:text-[#e05d6f] transition-all duration-200",
-          canLeft ? "opacity-100" : "opacity-0 pointer-events-none",
-        )}
-      >
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-        </svg>
-      </button>
-      <button
-        type="button"
-        aria-label="向右滚动分类"
-        data-nav-arrow="right"
-        onClick={() => scrollBy(1)}
-        className={cn(
-          "absolute right-1 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-surface shadow-md border border-line flex items-center justify-center text-body2 hover:text-[#e05d6f] transition-all duration-200",
-          canRight ? "opacity-100" : "opacity-0 pointer-events-none",
-        )}
-      >
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-        </svg>
-      </button>
-    </div>
   );
 }

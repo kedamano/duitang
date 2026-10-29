@@ -11,7 +11,7 @@
 [![Frontend](https://img.shields.io/badge/frontend-React%2019-61dafb?logo=react&logoColor=white)](#技术栈)
 [![Backend](https://img.shields.io/badge/backend-Express%204-000000?logo=express&logoColor=white)](#技术栈)
 [![Database](https://img.shields.io/badge/database-SQLite%20(FTS5)-003b57?logo=sqlite&logoColor=white)](#关键设计决策)
-[![Tests](https://img.shields.io/badge/tests-402%20passing-3fb950)](#测试)
+[![Tests](https://img.shields.io/badge/tests-403%20passing-3fb950)](#测试)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 [功能特性](#-功能特性) · [快速开始](#-快速开始) · [架构](#-架构) · [设计决策](#-关键设计决策) · [API](#-api) · [测试](#-测试) · [部署](#-部署)
@@ -54,7 +54,8 @@
 | **深色模式** | 语义色板（CSS 变量）驱动，一键切换并记忆，跟随系统偏好；品牌粉两种模式下保留 |
 | **大图灯箱** | 支持 `←` / `→` 翻页、`Esc` 关闭、缩略图切换、**移动端左右滑动切图** |
 | **独立分享页** | `/#/pin/<id>` 直达单条帖子，可外部分享（当前为 HashRouter，`#` 路径不被搜索引擎收录；站内分享与直链打开不受影响） |
-| **分类与标签** | 12 个画板 + `/#/tag/<标签>` 聚合页，卡片标签可点击跳转 |
+| **三栏首页** | 左侧「每日精选 / 关注动态 + 分类下拉」竖排导航（平板与手机收进顶栏）、中间瀑布流、右侧热门话题；12 个画板不再平铺，收进「分类 ▾」图标面板 |
+| **分类与标签** | 分类下拉即时切换画板 + `/#/tag/<标签>` 聚合页，卡片标签可点击跳转 |
 | **发现页** | `/#/discover` 热门作者（近 30 天互动量）、热门话题、新鲜面孔，缓解关注流冷启动 |
 | **真实热搜** | 热搜来自用户实际搜索统计（`search_queries`），不是写死的假数据 |
 | **PWA 可安装** | manifest + 图标 + 手写 Service Worker：应用壳离线可开、API/图片 network-first 带离线回落，生产构建自动注册 |
@@ -386,7 +387,7 @@ curl -s http://localhost:3001/api/posts?limit=1 | jq
 
 | 层级 | 工具 | 用例数 | 命令 |
 | --- | --- | --- | --- |
-| 前端单测 | Vitest + Testing Library | **221** | `npm test` |
+| 前端单测 | Vitest + Testing Library | **222** | `npm test` |
 | 后端接口 | Mocha + Supertest | **181**（17 文件） | `npm run test:server` |
 | 浏览器 E2E | 原生 CDP 驱动无头 Chrome | **4 套件 / 50+ 断言** | `npm run test:e2e` |
 | 类型检查 | TypeScript | - | `npx tsc --noEmit` |
@@ -420,7 +421,7 @@ node scripts/e2e-all.mjs social   # 只跑某一套
 
 | E2E 套件 | 覆盖内容 |
 | --- | --- |
-| `core` | 首页瀑布流、分类导航、详情、**FTS5 中文搜索**、SSE 未读角标、登录失效引导 |
+| `core` | 首页瀑布流、竖排导航与分类下拉、详情、**FTS5 中文搜索**、SSE 未读角标、登录失效引导 |
 | `publish` | 富文本编辑器与 XSS 防护、多图切换、服务端草稿、专辑、敏感词打码 |
 | `social` | 楼中楼折叠展开、@提及、评论轻量格式、关注流、通知偏好、标签/画板、灯箱 |
 | `moderation` | 发现页、举报弹窗、审核队列、拉黑过滤、非管理员越权拦截 |

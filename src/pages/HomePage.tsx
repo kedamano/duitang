@@ -10,6 +10,7 @@ import { PostDetailModal } from "../components/PostDetail";
 import { labelToBoard, FOLLOW_NAV, type ImageCard } from "../data/images";
 import { useDebouncedValue } from "../utils/useDebouncedValue";
 import { MasonryGrid, MasonrySkeleton } from "../components/MasonryGrid";
+import CategoryDropdown from "../components/CategoryDropdown";
 import { Icon } from "../components/Icons";
 import { useTrending } from "../hooks/useTrending";
 
@@ -159,6 +160,44 @@ function BackToTop() {
   );
 }
 
+// ─── 桌面端左侧竖排导航（参考堆糖：每日精选 / 关注动态 + 分类） ────────────────
+function SideNav({
+  activeNav, onNavChange,
+}: {
+  activeNav: string; onNavChange: (v: string) => void;
+}) {
+  const items = [
+    { label: "推荐", text: "每日精选", icon: "sparkle" },
+    { label: FOLLOW_NAV, text: "关注动态", icon: "heart" },
+  ];
+  const isCategory = activeNav !== "推荐" && activeNav !== FOLLOW_NAV;
+  return (
+    <aside className="hidden lg:block w-36 shrink-0 pt-6" data-testid="home-sidenav">
+      <div className="sticky top-28 space-y-1">
+        {items.map(it => (
+          <button
+            key={it.label}
+            data-nav={it.label}
+            onClick={() => onNavChange(it.label)}
+            className={cn(
+              "w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors text-left",
+              activeNav === it.label && !isCategory
+                ? "bg-brand-soft text-[#e05d6f]"
+                : "text-body2 hover:bg-soft hover:text-ink2",
+            )}
+          >
+            <Icon name={it.icon} className="w-4 h-4" />
+            {it.text}
+          </button>
+        ))}
+        <div className="pt-2">
+          <CategoryDropdown activeNav={activeNav} onSelect={onNavChange} variant="row" />
+        </div>
+      </div>
+    </aside>
+  );
+}
+
 // ─── HomePage ─────────────────────────────────────────────────────────────────
 export default function HomePage({
   search, onSearchChange, activeNav, onNavChange,
@@ -268,6 +307,7 @@ export default function HomePage({
       {activeNav === "推荐" && !search && <Banner />}
 
       <div className="flex gap-4 px-4 md:px-6">
+        <SideNav activeNav={activeNav} onNavChange={onNavChange} />
         <div className="flex-1 min-w-0">
           {search && !isFollowFeed && (
             <div className="mb-4 flex items-center gap-2">

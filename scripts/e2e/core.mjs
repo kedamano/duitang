@@ -23,21 +23,47 @@ try {
   const hs = JSON.parse(heights);
   h.check("瀑布流高度错落", new Set(hs).size > 1, heights);
 
-  // ── 分类导航只在首页，且单行渲染、无截断（超宽时横向滚动 + 箭头） ──
-  const navOnHome = await h.cdp.eval(`document.querySelectorAll('[data-nav]').length`);
-  h.check("首页显示分类导航", navOnHome >= 14, `nav=${navOnHome}`);
-  const navLayout = await h.cdp.eval(`(() => {
-    const items = [...document.querySelectorAll('[data-nav]')];
-    const scroller = items[0] && items[0].parentElement;
-    if (!scroller) return { truncated: -1, singleRow: false };
-    const tops = new Set(items.map(el => Math.round(el.getBoundingClientRect().top)));
-    return { truncated: items.filter(el => el.scrollWidth > el.clientWidth + 1).length, singleRow: tops.size === 1 };
+  // ── 首页导航：左侧竖排入口 + 分类下拉（桌面端） ──
+  const navState = await h.cdp.eval(`(() => {
+    const sidenav = document.querySelector('[data-testid="home-sidenav"]');
+    const trigger = sidenav?.querySelector('[data-testid="category-trigger"]');
+    const panel = document.querySelector('[data-testid="category-panel"]');
+    return {
+      sidenav: !!sidenav,
+      entries: sidenav ? sidenav.querySelectorAll('[data-nav]').length : 0,
+      trigger: trigger?.textContent?.trim().slice(0, 6) || "",
+      panelClosed: !panel,
+    };
   })()`);
   h.check(
-    "分类导航单行渲染且无截断",
-    navLayout.truncated === 0 && navLayout.singleRow,
-    JSON.stringify(navLayout),
+    "首页左侧竖排导航（每日精选/关注 + 分类入口）",
+    navState.sidenav && navState.entries === 2 && navState.panelClosed,
+    JSON.stringify(navState),
   );
+
+  // 打开分类面板 → 选「壁纸头像」→ 面板关闭且入口显示当前分类
+  await h.cdp.eval(`document.querySelector('[data-testid="home-sidenav"] [data-testid="category-trigger"]').click()`);
+  await h.sleep(400);
+  const panelItems = await h.cdp.eval(`document.querySelectorAll('[data-testid="category-panel"] [data-nav-item]').length`);
+  h.check("分类下拉面板含 12 个画板", panelItems === 12, `items=${panelItems}`);
+  await h.cdp.eval(`document.querySelector('[data-nav-item="壁纸头像"]').click()`);
+  await h.sleep(1200);
+  const afterPick = await h.cdp.eval(`(() => {
+    const trigger = document.querySelector('[data-testid="home-sidenav"] [data-testid="category-trigger"]');
+    return {
+      text: trigger?.textContent?.trim() || "",
+      closed: !document.querySelector('[data-testid="category-panel"]'),
+      cards: document.querySelectorAll('main .break-inside-avoid').length,
+    };
+  })()`);
+  h.check(
+    "选择分类后面板关闭、入口显示当前分类且列表刷新",
+    afterPick.closed && afterPick.text.includes("壁纸头像") && afterPick.cards > 0,
+    JSON.stringify(afterPick),
+  );
+  // 回到推荐，避免影响后续断言
+  await h.cdp.eval(`document.querySelector('[data-testid="home-sidenav"] [data-nav="推荐"]').click()`);
+  await h.sleep(1000);
 
   // ── 详情页 ──
   const firstPostId = await h.cdp.eval(`(async () => {

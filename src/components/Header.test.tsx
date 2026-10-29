@@ -86,43 +86,53 @@ describe("Header", () => {
   });
 });
 
-describe("Header 单行分类导航", () => {
-  const CATEGORIES = [
-    "推荐", "关注", "壁纸头像", "动漫插画", "时尚穿搭", "美食菜谱", "手工DIY",
+describe("Header 首页导航（入口 + 分类下拉）", () => {
+  const BOARDS = [
+    "壁纸头像", "动漫插画", "时尚穿搭", "美食菜谱", "手工DIY",
     "家居生活", "美妆造型", "旅行摄影", "古风汉服", "萌宠植物", "文字句子", "婚纱婚礼",
   ];
 
-  it("把全部 14 个分类放在同一个可横向滚动的容器里", () => {
+  it("导航行只放推荐/关注入口，分类收进下拉触发器", () => {
     renderHeader();
-    const navs = document.querySelectorAll("[data-nav]");
-    expect(navs.length).toBe(CATEGORIES.length);
-    // 全部按钮必须是同一个滚动容器的子元素（单行，不是多行）
-    const parents = new Set(Array.from(navs).map(n => n.parentElement));
-    expect(parents.size).toBe(1);
-    // 滚动容器具备横向滚动能力
-    const container = parents.values().next().value as HTMLElement;
-    expect(container.classList.contains("overflow-x-auto")).toBe(true);
+    const nav = document.querySelector('[data-testid="home-nav"]')!;
+    expect(nav.querySelectorAll("[data-nav]").length).toBe(2);
+    expect(nav.querySelector('[data-nav="推荐"]')?.textContent).toBe("推荐");
+    expect(nav.querySelector('[data-nav="关注"]')?.textContent).toBe("关注");
+    expect(screen.getByTestId("category-trigger").textContent).toContain("分类");
+    // 面板默认收起
+    expect(screen.queryByTestId("category-panel")).not.toBeInTheDocument();
   });
 
-  it("每个分类都不换行、不截断（修复「古风汉…」被裁掉）", () => {
+  it("点「分类」展开面板，12 个画板全部可选", async () => {
     renderHeader();
-    for (const cat of CATEGORIES) {
-      const btn = document.querySelector(`[data-nav="${cat}"]`) as HTMLElement;
-      expect(btn).toBeTruthy();
-      // 关键：允许横向滚动而非被截断/折行
-      expect(btn.className).toContain("whitespace-nowrap");
-      expect(btn.className).toContain("shrink-0");
-      expect(btn.className).not.toContain("truncate");
+    await userEvent.click(screen.getByTestId("category-trigger"));
+    const panel = screen.getByTestId("category-panel");
+    const items = panel.querySelectorAll("[data-nav-item]");
+    expect(items.length).toBe(BOARDS.length);
+    for (const b of BOARDS) {
+      expect(panel.querySelector(`[data-nav-item="${b}"]`)).toBeTruthy();
     }
   });
 
-  it("点击分类后激活态跟随切换", async () => {
+  it("从面板选择分类：面板关闭、触发器显示当前分类并高亮", async () => {
     renderHeader();
-    const btn = document.querySelector('[data-nav="壁纸头像"]') as HTMLElement;
-    await userEvent.click(btn);
-    expect(btn.className).toContain("border-[#e05d6f]");
-    // 之前的激活项已还原
-    const rec = document.querySelector('[data-nav="推荐"]') as HTMLElement;
-    expect(rec.className).not.toContain("border-[#e05d6f]");
+    await userEvent.click(screen.getByTestId("category-trigger"));
+    await userEvent.click(screen.getByText("美食菜谱"));
+    // 面板关闭
+    expect(screen.queryByTestId("category-panel")).not.toBeInTheDocument();
+    // 触发器变为当前分类且高亮
+    const trigger = screen.getByTestId("category-trigger");
+    expect(trigger.textContent).toContain("美食菜谱");
+    expect(trigger.className).toContain("border-[#e05d6f]");
+    // 推荐入口取消高亮
+    expect(document.querySelector('[data-nav="推荐"]')!.className).not.toContain("border-[#e05d6f]");
+  });
+
+  it("点推荐回到默认态，触发器恢复「分类」文案", async () => {
+    renderHeader();
+    await userEvent.click(screen.getByTestId("category-trigger"));
+    await userEvent.click(screen.getByText("古风汉服"));
+    await userEvent.click(document.querySelector('[data-nav="推荐"]')!);
+    expect(screen.getByTestId("category-trigger").textContent).toContain("分类");
   });
 });
