@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "../utils/cn";
+import { useSwipe } from "../hooks/useSwipe";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { useCollection, type Comment } from "../context/CollectionContext";
@@ -299,6 +300,12 @@ export function DetailImage({ card, overlay }: { card: ImageCard; overlay?: Reac
   const allImages = card.images && card.images.length > 0 ? card.images : [card.src];
   const [index, setIndex] = useState(0);
   const [lightbox, setLightbox] = useState(false);
+  // 移动端左右滑动切图
+  const swipe = useSwipe(
+    () => setIndex(i => (i + 1) % allImages.length),
+    () => setIndex(i => (i - 1 + allImages.length) % allImages.length),
+    allImages.length > 1,
+  );
   const src = allImages[Math.min(index, allImages.length - 1)];
   // 详情页展示尽量高清：每张图取最高档变体（原图）作为 src
   const largestUrl = (i: number) => {
@@ -309,7 +316,7 @@ export function DetailImage({ card, overlay }: { card: ImageCard; overlay?: Reac
   const detailSrc = largestUrl(Math.min(index, allImages.length - 1));
 
   return (
-    <div className="relative md:w-1/2 bg-soft2 flex-shrink-0 max-h-[40vh] md:max-h-full overflow-hidden">
+    <div className="relative md:w-1/2 bg-soft2 flex-shrink-0 max-h-[40vh] md:max-h-full overflow-hidden" {...swipe} data-testid="detail-image-swipe">
       <img
         src={detailSrc || src}
         alt={card.title}

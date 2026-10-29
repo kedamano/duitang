@@ -55,6 +55,10 @@ export default function AiImageGenModal({ open, onClose, onConfirm }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [converting, setConverting] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
+  // 失败自动重试一次（换种子），再失败才提示手动重试
+  const retriedRef = useRef(false);
+  // 重新生成时记录当前参数，供自动/手动重试复用
+  const lastGenRef = useRef<{ prompt: string; w: number; h: number } | null>(null);
 
   if (!open) return null;
 
@@ -62,22 +66,45 @@ export default function AiImageGenModal({ open, onClose, onConfirm }: Props) {
     ? `${prompt.trim()}, ${style.value}`
     : style.value;
 
-  const handleGenerate = () => {
-    if (!prompt.trim()) return;
+  const startGenerate = (fp: string, w: number, h: number) => {
     const newSeed = Math.floor(Math.random() * 99999);
     setError(null);
     setLoading(true);
-    const url = buildPollinationsUrl(fullPrompt, size.w, size.h, newSeed);
+    const url = buildPollinationsUrl(fp, w, h, newSeed);
     setPreviewUrl(url);
+  };
+
+  const handleGenerate = () => {
+    if (!prompt.trim()) return;
+    retriedRef.current = false;
+    lastGenRef.current = { prompt: fullPrompt, w: size.w, h: size.h };
+    startGenerate(fullPrompt, size.w, size.h);
   };
 
   const handleRegenerate = () => {
     if (!prompt.trim()) return;
-    const newSeed = Math.floor(Math.random() * 99999);
-    setError(null);
-    setLoading(true);
-    const url = buildPollinationsUrl(fullPrompt, size.w, size.h, newSeed);
-    setPreviewUrl(url);
+    retriedRef.current = false;
+    lastGenRef.current = { prompt: fullPrompt, w: size.w, h: size.h };
+    startGenerate(fullPrompt, size.w, size.h);
+  };
+
+  /** 图片加载失败：第一次自动换种子重试，第二次才报错给用户 */
+  const handleImgError = () => {
+    setLoading(false);
+    const last = lastGenRef.current;
+    if (!retriedRef.current && last) {
+      retriedRef.current = true;
+      startGenerate(last.prompt, last.w, last.h);
+      return;
+    }
+    setError("生成失败，请检查网络后点击重试");
+  };
+
+  const handleRetry = () => {
+    const last = lastGenRef.current;
+    if (!last) return;
+    retriedRef.current = true; // 手动重试不再自动再试，避免循环
+    startGenerate(last.prompt, last.w, last.h);
   };
 
   const handleUseImage = async () => {
@@ -107,6 +134,8 @@ export default function AiImageGenModal({ open, onClose, onConfirm }: Props) {
     setError(null);
     setLoading(false);
     setConverting(false);
+    retriedRef.current = false;
+    lastGenRef.current = null;
     onClose();
   };
 
@@ -263,15 +292,20 @@ export default function AiImageGenModal({ open, onClose, onConfirm }: Props) {
                   alt="AI generated"
                   className={cn("w-full h-full object-cover transition-opacity duration-300", loading ? "opacity-0" : "opacity-100")}
                   onLoad={() => setLoading(false)}
-                  onError={() => {
-                    setLoading(false);
-                    setError("生成失败，请检查网络或重试");
-                  }}
+                  onError={handleImgError}
                 />
               </div>
 
               {error && (
-                <p className="text-xs text-red-400 mt-2 text-center">{error}</p>
+                <div className="mt-2 text-center">
+                  <p className="text-xs text-red-400">{error}</p>
+                  <button
+                    onClick={handleRetry}
+                    className="mt-2 text-xs text-violet-500 hover:text-violet-700 font-medium underline"
+                  >
+                    点击重试
+                  </button>
+                </div>
               )}
 
               {!loading && !error && (

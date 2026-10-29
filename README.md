@@ -11,7 +11,7 @@
 [![Frontend](https://img.shields.io/badge/frontend-React%2019-61dafb?logo=react&logoColor=white)](#技术栈)
 [![Backend](https://img.shields.io/badge/backend-Express%204-000000?logo=express&logoColor=white)](#技术栈)
 [![Database](https://img.shields.io/badge/database-SQLite%20(FTS5)-003b57?logo=sqlite&logoColor=white)](#关键设计决策)
-[![Tests](https://img.shields.io/badge/tests-382%20passing-3fb950)](#测试)
+[![Tests](https://img.shields.io/badge/tests-402%20passing-3fb950)](#测试)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 [功能特性](#-功能特性) · [快速开始](#-快速开始) · [架构](#-架构) · [设计决策](#-关键设计决策) · [API](#-api) · [测试](#-测试) · [部署](#-部署)
@@ -52,7 +52,7 @@
 | **虚拟滚动** | 瀑布流绝对定位 + 视口裁剪，只渲染可见区间（含 600px overscan），长刷 DOM 数量恒定不随翻页增长 |
 | **hover 预取** | 卡片悬停 120ms 提前拉取详情，进入详情页直接命中缓存秒开 |
 | **深色模式** | 语义色板（CSS 变量）驱动，一键切换并记忆，跟随系统偏好；品牌粉两种模式下保留 |
-| **大图灯箱** | 支持 `←` / `→` 翻页、`Esc` 关闭、缩略图切换 |
+| **大图灯箱** | 支持 `←` / `→` 翻页、`Esc` 关闭、缩略图切换、**移动端左右滑动切图** |
 | **独立分享页** | `/#/pin/<id>` 直达单条帖子，可外部分享（当前为 HashRouter，`#` 路径不被搜索引擎收录；站内分享与直链打开不受影响） |
 | **分类与标签** | 12 个画板 + `/#/tag/<标签>` 聚合页，卡片标签可点击跳转 |
 | **发现页** | `/#/discover` 热门作者（近 30 天互动量）、热门话题、新鲜面孔，缓解关注流冷启动 |
@@ -64,7 +64,8 @@
 | 功能 | 说明 |
 | --- | --- |
 | **富文本描述** | TipTap 编辑器：加粗/斜体/删除线/小标题/列表/引用/代码/链接 |
-| **多图上传** | 最多 9 张，支持拖拽排序与一键设为封面；**超大图浏览器内先压缩**（canvas 缩到最长边 ≤2560px，透明 PNG 保格式、GIF 保护动画、压大反增则保留原图） |
+| **AI 生图** | Pollinations 免费生成（经代理）；**失败自动换种子重试一次**，再失败给手动重试入口 |
+| **多图上传** | 最多 9 张，支持拖拽排序与一键设为封面；**超大图浏览器内先压缩**（canvas 缩到最长边 ≤2560px，透明 PNG 保格式、GIF 保护动画、压大反增则保留原图）；**发布时按钮实时显示「上传 i/n」进度** |
 | **服务端草稿箱** | 输入停止 1.2s 自动保存到服务端，换设备继续编辑 |
 | **专辑（收藏夹）** | 自建专辑、公开/私密、收藏或发布时归入、专辑详情页 |
 | **帖子编辑** | 作者可改标题/描述/画板/标签，图片与尺寸保持不变 |
@@ -337,6 +338,23 @@ Tailwind 通过 `@theme inline` 映射成 `bg-surface` / `text-ink` 等类。
 
 </details>
 
+<details>
+<summary><b>9. 构建产物 946KB（gzip 286KB）为什么不继续瘦身</b></summary>
+
+sourcemap 实测占比：react-dom 20.6%、react-router 13.8%、自有代码 12.4%、
+**TipTap + ProseMirror 全家桶合计约 32%**（编辑器）、tailwind-merge 3.7%、dompurify 3.2%。
+
+结论：
+- 大头是**功能本身**（富文本编辑器）与框架，不是垃圾代码；
+- 单文件部署（`vite-plugin-singlefile`）天然禁止分包，编辑器按需加载省不下来——
+  除非放弃单文件产物，这是部署形态的取舍，不是代码问题；
+- 可小优化项：`linkifyjs`（仅链接识别，~64KB）可换更轻实现、
+  路由可换 `wouter`（~2KB，省 ~350KB）——**收益有限且引入回归风险，暂不动**。
+
+若未来要真正瘦身：先确认是否保留单文件部署，再评估编辑器懒加载（发布页才拉取）。
+
+</details>
+
 ---
 
 ## 📡 API
@@ -368,7 +386,7 @@ curl -s http://localhost:3001/api/posts?limit=1 | jq
 
 | 层级 | 工具 | 用例数 | 命令 |
 | --- | --- | --- | --- |
-| 前端单测 | Vitest + Testing Library | **201** | `npm test` |
+| 前端单测 | Vitest + Testing Library | **221** | `npm test` |
 | 后端接口 | Mocha + Supertest | **181**（17 文件） | `npm run test:server` |
 | 浏览器 E2E | 原生 CDP 驱动无头 Chrome | **4 套件 / 50+ 断言** | `npm run test:e2e` |
 | 类型检查 | TypeScript | - | `npx tsc --noEmit` |

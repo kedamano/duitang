@@ -58,6 +58,8 @@ export default function PublishPage() {
   const [tagInput, setTagInput] = useState("");
   const [board, setBoard] = useState("");
   const [publishing, setPublishing] = useState(false);
+  // 发布时的上传进度（null 表示不在上传阶段）
+  const [uploadStep, setUploadStep] = useState<{ done: number; total: number } | null>(null);
   const [showAiGen, setShowAiGen] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [myAlbums, setMyAlbums] = useState<Album[]>([]);
@@ -254,12 +256,17 @@ export default function PublishPage() {
       const thumbs: string[] = [];
       const variants: { url: string; width: number }[][] = [];
       const sizes: { w: number; h: number }[] = [];
+      const needUpload = images.filter(img => img.preview.startsWith("data:")).length;
+      let uploaded = 0;
+      if (needUpload > 1) setUploadStep({ done: 0, total: needUpload });
       for (const img of images) {
         if (img.preview.startsWith('data:')) {
           const blob = await fetch(img.preview).then(r => r.blob());
           const file = new File([blob], 'image.jpg', { type: img.file?.type || blob.type || 'image/jpeg' });
           const data = await api.upload(file);
           if (!data.url) throw new Error('图片上传失败');
+          uploaded++;
+          setUploadStep({ done: uploaded, total: needUpload });
           imageUrls.push(data.url);
           // 尺寸变体由后端生成；失败时回落原图
           if (Array.isArray(data.variants) && data.variants.length) {
@@ -296,11 +303,13 @@ export default function PublishPage() {
       try { localStorage.removeItem(DRAFT_KEY); } catch { /* 忽略 */ }
       api.deleteMyDraft().catch(() => { /* 忽略 */ });
       setPublishing(false);
+      setUploadStep(null);
       showToast("发布成功", "success");
       navigate("/");
     } catch (err) {
       showToast('发布失败: ' + (err as Error).message, "error");
       setPublishing(false);
+      setUploadStep(null);
     }
   };
 
@@ -326,7 +335,9 @@ export default function PublishPage() {
                 : "bg-soft2 text-mute cursor-not-allowed",
             )}
           >
-            {publishing ? "发布中..." : "发布"}
+            {publishing
+              ? (uploadStep ? `上传 ${uploadStep.done}/${uploadStep.total}...` : "发布中...")
+              : "发布"}
           </button>
         </div>
       </div>

@@ -1,8 +1,9 @@
 import { useCallback, useEffect } from "react";
+import { useSwipe } from "../hooks/useSwipe";
 
 /**
  * 全屏大图预览（灯箱）。
- * 支持左右切换、键盘 ←/→/Esc、点击遮罩关闭。
+ * 支持左右切换、键盘 ←/→/Esc、点击遮罩关闭、移动端左右滑动切图。
  */
 export default function ImageLightbox({
   images,
@@ -22,6 +23,9 @@ export default function ImageLightbox({
     if (count <= 1) return;
     onChange((current + dir + count) % count);
   }, [count, current, onChange]);
+
+  // 移动端左右滑动切图（定义在所有早退之前，保证 hooks 顺序稳定）
+  const swipe = useSwipe(() => go(1), () => go(-1), count > 1);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -49,6 +53,7 @@ export default function ImageLightbox({
       aria-label="大图预览"
       data-testid="image-lightbox"
       onClick={onClose}
+      {...swipe}
     >
       <img
         src={images[current]}
