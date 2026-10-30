@@ -43,7 +43,7 @@ function SearchBar({
 
 
   return (
-    <div className="relative flex-1 max-w-xl">
+    <div className="relative w-full max-w-xl mx-auto">
       <div className={cn(
         "flex items-center gap-2 bg-soft2 rounded-full px-4 py-2 transition-all duration-200",
         focused && "ring-2 ring-[#e05d6f] bg-surface shadow-md",
@@ -170,29 +170,32 @@ export default function Header({
       "sticky top-0 z-40 bg-surface transition-shadow duration-200",
       scrolled && "shadow-md",
     )}>
-      {/* Top row */}
-      <div className="flex items-center gap-3 px-4 md:px-6 h-14 border-b border-line">
-        {/* Logo */}
-        <Link to="/" className="flex items-center gap-1.5 shrink-0">
-          <div className="w-8 h-8 bg-gradient-to-br from-[#e05d6f] to-[#f0a0a8] rounded-lg flex items-center justify-center shadow-sm">
-            <svg viewBox="0 0 24 24" className="w-5 h-5 text-white" fill="currentColor">
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/>
-            </svg>
+      {/* Top row：内容与页面内容区同宽对齐；grid 三区让搜索框真正居中 */}
+      <div className="border-b border-line">
+        <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-4 md:px-6 h-14 max-w-screen-xl mx-auto">
+          {/* Logo */}
+          <Link to="/" className="flex items-center gap-1.5 shrink-0">
+            <div className="w-8 h-8 bg-gradient-to-br from-[#e05d6f] to-[#f0a0a8] rounded-lg flex items-center justify-center shadow-sm">
+              <svg viewBox="0 0 24 24" className="w-5 h-5 text-white" fill="currentColor">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/>
+              </svg>
+            </div>
+            <span className="font-bold text-lg text-[#e05d6f] hidden sm:block tracking-wide">堆糖</span>
+          </Link>
+
+          {/* Search：居中列，搜索框 max-w-xl 居中显示 */}
+          <div className="flex justify-center min-w-0">
+            <SearchBar
+              value={search}
+              onChange={handleSearchChange}
+              focused={searchFocused}
+              onFocus={() => setSearchFocused(true)}
+              onBlur={() => setTimeout(() => setSearchFocused(false), 150)}
+            />
           </div>
-          <span className="font-bold text-lg text-[#e05d6f] hidden sm:block tracking-wide">堆糖</span>
-        </Link>
 
-        {/* Search */}
-        <SearchBar
-          value={search}
-          onChange={handleSearchChange}
-          focused={searchFocused}
-          onFocus={() => setSearchFocused(true)}
-          onBlur={() => setTimeout(() => setSearchFocused(false), 150)}
-        />
-
-        {/* Actions */}
-        <div className="flex items-center gap-2 shrink-0 ml-1">
+          {/* Actions */}
+          <div className="flex items-center gap-2 shrink-0 justify-self-end">
           {/* 主题切换（对所有人可见） */}
           <button
             onClick={toggleTheme}
@@ -325,6 +328,7 @@ export default function Header({
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
+        </div>
         </div>
       </div>
 

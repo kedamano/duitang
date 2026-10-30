@@ -30,7 +30,7 @@ function Banner() {
   }, []);
 
   return (
-    <div className="relative overflow-hidden rounded-2xl mx-4 md:mx-6 mt-4 mb-6 h-36 md:h-48">
+    <div className="relative overflow-hidden rounded-2xl mx-auto max-w-[1088px] mt-4 mb-6 h-36 md:h-48">
       {slides.map((s, i) => (
         <div
           key={i}
@@ -173,8 +173,8 @@ function SideNav({
   ];
   const isCategory = activeNav !== "推荐" && activeNav !== FOLLOW_NAV;
   return (
-    <aside className="hidden lg:block w-36 shrink-0 pt-6" data-testid="home-sidenav">
-      <div className="sticky top-28 space-y-1">
+    <aside className="hidden lg:block w-36 shrink-0 pt-6 self-start" data-testid="home-sidenav">
+      <div className="sticky top-24 space-y-1">
         {items.map(it => (
           <button
             key={it.label}
@@ -314,12 +314,13 @@ export default function HomePage({
   const isFeedView = isFollowFeed || activeNav === "推荐" || !!effectiveSearch;
 
   return (
-    <main className="max-w-screen-xl mx-auto">
+    <main className="max-w-screen-xl mx-auto px-4 md:px-6">
       {activeNav === "推荐" && !search && <Banner />}
 
-      <div className="flex gap-4 px-4 md:px-6">
+      {/* 三栏与 Banner 同宽居中（144+672+240+gap=1088），中间列不再无限撑宽 */}
+      <div className="flex justify-center gap-4">
         <SideNav activeNav={activeNav} onNavChange={onNavChange} />
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 max-w-[672px]">
           {search && !isFollowFeed && (
             <div className="mb-4 flex items-center gap-2">
               <p className="text-sm text-body2">
@@ -385,8 +386,8 @@ export default function HomePage({
           )}
         </div>
 
-        <aside className="hidden xl:block w-60 shrink-0 pt-2">
-          <div className="sticky top-28 space-y-4">
+        <aside className="hidden xl:block w-60 shrink-0 pt-2 self-start">
+          <div className="sticky top-24 flex flex-col min-h-[calc(100vh-7.5rem)] space-y-4">
             <SideTopics />
             <div className="bg-gradient-to-br from-[#e05d6f] to-[#f0a0a8] rounded-2xl p-4 text-white shadow-md">
               <h3 className="font-bold text-sm mb-1 flex items-center gap-1.5">
@@ -397,7 +398,7 @@ export default function HomePage({
                 立即下载
               </button>
             </div>
-            <div className="text-xs text-mute space-y-1 px-1">
+            <div className="text-xs text-mute space-y-1 px-1 mt-auto pt-6">
               <div className="flex flex-wrap gap-2">
                 {["关于堆糖", "帮助中心", "意见反馈", "举报中心"].map(l => (
                   <a key={l} href="#" className="hover:text-[#e05d6f] transition-colors">{l}</a>
