@@ -70,9 +70,31 @@ describe("tokenizeComment", () => {
     expect(tokenizeComment("")).toEqual([]);
   });
 
+  it("贴图 markdown 解析为图片 token（alt + url）", () => {
+    const t = tokenizeComment("看这个 ![](/uploads/a.jpg) 好看");
+    expect(t[0]).toEqual({ type: "text", content: "看这个 " });
+    expect(t[1]).toEqual({ type: "image", url: "/uploads/a.jpg", alt: "" });
+    expect(t[2]).toEqual({ type: "text", content: " 好看" });
+  });
+
+  it("带 alt 的图片 token", () => {
+    const t = tokenizeComment("![描述](https://example.com/x.png)");
+    expect(t).toEqual([{ type: "image", url: "https://example.com/x.png", alt: "描述" }]);
+  });
+
+  it("站内相对路径图片也被识别", () => {
+    const t = tokenizeComment("![x](/uploads/pic_1_thumb.jpg)");
+    expect(t).toEqual([{ type: "image", url: "/uploads/pic_1_thumb.jpg", alt: "x" }]);
+  });
+
+  it("普通 markdown 链接不是图片", () => {
+    const t = tokenizeComment("[链接](https://x.com)");
+    expect(t.every(x => x.type === "text" || x.type === "bold" || x.type === "italic" || x.type === "code" || x.type === "mention")).toBe(true);
+  });
+
   it("HTML 标签不会被当成标记（按文本保留，渲染时由 React 转义）", () => {
     const t = tokenizeComment("<script>alert(1)</script>");
     expect(t.every(x => x.type === "text")).toBe(true);
-    expect(t.map(x => x.content).join("")).toBe("<script>alert(1)</script>");
+    expect((t as { content: string }[]).map(x => x.content).join("")).toBe("<script>alert(1)</script>");
   });
 });

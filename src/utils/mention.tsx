@@ -16,10 +16,13 @@ export type CommentToken =
   | { type: "mention"; content: string; nickname: string }
   | { type: "bold"; content: string }
   | { type: "italic"; content: string }
-  | { type: "code"; content: string };
+  | { type: "code"; content: string }
+  | { type: "image"; url: string; alt: string };
 
-/** 匹配优先级：代码 → 加粗 → 斜体 → @提及 */
+/** 匹配优先级：图片 → 代码 → 加粗 → 斜体 → @提及 */
 const PATTERNS: { type: CommentToken["type"]; re: RegExp }[] = [
+  // 评论贴图：markdown 图片语法 ![](url)，url 限站内 /uploads/ 或 http(s) 链接
+  { type: "image", re: /!\[([^\]]{0,200})\]\(((?:\/uploads\/|https?:\/\/)[^\s)]{1,400})\)/g },
   { type: "code", re: /`([^`\n]{1,200})`/g },
   { type: "bold", re: /\*\*([^*\n]{1,200})\*\*/g },
   { type: "italic", re: /\*([^*\n]{1,100})\*/g },
@@ -32,7 +35,7 @@ export function tokenizeComment(content: string): CommentToken[] {
   if (!text) return [];
 
   // 收集所有匹配及其区间
-  const hits: { start: number; end: number; type: CommentToken["type"]; raw: string; inner: string }[] = [];
+  const hits: { start: number; end: number; type: CommentToken["type"]; raw: string; inner: string; url?: string }[] = [];
   for (const { type, re } of PATTERNS) {
     re.lastIndex = 0;
     let m: RegExpExecArray | null;
@@ -45,7 +48,7 @@ export function tokenizeComment(content: string): CommentToken[] {
         re.lastIndex = start + 1;
         continue;
       }
-      hits.push({ start, end, type, raw: m[0], inner: m[1] });
+      hits.push({ start, end, type, raw: m[0], inner: m[1], url: type === "image" ? m[2] : undefined });
     }
   }
   hits.sort((a, b) => a.start - b.start);
@@ -56,6 +59,8 @@ export function tokenizeComment(content: string): CommentToken[] {
     if (h.start > cursor) tokens.push({ type: "text", content: text.slice(cursor, h.start) });
     if (h.type === "mention") {
       tokens.push({ type: "mention", content: h.raw, nickname: h.inner });
+    } else if (h.type === "image") {
+      tokens.push({ type: "image", url: h.url || "", alt: h.inner });
     } else {
       tokens.push({ type: h.type, content: h.inner } as CommentToken);
     }
@@ -98,6 +103,18 @@ export function renderCommentContent(content: string): React.ReactNode {
           <code key={i} data-testid="comment-code" className="bg-soft2 px-1 py-0.5 rounded text-[0.9em] font-mono">
             {token.content}
           </code>
+        );
+      case "image":
+        return (
+          <img
+            key={i}
+            src={token.url}
+            alt={token.alt || "评论图片"}
+            data-testid="comment-image"
+            loading="lazy"
+            decoding="async"
+            className="max-w-[240px] max-h-[280px] rounded-xl mt-1 block bg-soft2"
+          />
         );
       default:
         return <span key={i}>{token.content}</span>;

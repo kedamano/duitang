@@ -8,6 +8,7 @@ import CategoryDropdown from "./CategoryDropdown";
 import { api } from "../api";
 import { useTrending } from "../hooks/useTrending";
 import NotificationBell from "./NotificationBell";
+import MessageBell from "./MessageBell";
 import NotifyPrefsModal from "./NotifyPrefsModal";
 import { Icon } from "./Icons";
 
@@ -209,6 +210,7 @@ export default function Header({
           {user ? (
             <>
               <NotificationBell />
+              <MessageBell />
               {/* Publish button */}
               <button
                 onClick={handlePublish}

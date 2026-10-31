@@ -114,6 +114,78 @@ function SideTopics() {
   );
 }
 
+// ─── 关注建议（猜你喜欢关注：按粉丝数排序的热门作者，过滤自己与已关注） ────────────
+function SideSuggestFollowers() {
+  const navigate = useNavigate();
+  const { user, setShowLogin } = useAuth();
+  const { data } = useTrending();
+  const [followingIds, setFollowingIds] = useState<Set<number>>(new Set());
+  const [busyId, setBusyId] = useState<number | null>(null);
+
+  // 登录后拉取已关注集合，用于过滤与按钮态
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    api.myFollowing()
+      .then(d => { if (!cancelled) setFollowingIds(new Set(d.ids || [])); })
+      .catch(() => { /* 未登录或失败则全显示 */ });
+    return () => { cancelled = true; };
+  }, [user]);
+
+  const authors = (data?.authors || []) as { id: number; nickname: string; avatar: string; follower_count?: number }[];
+  const suggestions = authors.filter(a => a.id !== user?.id).slice(0, 5);
+  if (suggestions.length === 0) return null;
+
+  const handleFollow = async (id: number) => {
+    if (!user) { setShowLogin(true); return; }
+    setBusyId(id);
+    try {
+      const r = await api.followUser(id);
+      setFollowingIds(prev => { const s = new Set(prev); if (r.following) s.add(id); else s.delete(id); return s; });
+    } catch { /* 失败静默，按钮回弹原态 */ }
+    finally { setBusyId(null); }
+  };
+
+  return (
+    <div className="bg-surface rounded-2xl p-4 shadow-sm border border-line" data-testid="suggest-followers">
+      <h3 className="font-bold text-ink text-sm mb-3 flex items-center gap-1">
+        <Icon name="user" className="w-4 h-4 text-[#e05d6f]" /> 猜你喜欢关注
+      </h3>
+      <div className="space-y-1">
+        {suggestions.map(a => {
+          const isFollowing = followingIds.has(a.id);
+          return (
+            <div key={a.id} className="flex items-center gap-2 p-2 rounded-xl hover:bg-soft transition-colors">
+              <button
+                onClick={() => navigate(`/profile?user=${a.id}`)}
+                className="flex items-center gap-2 min-w-0 flex-1 text-left"
+                aria-label={`查看 ${a.nickname} 的主页`}
+              >
+                <img src={a.avatar} alt="" className="w-8 h-8 rounded-full bg-soft2 shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-xs font-medium text-ink truncate">{a.nickname}</p>
+                  <p className="text-[10px] text-mute">{a.follower_count ?? 0} 粉丝</p>
+                </div>
+              </button>
+              <button
+                onClick={() => handleFollow(a.id)}
+                disabled={busyId === a.id}
+                aria-pressed={isFollowing}
+                className={cn(
+                  "text-xs font-medium px-2.5 py-1 rounded-full transition-colors shrink-0 disabled:opacity-50",
+                  isFollowing ? "bg-soft2 text-mute" : "bg-[#e05d6f] text-white hover:bg-[#c94d5e]",
+                )}
+              >
+                {isFollowing ? "已关注" : "关注"}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ─── Load More ────────────────────────────────────────────────────────────────
 function LoadMoreButton({ onClick, loading }: { onClick: () => void; loading: boolean }) {
   return (
@@ -389,6 +461,7 @@ export default function HomePage({
         <aside className="hidden xl:block w-60 shrink-0 pt-2 self-start">
           <div className="sticky top-24 flex flex-col min-h-[calc(100vh-7.5rem)] space-y-4">
             <SideTopics />
+            <SideSuggestFollowers />
             <div className="bg-gradient-to-br from-[#e05d6f] to-[#f0a0a8] rounded-2xl p-4 text-white shadow-md">
               <h3 className="font-bold text-sm mb-1 flex items-center gap-1.5">
                 <Icon name="phone" className="w-4 h-4" /> 下载堆糖App

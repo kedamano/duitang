@@ -99,6 +99,7 @@ export function CommentItem({
   const [replyTo, setReplyTo] = useState<string | null>(null);
   // 回复的回复也挂到同一顶层，因此提交时始终用顶层 id
   const [targetId, setTargetId] = useState<number | null>(null);
+  const replyInputRef = useRef<HTMLInputElement>(null);
   const replies = comment.replies || [];
   const replyCount = comment.reply_count || replies.length;
   // 楼中楼默认折叠，仅显示数量；点开后展开
@@ -217,18 +218,26 @@ export function CommentItem({
         <div className="ml-10 mt-2">
           <div className="flex items-center gap-2 bg-soft rounded-2xl px-3 py-1.5 ring-1 ring-line2">
             <input
+              ref={replyInputRef}
               autoFocus
               value={replyText}
               onChange={e => setReplyText(e.target.value)}
               onKeyDown={e => { if (e.key === "Enter") submit(); if (e.key === "Escape") setReplying(false); }}
               placeholder={replyTo ? `回复 @${replyTo}` : "写下你的回复..."}
-              className="flex-1 bg-transparent text-sm focus:outline-none py-1"
+              className="flex-1 bg-transparent text-sm focus:outline-none py-1 min-w-0"
               aria-label="回复内容"
             />
-            <button onClick={submit} disabled={!replyText.trim()} className="text-xs text-[#e05d6f] disabled:text-mute2">
+            <CommentToolbar
+              inputRef={replyInputRef}
+              value={replyText}
+              onChange={setReplyText}
+              canUpload={currentUserId != null}
+              emojiUp={false}
+            />
+            <button onClick={submit} disabled={!replyText.trim()} className="text-xs text-[#e05d6f] disabled:text-mute2 shrink-0">
               发送
             </button>
-            <button onClick={() => setReplying(false)} className="text-xs text-mute hover:text-body">
+            <button onClick={() => setReplying(false)} className="text-xs text-mute hover:text-body shrink-0">
               取消
             </button>
           </div>
@@ -689,12 +698,110 @@ export function EditPostControl({ card, onSaved }: { card: ImageCard; onSaved?: 
   );
 }
 
+// ─── Comment toolbar：表情 + 贴图（在光标处插入） ──────────────────────────────
+const COMMENT_EMOJIS = ["😀","😄","😂","🥰","😍","🤩","😮","😭","😅","🙃","👍","👏","🙏","💪","🎉","❤️","🔥","✨","🌹","🍰","🐱","🐶","🌸","🌙"];
+
+export function CommentToolbar({
+  inputRef, value, onChange, canUpload, emojiUp = true,
+}: {
+  inputRef: React.RefObject<HTMLInputElement | null>;
+  value: string;
+  onChange: (v: string) => void;
+  canUpload: boolean;
+  /** 表情面板弹出方向：true 向上（底部输入框），false 向下（列表内回复框） */
+  emojiUp?: boolean;
+}) {
+  const [showEmoji, setShowEmoji] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  /** 在输入框光标处插入文本（表情 / 图片 markdown），插入后恢复光标 */
+  const insertAtCursor = (text: string) => {
+    const el = inputRef.current;
+    if (!el) { onChange(value + text); return; }
+    const start = el.selectionStart ?? el.value.length;
+    const end = el.selectionEnd ?? el.value.length;
+    const next = el.value.slice(0, start) + text + el.value.slice(end);
+    onChange(next);
+    requestAnimationFrame(() => {
+      el.focus();
+      const pos = start + text.length;
+      try { el.setSelectionRange(pos, pos); } catch { /* 部分输入不支持 */ }
+    });
+  };
+
+  const handlePickImage = async (file: File) => {
+    setUploading(true);
+    try {
+      const r = await api.upload(file);
+      // 用缩略图省流量，点开大图场景暂不需要
+      insertAtCursor(`![](${r.thumb || r.url})`);
+    } catch { /* 上传失败静默，按钮回弹 */ }
+    finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
+
+  return (
+    <div className="relative flex items-center gap-1 shrink-0">
+      <button
+        type="button"
+        onClick={() => setShowEmoji(s => !s)}
+        aria-label="插入表情"
+        title="表情"
+        className="w-8 h-8 rounded-full hover:bg-soft2 text-base leading-none transition-colors"
+      >😊</button>
+      {canUpload && (
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
+          disabled={uploading}
+          aria-label="添加图片"
+          title="插入图片"
+          className="w-8 h-8 rounded-full hover:bg-soft2 text-base leading-none transition-colors disabled:opacity-50"
+        >{uploading ? "…" : "🖼"}</button>
+      )}
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/gif"
+        className="hidden"
+        onChange={e => { const f = e.target.files?.[0]; if (f) handlePickImage(f); }}
+      />
+      {showEmoji && (
+        <div
+          className={cn(
+            "absolute left-0 mb-2 bg-surface rounded-2xl shadow-xl border border-line p-2 z-20 grid grid-cols-6 gap-1 w-[216px] animate-fade-in",
+            emojiUp ? "bottom-full" : "top-full mt-2 mb-0",
+          )}
+          role="dialog"
+          aria-label="表情面板"
+          data-testid="emoji-panel"
+        >
+          {COMMENT_EMOJIS.map(e => (
+            <button
+              key={e}
+              type="button"
+              onMouseDown={ev => ev.preventDefault()}
+              onClick={() => { insertAtCursor(e); setShowEmoji(false); }}
+              className="w-8 h-8 rounded-lg hover:bg-soft text-lg leading-none transition-colors"
+              aria-label={`插入表情 ${e}`}
+            >{e}</button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Comment composer ─────────────────────────────────────────────────────────
 export function CommentComposer({ card }: { card: ImageCard }) {
   const { user } = useAuth();
   const { requireAuth } = usePostActions(card);
   const { addComment } = useCollection();
   const [text, setText] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const send = () => {
     if (!text.trim()) return;
@@ -704,27 +811,34 @@ export function CommentComposer({ card }: { card: ImageCard }) {
   };
 
   return (
-    <div className="flex gap-2">
+    <div className="flex gap-2 items-center">
       <div className="relative flex-1">
         <input
+          ref={inputRef}
           type="text"
           value={text}
           onChange={e => setText(e.target.value)}
           onKeyDown={e => { if (e.key === "Enter") send(); }}
-          placeholder="说点什么吧... 可用 **加粗** 与 @提及"
-          maxLength={200}
-          title="支持 **加粗**、*斜体*、`代码` 与 @提及"
+          placeholder="说点什么吧... 可用 **加粗**、@提及、表情与图片"
+          maxLength={500}
+          title="支持 **加粗**、*斜体*、`代码`、@提及、表情与图片"
           className="w-full bg-soft2 rounded-full px-4 py-2.5 pr-16 text-sm outline-none focus:ring-2 focus:ring-[#e05d6f]/30 focus:bg-surface text-ink2 transition-all"
         />
         {user && (
           <img src={user.avatar} alt="" className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-soft2" />
         )}
       </div>
+      <CommentToolbar
+        inputRef={inputRef}
+        value={text}
+        onChange={setText}
+        canUpload={!!user}
+      />
       <button
         onClick={send}
         disabled={!text.trim()}
         className={cn(
-          "px-5 py-2.5 rounded-full text-sm font-medium transition-all",
+          "px-5 py-2.5 rounded-full text-sm font-medium transition-all shrink-0",
           text.trim()
             ? "bg-[#e05d6f] text-white hover:bg-[#c94d5e] shadow-sm"
             : "bg-soft2 text-mute cursor-not-allowed",

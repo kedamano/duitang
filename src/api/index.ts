@@ -1,5 +1,5 @@
 import type {
-  Album, AlbumDetail, AlbumList, AuthResult, CommentList, NotificationList,
+  Album, AlbumDetail, AlbumList, AuthResult, CommentList, Conversation, DirectMessage, NotificationList,
   NotifyPrefs, Post, PostList, Report, Trending, UploadResult, User, UserBrief, UserStats,
 } from "../types/api";
 
@@ -260,4 +260,21 @@ export const api = {
     fd.append('file', file);
     return request<UploadResult>('/upload', { method: 'POST', body: fd });
   },
+
+  // ─── 站内私信 ───
+  /** 给某人发消息（自动建/取会话并实时推送） */
+  sendUserMessage: (userId: number, content: string) =>
+    request<{ conversation_id: number; id: number; created: string }>(`/users/${userId}/message`, { method: 'POST', body: JSON.stringify({ content }) }),
+  /** 取或建与某人的会话（不存消息，用于直接进入聊天） */
+  startConversationWith: (userId: number) => request<{ id: number; other_id: number; created: boolean }>(`/users/${userId}/conversation`),
+  /** 我的会话列表 */
+  getConversations: () => request<{ conversations: Conversation[] }>('/messages'),
+  /** 某会话消息（拉取即把对方发的标为已读） */
+  getMessages: (conversationId: number, page = 1) =>
+    request<{ messages: DirectMessage[]; page: number; limit: number }>(`/messages/${conversationId}?page=${page}`),
+  /** 发消息到已有会话 */
+  sendConvMessage: (conversationId: number, content: string) =>
+    request<{ id: number; content: string; created: string }>(`/messages/${conversationId}`, { method: 'POST', body: JSON.stringify({ content }) }),
+  /** 未读私信总数 */
+  getUnreadMessages: () => request<{ count: number }>('/messages/unread'),
 };

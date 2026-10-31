@@ -13,6 +13,7 @@ const ICONS: Record<string, ReactNode> = {
   thumbsUp: <path fill="currentColor" d="M2 20h4V10H2v10zm19-9c-.52 0-1.01.24-1.36.63l-1.41 1.41v.59c0 3.91-3.18 7.09-7 7.09s-7-3.18-7-7.09v-.59L6.36 9.63C6 9.24 5.51 9 5 9V6.59c0-.53.23-1.02.64-1.36l7-7c.36-.36.86-.64 1.36-.64h5.64c.5 0 .96.28 1.36.64l7 7c.36.36.64.85.64 1.36V9z" />,
   reply: <path fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M9 17l-5-5 5-5M4 12h11a5 5 0 0 1 5 5v2" />,
   bell: <path fill="currentColor" d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z" />,
+  mail: <path fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M3 5h18v14H3V5zm0 1l9 7 9-7" />,
   hand: <path fill="currentColor" d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />,
 
   // ── 状态/空态 ──

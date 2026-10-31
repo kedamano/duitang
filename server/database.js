@@ -146,6 +146,35 @@ db.exec(`
   );
 `);
 
+// 私信会话表（user1_id < user2_id，保证两人会话唯一）
+db.exec(`
+  CREATE TABLE IF NOT EXISTS conversations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user1_id INTEGER NOT NULL,
+    user2_id INTEGER NOT NULL,
+    last_message TEXT NOT NULL DEFAULT '',
+    last_sender_id INTEGER NOT NULL DEFAULT 0,
+    last_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user1_id, user2_id),
+    FOREIGN KEY (user1_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (user2_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+  CREATE TABLE IF NOT EXISTS messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    conversation_id INTEGER NOT NULL,
+    sender_id INTEGER NOT NULL,
+    content TEXT NOT NULL,
+    is_read INTEGER NOT NULL DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
+    FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+  CREATE INDEX IF NOT EXISTS idx_conversations_user1 ON conversations(user1_id, last_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_conversations_user2 ON conversations(user2_id, last_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id, id DESC);
+`);
+
 // 专辑（用户自建收藏夹）
 db.exec(`
   CREATE TABLE IF NOT EXISTS albums (

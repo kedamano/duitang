@@ -191,3 +191,27 @@ export interface PageQuery {
   page?: number;
   limit?: number;
 }
+
+/** 私信会话（列表项：对方信息 + 最后一条 + 未读数） */
+export interface Conversation {
+  id: number;
+  last_message: string;
+  last_sender_id: number;
+  last_at: string;
+  other_id: number;
+  other_nickname: string;
+  other_avatar: string;
+  other_username: string;
+  unread: number;
+}
+
+/** 私信消息 */
+export interface DirectMessage {
+  id: number;
+  sender_id: number;
+  content: string;
+  created_at: string;
+  is_read: number;
+  sender_nickname: string;
+  sender_avatar: string;
+}

@@ -1124,12 +1124,13 @@ app.get('/api/trending', (req, res) => {
   const authors = db.prepare(`
     SELECT u.id, u.username, u.nickname, u.avatar, u.bio,
            COUNT(DISTINCT p.id) AS post_count,
-           COALESCE(SUM(p.likes_count + p.collects_count + p.comments_count), 0) AS score
+           COALESCE(SUM(p.likes_count + p.collects_count + p.comments_count), 0) AS score,
+           (SELECT COUNT(*) FROM user_follows f WHERE f.following_id = u.id) AS follower_count
     FROM users u
     JOIN posts p ON p.author_id = u.id
     WHERE p.created_at >= datetime('now', '-30 day')
     GROUP BY u.id
-    ORDER BY score DESC, post_count DESC
+    ORDER BY follower_count DESC, score DESC, post_count DESC
     LIMIT 6
   `).all();
 
@@ -1268,6 +1269,152 @@ app.get('/api/notifications/stream', (req, res) => {
     }
   });
 });
+
+// ─────────────────────────────────────────────
+// 站内私信（会话 + 消息，复用 SSE 实时推送）
+// ─────────────────────────────────────────────
+
+/** 给某人推一条私信 SSE（在线才推，离线下次拉取） */
+function pushMessage(userId, payload) {
+  const set = sseClients.get(userId);
+  if (!set || set.size === 0) return;
+  const data = JSON.stringify(payload);
+  for (const res of set) {
+    try { res.write(`event: message\ndata: ${data}\n\n`); } catch { /* 连接已断开 */ }
+  }
+}
+
+/** 取或建两人会话（user1_id < user2_id 保证唯一） */
+function getOrCreateConversation(a, b) {
+  const u1 = Math.min(a, b), u2 = Math.max(a, b);
+  const existing = db.prepare('SELECT id FROM conversations WHERE user1_id = ? AND user2_id = ?').get(u1, u2);
+  if (existing) return { id: existing.id, created: false };
+  const info = db.prepare('INSERT INTO conversations (user1_id, user2_id) VALUES (?, ?)').run(u1, u2);
+  return { id: Number(info.lastInsertRowid), created: true };
+}
+
+/** 存一条消息并更新会话摘要 */
+function insertMessage(conversationId, senderId, content) {
+  const clean = cleanCommentText(content);
+  if (!clean) return null;
+  const info = db.prepare('INSERT INTO messages (conversation_id, sender_id, content) VALUES (?, ?, ?)')
+    .run(conversationId, senderId, clean);
+  db.prepare('UPDATE conversations SET last_message = ?, last_sender_id = ?, last_at = CURRENT_TIMESTAMP WHERE id = ?')
+    .run(clean, senderId, conversationId);
+  return Number(info.lastInsertRowid);
+}
+
+/** 校验当前用户是否是会话成员 */
+function isConversationMember(conversationId, userId) {
+  const c = db.prepare('SELECT user1_id, user2_id FROM conversations WHERE id = ?').get(conversationId);
+  return c && (c.user1_id === userId || c.user2_id === userId) ? c : null;
+}
+
+/** 给某人发首条 / 后续消息（统一入口，自动建会话并实时推送） */
+app.post('/api/users/:id/message', authMiddleware, (req, res) => {
+  const toId = parseInt(req.params.id);
+  const { content } = req.body || {};
+  if (!content || !content.trim()) return res.status(400).json({ error: '内容不能为空' });
+  if (toId === req.user.id) return res.status(400).json({ error: '不能给自己发私信' });
+
+  const target = db.prepare('SELECT id FROM users WHERE id = ?').get(toId);
+  if (!target) return res.status(404).json({ error: '用户不存在' });
+
+  // 对方拉黑我 / 我拉黑对方 → 拒绝
+  const blocked = db.prepare('SELECT 1 FROM user_blocks WHERE (blocker_id = ? AND blocked_id = ?) OR (blocker_id = ? AND blocked_id = ?)')
+    .get(toId, req.user.id, req.user.id, toId);
+  if (blocked) return res.status(403).json({ error: '无法向该用户发送私信' });
+
+  const conv = getOrCreateConversation(req.user.id, toId);
+  const msgId = insertMessage(conv.id, req.user.id, content);
+  if (!msgId) return res.status(400).json({ error: '内容不能为空' });
+
+  const created = db.prepare('SELECT created_at FROM messages WHERE id = ?').get(msgId).created_at;
+  pushMessage(toId, { conversation_id: conv.id, sender_id: req.user.id, content: cleanCommentText(content), created_at: created });
+  res.json({ conversation_id: conv.id, id: msgId, created });
+});
+
+/** 取或建与某人的会话（不存消息，用于从资料页 / ?to= 直接进入聊天） */
+app.get('/api/users/:id/conversation', authMiddleware, (req, res) => {
+  const otherId = parseInt(req.params.id);
+  const target = db.prepare('SELECT id FROM users WHERE id = ?').get(otherId);
+  if (!target) return res.status(404).json({ error: '用户不存在' });
+  if (otherId === req.user.id) return res.status(400).json({ error: '不能与自己建立会话' });
+  // 对方拉黑我 → 拒绝
+  const blocked = db.prepare('SELECT 1 FROM user_blocks WHERE blocker_id = ? AND blocked_id = ?').get(otherId, req.user.id);
+  if (blocked) return res.status(403).json({ error: '无法与该用户建立会话' });
+  const conv = getOrCreateConversation(req.user.id, otherId);
+  res.json({ id: conv.id, other_id: otherId, created: conv.created });
+});
+
+/** 我的会话列表（对方信息 + 最后一条 + 未读数） */
+app.get('/api/messages', authMiddleware, (req, res) => {
+  const me = req.user.id;
+  const rows = db.prepare(`
+    SELECT c.id, c.last_message, c.last_sender_id, c.last_at,
+           CASE WHEN c.user1_id = ? THEN c.user2_id ELSE c.user1_id END AS other_id,
+           u.nickname AS other_nickname, u.avatar AS other_avatar, u.username AS other_username,
+           (SELECT COUNT(*) FROM messages m WHERE m.conversation_id = c.id AND m.sender_id != ? AND m.is_read = 0) AS unread
+    FROM conversations c
+    JOIN users u ON u.id = (CASE WHEN c.user1_id = ? THEN c.user2_id ELSE c.user1_id END)
+    WHERE c.user1_id = ? OR c.user2_id = ?
+    ORDER BY c.last_at DESC, c.id DESC
+    LIMIT 50
+  `).all(me, me, me, me, me);
+  res.json({ conversations: rows });
+});
+
+/** 未读私信总数（顶栏角标复用）——必须注册在 /api/messages/:id 之前，否则 unread 会被当作会话 id */
+app.get('/api/messages/unread', authMiddleware, (req, res) => {
+  const count = db.prepare(`
+    SELECT COUNT(*) AS count FROM messages m
+    JOIN conversations c ON c.id = m.conversation_id
+    WHERE (c.user1_id = ? OR c.user2_id = ?) AND m.sender_id != ? AND m.is_read = 0
+  `).get(req.user.id, req.user.id, req.user.id).count;
+  res.json({ count });
+});
+
+/** 某会话的消息（分页，按时间倒序；同时把对方发的标为已读） */
+app.get('/api/messages/:id', authMiddleware, (req, res) => {
+  const convId = parseInt(req.params.id);
+  const c = isConversationMember(convId, req.user.id);
+  if (!c) return res.status(403).json({ error: '无权查看该会话' });
+
+  const { pageNum, limitNum, offset } = parsePage(req);
+  const rows = db.prepare(`
+    SELECT m.id, m.sender_id, m.content, m.created_at, m.is_read,
+           u.nickname AS sender_nickname, u.avatar AS sender_avatar
+    FROM messages m JOIN users u ON u.id = m.sender_id
+    WHERE m.conversation_id = ?
+    ORDER BY m.id DESC LIMIT ? OFFSET ?
+  `).all(convId, limitNum, offset);
+  // 拉取即把对方发的消息标为已读
+  db.prepare('UPDATE messages SET is_read = 1 WHERE conversation_id = ? AND sender_id != ? AND is_read = 0')
+    .run(convId, req.user.id);
+  res.json({ messages: rows.reverse(), page: pageNum, limit: limitNum });
+});
+
+/** 发消息到已有会话 */
+app.post('/api/messages/:id', authMiddleware, (req, res) => {
+  const convId = parseInt(req.params.id);
+  const c = isConversationMember(convId, req.user.id);
+  if (!c) return res.status(403).json({ error: '无权发送到该会话' });
+  const { content } = req.body || {};
+  if (!content || !content.trim()) return res.status(400).json({ error: '内容不能为空' });
+
+  const otherId = c.user1_id === req.user.id ? c.user2_id : c.user1_id;
+  // 对方拉黑我 → 拒绝
+  const blocked = db.prepare('SELECT 1 FROM user_blocks WHERE blocker_id = ? AND blocked_id = ?').get(otherId, req.user.id);
+  if (blocked) return res.status(403).json({ error: '无法向该用户发送私信' });
+
+  const msgId = insertMessage(convId, req.user.id, content);
+  if (!msgId) return res.status(400).json({ error: '内容不能为空' });
+  const created = db.prepare('SELECT created_at FROM messages WHERE id = ?').get(msgId).created_at;
+  pushMessage(otherId, { conversation_id: convId, sender_id: req.user.id, content: cleanCommentText(content), created_at: created });
+  res.json({ id: msgId, content: cleanCommentText(content), created });
+});
+
+
 
 // ─────────────────────────────────────────────
 // 通知偏好
