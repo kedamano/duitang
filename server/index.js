@@ -1131,7 +1131,7 @@ app.get('/api/trending', (req, res) => {
     WHERE p.created_at >= datetime('now', '-30 day')
     GROUP BY u.id
     ORDER BY follower_count DESC, score DESC, post_count DESC
-    LIMIT 6
+    LIMIT 12
   `).all();
 
   const newUsers = db.prepare(`
@@ -1329,9 +1329,9 @@ app.post('/api/users/:id/message', authMiddleware, (req, res) => {
   const msgId = insertMessage(conv.id, req.user.id, content);
   if (!msgId) return res.status(400).json({ error: '内容不能为空' });
 
-  const created = db.prepare('SELECT created_at FROM messages WHERE id = ?').get(msgId).created_at;
-  pushMessage(toId, { conversation_id: conv.id, sender_id: req.user.id, content: cleanCommentText(content), created_at: created });
-  res.json({ conversation_id: conv.id, id: msgId, created });
+  const msg = db.prepare('SELECT m.id, m.sender_id, m.content, m.created_at, m.is_read, u.nickname AS sender_nickname, u.avatar AS sender_avatar FROM messages m JOIN users u ON u.id = m.sender_id WHERE m.id = ?').get(msgId);
+  pushMessage(toId, { conversation_id: conv.id, ...msg });
+  res.json({ conversation_id: conv.id, id: msgId, created: msg.created_at });
 });
 
 /** 取或建与某人的会话（不存消息，用于从资料页 / ?to= 直接进入聊天） */
@@ -1381,6 +1381,7 @@ app.get('/api/messages/:id', authMiddleware, (req, res) => {
   if (!c) return res.status(403).json({ error: '无权查看该会话' });
 
   const { pageNum, limitNum, offset } = parsePage(req);
+  const total = db.prepare('SELECT COUNT(*) AS c FROM messages WHERE conversation_id = ?').get(convId).c;
   const rows = db.prepare(`
     SELECT m.id, m.sender_id, m.content, m.created_at, m.is_read,
            u.nickname AS sender_nickname, u.avatar AS sender_avatar
@@ -1391,7 +1392,7 @@ app.get('/api/messages/:id', authMiddleware, (req, res) => {
   // 拉取即把对方发的消息标为已读
   db.prepare('UPDATE messages SET is_read = 1 WHERE conversation_id = ? AND sender_id != ? AND is_read = 0')
     .run(convId, req.user.id);
-  res.json({ messages: rows.reverse(), page: pageNum, limit: limitNum });
+  res.json({ messages: rows.reverse(), page: pageNum, limit: limitNum, total, hasMore: offset + rows.length < total });
 });
 
 /** 发消息到已有会话 */
@@ -1409,9 +1410,9 @@ app.post('/api/messages/:id', authMiddleware, (req, res) => {
 
   const msgId = insertMessage(convId, req.user.id, content);
   if (!msgId) return res.status(400).json({ error: '内容不能为空' });
-  const created = db.prepare('SELECT created_at FROM messages WHERE id = ?').get(msgId).created_at;
-  pushMessage(otherId, { conversation_id: convId, sender_id: req.user.id, content: cleanCommentText(content), created_at: created });
-  res.json({ id: msgId, content: cleanCommentText(content), created });
+  const msg = db.prepare('SELECT m.id, m.sender_id, m.content, m.created_at, m.is_read, u.nickname AS sender_nickname, u.avatar AS sender_avatar FROM messages m JOIN users u ON u.id = m.sender_id WHERE m.id = ?').get(msgId);
+  pushMessage(otherId, { conversation_id: convId, ...msg });
+  res.json({ id: msgId, content: msg.content, created: msg.created_at });
 });
 
 

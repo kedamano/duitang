@@ -121,6 +121,7 @@ function SideSuggestFollowers() {
   const { data } = useTrending();
   const [followingIds, setFollowingIds] = useState<Set<number>>(new Set());
   const [busyId, setBusyId] = useState<number | null>(null);
+  const [batch, setBatch] = useState(0);
 
   // 登录后拉取已关注集合，用于过滤与按钮态
   useEffect(() => {
@@ -133,8 +134,20 @@ function SideSuggestFollowers() {
   }, [user]);
 
   const authors = (data?.authors || []) as { id: number; nickname: string; avatar: string; follower_count?: number }[];
-  const suggestions = authors.filter(a => a.id !== user?.id).slice(0, 5);
-  if (suggestions.length === 0) return null;
+  const candidates = authors.filter(a => a.id !== user?.id);
+  const pageSize = 5;
+  const totalBatches = Math.max(1, Math.ceil(candidates.length / pageSize));
+  const safeBatch = Math.min(batch, totalBatches - 1);
+  const suggestions = candidates.slice(safeBatch * pageSize, safeBatch * pageSize + pageSize);
+  const hasMore = candidates.length > pageSize;
+
+  /** 换一批：循环切换候选批次 */
+  const rotate = () => {
+    if (!hasMore) return;
+    setBatch(b => { const n = b + 1; return n >= totalBatches ? 0 : n; });
+  };
+
+  if (candidates.length === 0) return null;
 
   const handleFollow = async (id: number) => {
     if (!user) { setShowLogin(true); return; }
@@ -150,6 +163,11 @@ function SideSuggestFollowers() {
     <div className="bg-surface rounded-2xl p-4 shadow-sm border border-line" data-testid="suggest-followers">
       <h3 className="font-bold text-ink text-sm mb-3 flex items-center gap-1">
         <Icon name="user" className="w-4 h-4 text-[#e05d6f]" /> 猜你喜欢关注
+        {hasMore && (
+          <button onClick={rotate} data-testid="suggest-refresh" aria-label="换一批" className="ml-auto text-xs text-mute hover:text-[#e05d6f] font-normal shrink-0">
+            换一批
+          </button>
+        )}
       </h3>
       <div className="space-y-1">
         {suggestions.map(a => {
@@ -458,7 +476,7 @@ export default function HomePage({
           )}
         </div>
 
-        <aside className="hidden xl:block w-60 shrink-0 pt-2 self-start">
+        <aside className="hidden lg:block w-60 shrink-0 pt-2 self-start">
           <div className="sticky top-24 flex flex-col min-h-[calc(100vh-7.5rem)] space-y-4">
             <SideTopics />
             <SideSuggestFollowers />

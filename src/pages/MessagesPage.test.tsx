@@ -106,4 +106,45 @@ describe("MessagesPage", () => {
 
     await waitFor(() => expect(apiModule.api.sendConvMessage).toHaveBeenCalledWith(1, "hi"));
   });
+
+  it("自己消息显示已读/已送达回执", async () => {
+    localStorage.setItem("duitang_token", "T");
+    (apiModule.api.me as any).mockResolvedValue({
+      user: { id: 1, username: "u", nickname: "我", avatar: "a.svg", bio: "" },
+      stats: { posts: 0, followers: 0, following: 0, collects: 0 },
+    });
+    (apiModule.api.getConversations as any).mockResolvedValue({ conversations: [CONV] });
+    (apiModule.api.getMessages as any).mockResolvedValue({
+      messages: [
+        { id: 1, sender_id: 1, content: "我发的", created_at: "", is_read: 0, sender_nickname: "我", sender_avatar: "a.svg" },
+        { id: 2, sender_id: 1, content: "已读的", created_at: "", is_read: 1, sender_nickname: "我", sender_avatar: "a.svg" },
+        MSG,
+      ], page: 1, limit: 20, hasMore: false, total: 3,
+    });
+
+    renderPage();
+    await screen.findByText("小兔");
+    await userEvent.click(screen.getByTestId("conversation-item"));
+    const list = await screen.findByTestId("message-list");
+    expect(list.textContent).toContain("已送达");
+    expect(list.textContent).toContain("已读");
+  });
+
+  it("hasMore 时显示「加载更早的消息」按钮并点击加载", async () => {
+    localStorage.setItem("duitang_token", "T");
+    (apiModule.api.me as any).mockResolvedValue({
+      user: { id: 1, username: "u", nickname: "我", avatar: "a.svg", bio: "" },
+      stats: { posts: 0, followers: 0, following: 0, collects: 0 },
+    });
+    (apiModule.api.getConversations as any).mockResolvedValue({ conversations: [CONV] });
+    (apiModule.api.getMessages as any).mockResolvedValue({ messages: [MSG], page: 1, limit: 20, hasMore: true, total: 25 });
+
+    renderPage();
+    await screen.findByText("小兔");
+    await userEvent.click(screen.getByTestId("conversation-item"));
+    const btn = await screen.findByText("加载更早的消息");
+    expect(btn).toBeInTheDocument();
+    await userEvent.click(btn);
+    await waitFor(() => expect(apiModule.api.getMessages).toHaveBeenCalledWith(1, 2));
+  });
 });

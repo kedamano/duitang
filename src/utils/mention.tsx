@@ -113,7 +113,12 @@ export function renderCommentContent(content: string): React.ReactNode {
             data-testid="comment-image"
             loading="lazy"
             decoding="async"
-            className="max-w-[240px] max-h-[280px] rounded-xl mt-1 block bg-soft2"
+            onClick={e => {
+              // 点击图片打开灯箱：由宿主组件监听 duitang:lightbox 事件
+              e.stopPropagation();
+              try { window.dispatchEvent(new CustomEvent('duitang:lightbox', { detail: token.url })); } catch { /* 非浏览器环境 */ }
+            }}
+            className="max-w-[240px] max-h-[280px] rounded-xl mt-1 block bg-soft2 cursor-zoom-in"
           />
         );
       default:

@@ -1,11 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { AuthProvider } from "../context/AuthContext";
 import { CollectionProvider } from "../context/CollectionContext";
 import { ToastProvider } from "../context/ToastContext";
 import HomePage from "./HomePage";
 import * as apiModule from "../api";
+import { resetTrendingCache } from "../hooks/useTrending";
 import { FOLLOW_NAV } from "../data/images";
 
 vi.mock("../api", () => ({
@@ -23,6 +24,7 @@ vi.mock("../api", () => ({
     myFollowing: vi.fn().mockResolvedValue({ ids: [] }),
     getComments: vi.fn().mockResolvedValue({ comments: [] }),
     searchUsers: vi.fn().mockResolvedValue({ users: [] }),
+    getTrending: vi.fn().mockResolvedValue({ searches: [], tags: [], authors: [], new_users: [] }),
   },
 }));
 
@@ -139,5 +141,32 @@ describe("HomePage 关注流", () => {
     expect(apiModule.api.getRecommendFeed).toHaveBeenCalled();
     // 精选流不再走通用列表接口
     expect((apiModule.api.getPosts as any).mock.calls.every((c: any) => c[0]?.board === "anime")).toBe(true);
+  });
+
+  it("关注建议：候选超过一页时显示「换一批」且点击切换批次", async () => {
+    localStorage.setItem("duitang_token", "T");
+    (apiModule.api.me as any).mockResolvedValue({
+      user: { id: 1, username: "u", nickname: "我", avatar: "a.svg", bio: "" },
+      stats: { posts: 0, followers: 0, following: 0, collects: 0 },
+    });
+    (apiModule.api.getTrending as any).mockResolvedValue({
+      searches: [], tags: [],
+      authors: Array.from({ length: 12 }, (_, i) => ({ id: i + 2, nickname: `作者${i + 1}`, avatar: "a.svg", follower_count: i + 1 })),
+      new_users: [],
+    });
+    resetTrendingCache();
+
+    renderHome(FOLLOW_NAV);
+    const panel = await screen.findByTestId("suggest-followers");
+    // 候选 12 个 > 每页 5 → 显示「换一批」
+    expect(screen.getByTestId("suggest-refresh")).toBeInTheDocument();
+    // 第一批首个作者为「作者1」
+    const first = panel.querySelector('button[aria-label^="查看"]')?.getAttribute("aria-label");
+    expect(first).toBe("查看 作者1 的主页");
+
+    // 点击换一批 → 第二批首个为「作者6」
+    fireEvent.click(screen.getByTestId("suggest-refresh"));
+    const second = panel.querySelector('button[aria-label^="查看"]')?.getAttribute("aria-label");
+    expect(second).toBe("查看 作者6 的主页");
   });
 });

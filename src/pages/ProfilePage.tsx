@@ -403,17 +403,30 @@ export default function ProfilePage() {
                 <p className="text-xs text-mute mt-0.5 truncate">@{profileUser?.username}</p>
               </div>
               {isViewingOther ? (
-                <button
-                  onClick={() => targetUserId && toggleFollow(parseInt(targetUserId, 10))}
-                  className={cn(
-                    "px-5 py-2 rounded-full text-xs font-bold transition-colors shadow-sm shrink-0",
-                    targetUserId && isFollowing(parseInt(targetUserId, 10))
-                      ? "bg-soft2 text-body hover:bg-line2"
-                      : "bg-[#e05d6f] text-white hover:bg-[#c94d5e]"
-                  )}
-                >
-                  {targetUserId && isFollowing(parseInt(targetUserId, 10)) ? "已关注" : "+ 关注"}
-                </button>
+                <div className="flex gap-2 shrink-0">
+                  <button
+                    onClick={() => targetUserId && toggleFollow(parseInt(targetUserId, 10))}
+                    className={cn(
+                      "px-4 py-2 rounded-full text-xs font-bold transition-colors shadow-sm shrink-0",
+                      targetUserId && isFollowing(parseInt(targetUserId, 10))
+                        ? "bg-soft2 text-body hover:bg-line2"
+                        : "bg-[#e05d6f] text-white hover:bg-[#c94d5e]"
+                    )}
+                  >
+                    {targetUserId && isFollowing(parseInt(targetUserId, 10)) ? "已关注" : "+ 关注"}
+                  </button>
+                  <button
+                    onClick={() => targetUserId && navigate(`/messages?to=${parseInt(targetUserId, 10)}`)}
+                    title="发私信"
+                    aria-label="发私信"
+                    className="flex items-center gap-1 px-4 py-2 rounded-full text-xs font-bold bg-soft2 text-body hover:bg-line2 transition-colors shadow-sm shrink-0"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 5h18v14H3V5zm0 1l9 7 9-7" />
+                    </svg>
+                    私信
+                  </button>
+                </div>
               ) : (
                 <button
                   onClick={() => navigate("/publish")}

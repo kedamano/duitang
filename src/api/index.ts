@@ -269,9 +269,9 @@ export const api = {
   startConversationWith: (userId: number) => request<{ id: number; other_id: number; created: boolean }>(`/users/${userId}/conversation`),
   /** 我的会话列表 */
   getConversations: () => request<{ conversations: Conversation[] }>('/messages'),
-  /** 某会话消息（拉取即把对方发的标为已读） */
+  /** 某会话消息（拉取即把对方发的标为已读；hasMore 表示还有更早消息） */
   getMessages: (conversationId: number, page = 1) =>
-    request<{ messages: DirectMessage[]; page: number; limit: number }>(`/messages/${conversationId}?page=${page}`),
+    request<{ messages: DirectMessage[]; page: number; limit: number; total: number; hasMore: boolean }>(`/messages/${conversationId}?page=${page}`),
   /** 发消息到已有会话 */
   sendConvMessage: (conversationId: number, content: string) =>
     request<{ id: number; content: string; created: string }>(`/messages/${conversationId}`, { method: 'POST', body: JSON.stringify({ content }) }),
