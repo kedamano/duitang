@@ -11,7 +11,7 @@
 [![Frontend](https://img.shields.io/badge/frontend-React%2019-61dafb?logo=react&logoColor=white)](#技术栈)
 [![Backend](https://img.shields.io/badge/backend-Express%204-000000?logo=express&logoColor=white)](#技术栈)
 [![Database](https://img.shields.io/badge/database-SQLite%20(FTS5)-003b57?logo=sqlite&logoColor=white)](#关键设计决策)
-[![Tests](https://img.shields.io/badge/tests-427%20passing-3fb950)](#测试)
+[![Tests](https://img.shields.io/badge/tests-450%20passing-3fb950)](#测试)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 [功能特性](#-功能特性) · [快速开始](#-快速开始) · [架构](#-架构) · [设计决策](#-关键设计决策) · [API](#-api) · [测试](#-测试) · [部署](#-部署)
@@ -60,6 +60,7 @@
 | **发现页** | `/#/discover` 热门作者（近 30 天互动量）、热门话题、新鲜面孔，缓解关注流冷启动 |
 | **真实热搜** | 热搜来自用户实际搜索统计（`search_queries`），不是写死的假数据 |
 | **协同过滤推荐** | **Item-KNN**（收藏3/点赞2/评论2/浏览1 加权 + 余弦相似）：每日精选走个性化流、详情页底部相关推荐；离线算好 `item_similarities`，读时零计算；**CF → 内容相似 → 热门** 三层兜底，冷启动与孤立帖永不空窗 |
+| **关注建议** | 首页右栏「猜你喜欢关注」按粉丝数排序，一键关注/取关，候选多时可「换一批」轮换 |
 | **PWA 可安装** | manifest + 图标 + 手写 Service Worker：应用壳离线可开、API/图片 network-first 带离线回落，生产构建自动注册 |
 
 ### 创作与组织
@@ -80,9 +81,11 @@
 | **关注流** | 只看已关注作者 + 自己，未登录/无关注都有对应空状态 |
 | **楼中楼评论** | 单层嵌套；回复默认折叠、点击展开、可分页加载 |
 | **评论轻量格式** | `**加粗**` / `*斜体*` / `` `代码` `` + `@昵称` 高亮跳转 |
+| **评论表情与贴图** | 表情选择器（光标处插入）+ 贴图（markdown 图片，点击灯箱放大） |
 | **@提及** | 被提到的人会收到通知（类型 `mention`） |
 | **实时通知** | SSE 长连接推送未读数，断线自动回落 60s 轮询 |
 | **通知偏好** | 每类通知可设「开启 / 仅关注的人 / 关闭」，写入前即拦截 |
+| **站内私信** | 会话 + 消息模型，SSE 实时收发，已读/已送达回执，历史分页加载，资料页一键发起 |
 
 ### 社区治理
 
@@ -213,6 +216,7 @@ flowchart LR
 | `comments` · `comment_likes` | 评论（`parent_id` 实现单层楼中楼）、评论点赞 |
 | `user_follows` · `user_blocks` | 关注、拉黑 |
 | `notifications` | 通知（按「接收者+触发者+类型+目标」唯一去重） |
+| `conversations` · `messages` | 私信会话（`user1_id < user2_id` 唯一）与消息（拉取即标已读） |
 | `albums` · `album_posts` | 专辑与专辑内容 |
 | `reports` | 举报与审核状态 |
 | `drafts` | 服务端草稿（每人一份） |
@@ -383,7 +387,7 @@ sourcemap 实测占比：react-dom 20.6%、react-router 13.8%、自有代码 12.
 ## 📡 API
 
 完整的 OpenAPI 3.0 规范在 [`docs/openapi.json`](docs/openapi.json)，
-由 `node scripts/gen-openapi.mjs` 从路由元数据生成（**53 个接口**），
+由 `node scripts/gen-openapi.mjs` 从路由元数据生成（**62 个接口**），
 前端共享类型在 [`src/types/api.ts`](src/types/api.ts)，两者一致性由单元测试守护。
 
 | 分组 | 端点示例 |
@@ -395,6 +399,7 @@ sourcemap 实测占比：react-dom 20.6%、react-router 13.8%、自有代码 12.
 | 用户 | `GET /api/users/:id/profile` · `POST /api/users/:id/follow` · `block` |
 | 专辑 | `GET /api/albums/:id` · `POST /api/albums` · `POST /api/albums/:id/posts` |
 | 通知 | `GET /api/notifications` · `GET /api/notifications/stream`（SSE） |
+| 私信 | `GET /api/messages` · `POST /api/messages/:id` · `POST /api/users/:id/message` · `GET /api/messages/unread` |
 | 治理 | `POST /api/reports` · `GET /api/admin/reports` · `POST /api/admin/reports/:id/resolve` |
 | 上传 | `POST /api/upload`（返回原图 + 变体 + 水印 + 防盗链签名） |
 
@@ -409,9 +414,9 @@ curl -s http://localhost:3001/api/posts?limit=1 | jq
 
 | 层级 | 工具 | 用例数 | 命令 |
 | --- | --- | --- | --- |
-| 前端单测 | Vitest + Testing Library | **236** | `npm test` |
+| 前端单测 | Vitest + Testing Library | **259** | `npm test` |
 | 后端接口 | Mocha + Supertest | **191**（18 文件） | `npm run test:server` |
-| 浏览器 E2E | 原生 CDP 驱动无头 Chrome | **4 套件 / 50+ 断言** | `npm run test:e2e` |
+| 浏览器 E2E | 原生 CDP 驱动无头 Chrome | **4 套件 / 54 断言** | `npm run test:e2e` |
 | 类型检查 | TypeScript | - | `npx tsc --noEmit` |
 
 前端单测附带**覆盖率门槛**（`vitest.config.ts` 的 `coverage.thresholds`，按当前实测留 2 个点余量），
