@@ -324,7 +324,7 @@ export default function PublishPage() {
             </svg>
             <span className="text-sm font-medium">返回</span>
           </button>
-          <h1 className="font-bold text-ink">发布新内容</h1>
+          <h1 className="font-semibold tracking-tight text-ink">发布新内容</h1>
           <button
             onClick={handlePublish}
             disabled={!title.trim() || publishing || images.length === 0}

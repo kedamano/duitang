@@ -85,8 +85,8 @@ function SideTopics() {
   const topics = (realTags.length ? realTags : fallback).slice(0, 5);
 
   return (
-    <div className="bg-surface rounded-2xl p-4 shadow-sm border border-line">
-      <h3 className="font-bold text-ink text-sm mb-3 flex items-center gap-1">
+    <div className="card-accent bg-surface rounded-2xl p-4 shadow-sm border border-line">
+      <h3 className="font-bold text-ink text-sm mb-2.5 flex items-center gap-1">
         <Icon name="fire" className="w-4 h-4 text-[#e05d6f]" /> 热门话题
       </h3>
       <div className="space-y-1" data-testid="hot-topics">
@@ -160,8 +160,8 @@ function SideSuggestFollowers() {
   };
 
   return (
-    <div className="bg-surface rounded-2xl p-4 shadow-sm border border-line" data-testid="suggest-followers">
-      <h3 className="font-bold text-ink text-sm mb-3 flex items-center gap-1">
+    <div className="card-accent bg-surface rounded-2xl p-4 shadow-sm border border-line" data-testid="suggest-followers">
+      <h3 className="font-bold text-ink text-sm mb-2.5 flex items-center gap-1">
         <Icon name="user" className="w-4 h-4 text-[#e05d6f]" /> 猜你喜欢关注
         {hasMore && (
           <button onClick={rotate} data-testid="suggest-refresh" aria-label="换一批" className="ml-auto text-xs text-mute hover:text-[#e05d6f] font-normal shrink-0">
@@ -477,7 +477,7 @@ export default function HomePage({
         </div>
 
         <aside className="hidden lg:block w-60 shrink-0 pt-2 self-start">
-          <div className="sticky top-24 flex flex-col min-h-[calc(100vh-7.5rem)] space-y-4">
+          <div className="sticky top-24 flex flex-col min-h-[calc(100vh-7.5rem)] space-y-3">
             <SideTopics />
             <SideSuggestFollowers />
             <div className="bg-gradient-to-br from-[#e05d6f] to-[#f0a0a8] rounded-2xl p-4 text-white shadow-md">

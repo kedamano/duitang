@@ -6,7 +6,15 @@ import { useCollection } from "../context/CollectionContext";
 import { Icon } from "./Icons";
 import type { ImageCard } from "../data/images";
 
-/** 帖子整版卡片：作者头 + 标题 + 方图网格 + 三栏操作条（参考堆糖每日精选） */
+/**
+ * 帖子整版卡片：作者头 + 标题 + 方图网格 + 三栏操作条（参考堆糖每日精选）。
+ *
+ * 圆角分层（全站统一约定，勿随手改）：
+ * - 容器类（卡片/弹层）：rounded-2xl
+ * - 纯图片内容：rounded-xl / rounded-lg
+ * - 评论气泡：rounded-2xl + 不对称圆角（rounded-tl-none 等）
+ * 边框 vs 阴影：feed 卡片去边框、只留阴影（hover 抬升），避免两者叠加显重。
+ */
 export function PostCard({ card, onOpen }: { card: ImageCard; onOpen: (c: ImageCard) => void }) {
   const navigate = useNavigate();
   const { user, setShowLogin } = useAuth();
@@ -29,7 +37,7 @@ export function PostCard({ card, onOpen }: { card: ImageCard; onOpen: (c: ImageC
   return (
     <article
       data-testid="post-card"
-      className="bg-surface rounded-2xl border border-line overflow-hidden shadow-sm hover:shadow-md transition-shadow"
+      className="group bg-surface rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-200 hover:-translate-y-0.5"
     >
       {/* 作者头 */}
       <header className="flex items-center gap-3 px-5 pt-5 pb-4">
@@ -66,10 +74,10 @@ export function PostCard({ card, onOpen }: { card: ImageCard; onOpen: (c: ImageC
             onClick={() => onOpen(card)}
             aria-label={`查看《${card.title}》第 ${i + 1} 张`}
             className={cn(
-              "overflow-hidden bg-soft2",
+              "overflow-hidden bg-soft2 transition-transform duration-300 hover:scale-[1.02]",
               single
                 ? "block rounded-xl max-w-[300px]"
-                : "aspect-square rounded-lg hover:opacity-90 transition-opacity",
+                : "aspect-square rounded-lg",
             )}
           >
             <img
@@ -94,10 +102,10 @@ export function PostCard({ card, onOpen }: { card: ImageCard; onOpen: (c: ImageC
             liked ? "text-[#e05d6f]" : "text-body2",
           )}
         >
-          <svg className={cn("w-[18px] h-[18px] transition-transform", liked && "scale-110")} viewBox="0 0 24 24" fill={liked ? "currentColor" : "none"} stroke="currentColor" strokeWidth={2}>
+          <svg className={cn("w-[18px] h-[18px]", liked && "animate-like-pop")} viewBox="0 0 24 24" fill={liked ? "currentColor" : "none"} stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
           </svg>
-          <span>{likeCount}</span>
+          <span className="tabular-nums">{likeCount}</span>
         </button>
         <button
           onClick={guard(() => toggleCollect(card.id))}
@@ -105,13 +113,13 @@ export function PostCard({ card, onOpen }: { card: ImageCard; onOpen: (c: ImageC
           aria-pressed={collected}
           className={cn(
             "flex items-center justify-center gap-2 py-3.5 text-sm transition-colors border-x border-line hover:bg-soft",
-            collected ? "text-[#e05d6f]" : "text-body2",
+            collected ? "text-amber" : "text-body2",
           )}
         >
           <svg className="w-[18px] h-[18px]" viewBox="0 0 24 24" fill={collected ? "currentColor" : "none"} stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
           </svg>
-          <span>{collectCount}</span>
+          <span className="tabular-nums">{collectCount}</span>
         </button>
         <button
           onClick={() => onOpen(card)}
@@ -147,18 +155,18 @@ export function PostCardSkeleton() {
   return (
     <div className="max-w-2xl mx-auto space-y-5" data-testid="post-card-skeleton" aria-hidden="true">
       {[0, 1].map(i => (
-        <div key={i} className="bg-surface rounded-2xl border border-line p-5 animate-pulse">
+        <div key={i} className="bg-surface rounded-2xl p-5">
           <div className="flex items-center gap-3 mb-4">
-            <div className="w-11 h-11 rounded-full bg-soft2" />
+            <div className="w-11 h-11 rounded-full skeleton" />
             <div className="space-y-2">
-              <div className="h-3.5 w-24 bg-soft2 rounded" />
-              <div className="h-2.5 w-16 bg-soft2 rounded" />
+              <div className="h-3.5 w-24 skeleton rounded" />
+              <div className="h-2.5 w-16 skeleton rounded" />
             </div>
           </div>
-          <div className="h-4 w-2/5 bg-soft2 rounded mb-4" />
+          <div className="h-4 w-2/5 skeleton rounded mb-4" />
           <div className="grid grid-cols-3 gap-2">
             {Array.from({ length: 6 }).map((_, j) => (
-              <div key={j} className="aspect-square rounded-lg bg-soft2" />
+              <div key={j} className="aspect-square rounded-lg skeleton" />
             ))}
           </div>
         </div>

@@ -75,7 +75,7 @@ export default function BoardPage() {
         <button onClick={() => navigate("/")} className="text-sm text-mute hover:text-[#e05d6f] transition-colors flex items-center gap-1">
           <Icon name="arrowLeft" className="w-4 h-4" /> 返回首页
         </button>
-        <h1 className="text-2xl font-extrabold text-ink mt-1">{label}</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-ink mt-1">{label}</h1>
         <p className="text-sm text-mute mt-1">
           {loading ? "正在加载..." : `共 ${total} 张图片`}
         </p>

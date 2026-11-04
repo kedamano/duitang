@@ -53,7 +53,7 @@ export function ImageTile({ card, onClick }: { card: ImageCard; onClick: () => v
     >
       <div className="relative overflow-hidden bg-soft2" style={{ paddingBottom: `${aspectRatio}%` }}>
         {!imgLoaded && (
-          <div className="absolute inset-0 bg-gradient-to-br from-soft2 to-soft animate-pulse" />
+          <div className="absolute inset-0 bg-gradient-to-br from-soft2 to-soft skeleton" />
         )}
         <img
           src={card.thumb || card.src}
@@ -78,14 +78,14 @@ export function ImageTile({ card, onClick }: { card: ImageCard; onClick: () => v
             "absolute top-3 right-3 flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold shadow-md",
             "opacity-0 group-hover:opacity-100 transition-all duration-200 -translate-y-1 group-hover:translate-y-0",
             collected
-              ? "bg-[#e05d6f] text-white"
-              : "bg-surface text-ink2 hover:bg-[#e05d6f] hover:text-white",
+              ? "bg-amber text-white"
+              : "bg-surface text-ink2 hover:bg-amber hover:text-white",
           )}
         >
           <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill={collected ? "currentColor" : "none"} stroke="currentColor" strokeWidth={2.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
           </svg>
-          {collectCount}
+          <span className="tabular-nums">{collectCount}</span>
         </button>
         <div className="absolute bottom-3 left-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-all duration-200">
           {card.tags.slice(0, 2).map(tag => (
@@ -121,7 +121,7 @@ export function ImageTile({ card, onClick }: { card: ImageCard; onClick: () => v
             )}
           >
             <svg
-              className={cn("w-3.5 h-3.5 transition-transform", liked && "scale-125")}
+              className={cn("w-3.5 h-3.5", liked && "animate-like-pop")}
               viewBox="0 0 24 24"
               fill={liked ? "currentColor" : "none"}
               stroke="currentColor"
@@ -129,7 +129,7 @@ export function ImageTile({ card, onClick }: { card: ImageCard; onClick: () => v
             >
               <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
             </svg>
-            <span>{likeCount}</span>
+            <span className="tabular-nums">{likeCount}</span>
           </button>
         </div>
       </div>
@@ -276,7 +276,7 @@ export function MasonrySkeleton() {
       {[0, 1, 2, 3].map(col => (
         <div key={col} className="flex-1 flex flex-col gap-3 md:gap-4">
           {heights.filter((_, i) => i % 4 === col).map((h, i) => (
-            <div key={i} className="rounded-2xl bg-soft2/70 animate-pulse" style={{ height: h }} />
+            <div key={i} className="rounded-2xl skeleton" style={{ height: h }} />
           ))}
         </div>
       ))}

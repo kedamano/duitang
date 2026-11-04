@@ -52,7 +52,7 @@ export default function AdminReportsPage() {
 
   return (
     <main className="max-w-3xl mx-auto px-4 md:px-6 py-6">
-      <h1 className="text-2xl font-extrabold text-ink flex items-center gap-2">
+      <h1 className="text-2xl font-semibold tracking-tight text-ink flex items-center gap-2">
         <Icon name="shield" className="w-6 h-6 text-[#e05d6f]" /> 审核队列
       </h1>
       <p className="text-sm text-mute mt-1">处理用户举报的违规内容</p>

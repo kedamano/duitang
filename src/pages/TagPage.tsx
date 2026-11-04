@@ -81,7 +81,7 @@ export default function TagPage() {
             <Icon name="arrowLeft" className="w-4 h-4" /> 返回首页
           </button>
         </div>
-        <h1 className="text-2xl font-extrabold text-ink">
+        <h1 className="text-2xl font-semibold tracking-tight text-ink">
           <span className="text-[#e05d6f]">#</span>{tag}
         </h1>
         <p className="text-sm text-mute mt-1">

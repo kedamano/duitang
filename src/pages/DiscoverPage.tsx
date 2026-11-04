@@ -20,7 +20,7 @@ export default function DiscoverPage() {
   return (
     <main className="max-w-screen-xl mx-auto px-4 md:px-6 py-6">
       <div className="mb-6">
-        <h1 className="text-2xl font-extrabold text-ink flex items-center gap-2">
+        <h1 className="text-2xl font-semibold tracking-tight text-ink flex items-center gap-2">
           <Icon name="fire" className="w-6 h-6 text-[#e05d6f]" /> 发现
         </h1>
         <p className="text-sm text-mute mt-1">热门作者、热门话题与新鲜面孔</p>

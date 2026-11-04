@@ -42,11 +42,11 @@ export default function PostDetailPage() {
     return (
       <div className="max-w-3xl mx-auto px-4 py-6">
         <div className="bg-surface rounded-3xl overflow-hidden shadow-sm flex flex-col md:flex-row min-h-[60vh]">
-          <div className="md:w-1/2 bg-soft2 animate-pulse min-h-[30vh]" />
+          <div className="md:w-1/2 skeleton min-h-[30vh]" />
           <div className="md:w-1/2 p-6 space-y-4">
-            <div className="h-10 bg-soft2 rounded-full animate-pulse" />
-            <div className="h-5 bg-soft2 rounded animate-pulse" />
-            <div className="h-5 w-2/3 bg-soft2 rounded animate-pulse" />
+            <div className="h-10 skeleton rounded-full" />
+            <div className="h-5 skeleton rounded" />
+            <div className="h-5 w-2/3 skeleton rounded" />
           </div>
         </div>
       </div>

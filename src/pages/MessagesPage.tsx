@@ -187,7 +187,7 @@ export default function MessagesPage() {
 
   return (
     <div className="max-w-screen-xl mx-auto px-2 md:px-6 py-3 md:py-6" data-testid="messages-page">
-      <h1 className="text-base md:text-lg font-bold text-ink mb-3 flex items-center gap-2">
+      <h1 className="text-base md:text-lg font-semibold tracking-tight text-ink mb-3 flex items-center gap-2">
         <Icon name="mail" className="w-5 h-5 text-[#e05d6f]" /> 私信
       </h1>
       <div className="flex gap-2 md:gap-4 h-[calc(100vh-7rem)] md:h-[calc(100vh-11rem)] min-h-[400px]">
@@ -198,7 +198,7 @@ export default function MessagesPage() {
         >
           {loading ? (
             <div className="p-3 space-y-3">{[...Array(4)].map((_, i) => (
-              <div key={i} className="flex gap-2.5"><div className="w-10 h-10 rounded-full bg-soft2" /><div className="flex-1 space-y-2"><div className="h-3 bg-soft2 rounded" /><div className="h-3 bg-soft2 rounded w-2/3" /></div></div>
+              <div key={i} className="flex gap-2.5"><div className="w-10 h-10 rounded-full skeleton" /><div className="flex-1 space-y-2"><div className="h-3 skeleton rounded" /><div className="h-3 skeleton rounded w-2/3" /></div></div>
             ))}</div>
           ) : conversations.length === 0 ? (
             <p className="p-6 text-sm text-mute text-center">还没有私信，去别人主页打个招呼吧</p>

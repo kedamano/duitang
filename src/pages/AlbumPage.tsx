@@ -124,7 +124,7 @@ export default function AlbumPage() {
       <div className="bg-surface rounded-2xl border border-line p-5 mb-6" data-testid="album-header">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <h1 className="text-xl font-extrabold text-ink flex items-center gap-2">
+            <h1 className="text-xl font-semibold tracking-tight text-ink flex items-center gap-2">
               {album?.title || "加载中…"}
               {album && !album.is_public && (
                 <span className="text-[11px] font-medium text-mute bg-soft2 px-2 py-0.5 rounded-full">私密</span>

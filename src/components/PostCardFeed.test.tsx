@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import PostCardFeed, { PostCard } from "./PostCardFeed";
+import PostCardFeed, { PostCard, PostCardSkeleton } from "./PostCardFeed";
 import { AuthProvider } from "../context/AuthContext";
 import { CollectionProvider } from "../context/CollectionContext";
 import { ToastProvider } from "../context/ToastContext";
@@ -125,6 +125,25 @@ describe("PostCard 整版帖子卡", () => {
     renderCard(card({ title: "" }));
     await waitFor(() => expect(screen.getByTestId("post-card")).toBeInTheDocument());
     expect(screen.queryByText("黑色系壁纸")).not.toBeInTheDocument();
+  });
+
+  it("已收集的帖子：收集按钮用琥珀金语义色（与点赞粉色区分）", async () => {
+    (apiModule.api.myInteractions as ReturnType<typeof vi.fn>).mockResolvedValue({
+      liked: [], collected: [1], following: [],
+    });
+    renderCard();
+    await waitFor(() => expect(screen.getByLabelText("取消收集")).toBeInTheDocument());
+    const btn = screen.getByLabelText("取消收集");
+    expect(btn.className).toContain("text-amber");
+    expect(btn.className).not.toContain("text-[#e05d6f]");
+  });
+});
+
+describe("PostCardSkeleton", () => {
+  it("骨架屏用 shimmer 类（.skeleton）而非 animate-pulse", () => {
+    const { container } = render(<PostCardSkeleton />);
+    expect(container.querySelector(".skeleton")).toBeTruthy();
+    expect(container.querySelector(".animate-pulse")).toBeFalsy();
   });
 });
 

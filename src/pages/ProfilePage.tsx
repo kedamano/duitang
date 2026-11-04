@@ -369,7 +369,7 @@ export default function ProfilePage() {
             </svg>
             <span className="text-sm font-medium">返回</span>
           </button>
-          <h1 className="flex-1 text-center font-bold text-ink text-sm">个人主页</h1>
+          <h1 className="flex-1 text-center font-semibold tracking-tight text-ink text-sm">个人主页</h1>
           {!isViewingOther && (
             <button
               onClick={() => setShowEditPanel(true)}
