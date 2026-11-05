@@ -6,6 +6,7 @@ import { ToastProvider } from "./context/ToastContext";
 import { ThemeProvider } from "./context/ThemeContext";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import Header from "./components/Header";
+import SiteFooter from "./components/SiteFooter";
 import LoginModal from "./components/LoginModal";
 import RegisterModal from "./components/RegisterModal";
 import HomePage from "./pages/HomePage";
@@ -67,6 +68,8 @@ function AppContent() {
         <Route path="/admin/reports" element={<AdminReportsPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+
+      <SiteFooter />
 
       <LoginModal />
       <RegisterModal />

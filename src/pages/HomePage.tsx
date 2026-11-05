@@ -480,23 +480,6 @@ export default function HomePage({
           <div className="sticky top-24 flex flex-col min-h-[calc(100vh-7.5rem)] space-y-3">
             <SideTopics />
             <SideSuggestFollowers />
-            <div className="bg-gradient-to-br from-[#e05d6f] to-[#f0a0a8] rounded-2xl p-4 text-white shadow-md">
-              <h3 className="font-bold text-sm mb-1 flex items-center gap-1.5">
-                <Icon name="phone" className="w-4 h-4" /> 下载堆糖App
-              </h3>
-              <p className="text-xs text-white/80 mb-3">随时随地收集你喜欢的图片</p>
-              <button className="w-full bg-surface text-[#e05d6f] font-bold text-xs py-2 rounded-full hover:shadow-md transition-shadow">
-                立即下载
-              </button>
-            </div>
-            <div className="text-xs text-mute space-y-1 px-1 mt-auto pt-6">
-              <div className="flex flex-wrap gap-2">
-                {["关于堆糖", "帮助中心", "意见反馈", "举报中心"].map(l => (
-                  <a key={l} href="#" className="hover:text-[#e05d6f] transition-colors">{l}</a>
-                ))}
-              </div>
-              <p>© 2026 duitang.com 版权所有</p>
-            </div>
           </div>
         </aside>
       </div>
