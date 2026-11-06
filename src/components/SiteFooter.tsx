@@ -1,10 +1,19 @@
 import { Icon } from "./Icons";
+import { Link } from "react-router-dom";
 
 /**
  * 全站页脚：下载 App 引导卡 + 版权链接。
  * 挂在 App 路由外层，所有页面底部统一展示（原先是首页右栏专属）。
  * 深浅模式通用：用语义色 token，粉色仅用于品牌强调。
+ * 版权链接指向 /about 对应锚点板块（关于/帮助/反馈/举报）。
  */
+const FOOTER_LINKS = [
+  { label: "关于堆糖", to: "/about#about" },
+  { label: "帮助中心", to: "/about#help" },
+  { label: "意见反馈", to: "/about#feedback" },
+  { label: "举报中心", to: "/about#report" },
+];
+
 export default function SiteFooter() {
   return (
     <footer data-testid="site-footer" className="mt-12 border-t border-line bg-surface">
@@ -26,10 +35,14 @@ export default function SiteFooter() {
         {/* 版权链接 */}
         <div className="mt-8 text-xs text-mute flex flex-col items-center gap-3">
           <nav className="flex flex-wrap justify-center gap-x-5 gap-y-2">
-            {["关于堆糖", "帮助中心", "意见反馈", "举报中心"].map(l => (
-              <a key={l} href="#" className="hover:text-[#e05d6f] transition-colors">
-                {l}
-              </a>
+            {FOOTER_LINKS.map(l => (
+              <Link
+                key={l.label}
+                to={l.to}
+                className="hover:text-[#e05d6f] transition-colors"
+              >
+                {l.label}
+              </Link>
             ))}
           </nav>
           <p>© 2026 duitang.com 版权所有</p>

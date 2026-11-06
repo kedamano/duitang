@@ -11,7 +11,7 @@
 [![Frontend](https://img.shields.io/badge/frontend-React%2019-61dafb?logo=react&logoColor=white)](#技术栈)
 [![Backend](https://img.shields.io/badge/backend-Express%204-000000?logo=express&logoColor=white)](#技术栈)
 [![Database](https://img.shields.io/badge/database-SQLite%20(FTS5)-003b57?logo=sqlite&logoColor=white)](#关键设计决策)
-[![Tests](https://img.shields.io/badge/tests-452%20passing-3fb950)](#测试)
+[![Tests](https://img.shields.io/badge/tests-456%20passing-3fb950)](#测试)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 [功能特性](#-功能特性) · [快速开始](#-快速开始) · [架构](#-架构) · [设计决策](#-关键设计决策) · [API](#-api) · [测试](#-测试) · [部署](#-部署)
@@ -38,6 +38,32 @@
 > **技术选型的底线是「零原生依赖」**：数据库用 Node 22 内置的 `node:sqlite`，
 > 图片处理用纯 JS 的 `jimp`，不需要 `node-gyp`、不需要编译工具链，
 > `npm install` 之后就能跑。
+
+## 🌟 亮点速览
+
+| | |
+| --- | --- |
+| 🖼 **真实瀑布流** | 按图片真实宽高排版 + 虚拟滚动，长刷 DOM 恒定不卡 |
+| 🔍 **中文全文搜索** | FTS5 二元组索引，2 个字也能搜到（自带 trigram 做不到） |
+| 🤝 **协同过滤推荐** | Item-KNN 加权 + 三层兜底，冷启动永不空窗 |
+| 🔔 **实时通知** | SSE 推送 + 轮询兜底 + 关注关系拦截 |
+| 💬 **楼中楼评论** | 单层嵌套防无限递归 + @提及 + 富文本 + 图片 |
+| 🛡 **内容治理** | 举报 / 审核队列 / 拉黑 / 敏感词，不是裸奔上线 |
+| 📱 **PWA 可安装** | Service Worker 离线壳 + 网络优先带回落 |
+| ⚡ **一键验证** | `npm run verify` 五关：规范 → 类型 → 前端 → 后端 → 构建 |
+
+---
+
+## 🖼 界面预览
+
+| | |
+| --- | --- |
+| ![首页瀑布流](docs/screenshots/home.jpg) | ![帖子详情](docs/screenshots/detail.jpg) |
+| **首页 · 三栏瀑布流** | **帖子详情 · 楼中楼评论** |
+| ![图片灯箱](docs/screenshots/lightbox.jpg) | ![富文本编辑器](docs/screenshots/editor.jpg) |
+| **灯箱 · 键盘翻页 / 移动端滑动** | **发布 · 富文本 + AI 生成** |
+| ![发现页](docs/screenshots/discover.jpg) | ![个人主页](docs/screenshots/profile.jpg) |
+| **发现 · 热门作者 / 话题** | **个人主页 · 专辑与收藏** |
 
 ---
 
@@ -414,7 +440,7 @@ curl -s http://localhost:3001/api/posts?limit=1 | jq
 
 | 层级 | 工具 | 用例数 | 命令 |
 | --- | --- | --- | --- |
-| 前端单测 | Vitest + Testing Library | **261** | `npm test` |
+| 前端单测 | Vitest + Testing Library | **265** | `npm test` |
 | 后端接口 | Mocha + Supertest | **191**（18 文件） | `npm run test:server` |
 | 浏览器 E2E | 原生 CDP 驱动无头 Chrome | **4 套件 / 54 断言** | `npm run test:e2e` |
 | 类型检查 | TypeScript | - | `npx tsc --noEmit` |

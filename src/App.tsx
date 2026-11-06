@@ -19,6 +19,7 @@ import AlbumPage from "./pages/AlbumPage";
 import DiscoverPage from "./pages/DiscoverPage";
 import MessagesPage from "./pages/MessagesPage";
 import AdminReportsPage from "./pages/AdminReportsPage";
+import AboutPage from "./pages/AboutPage";
 import { SEARCH_EVENT } from "./utils/searchEvent";
 
 function AppContent() {
@@ -66,6 +67,7 @@ function AppContent() {
         <Route path="/discover" element={<DiscoverPage />} />
         <Route path="/messages" element={<MessagesPage />} />
         <Route path="/admin/reports" element={<AdminReportsPage />} />
+        <Route path="/about" element={<AboutPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
 

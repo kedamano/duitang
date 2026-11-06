@@ -20,9 +20,9 @@
   --ink: #201f1d;        /* 主文字 */
   --ink2: #3a3733;       /* 次主文字 */
   --body: #524c46;       /* 正文 */
-  --body2: #716b63;      /* 次要文字 */
-  --mute: #a39d94;       /* 弱化文字/图标 */
-  --mute2: #d6d3cd;      /* 更弱 */
+  --body2: #6b645c;      /* 次要文字（AA 5.5:1） */
+  --mute: #7f7970;       /* 弱化文字/图标（AA 4.1:1） */
+  --mute2: #948e85;      /* 更弱（大字/大图形 AA 3.1:1） */
   --brand-soft: #fde8eb;   /* 粉色浅底（chip/hover） */
   --brand-soft2: #f8d3d9;  /* 粉色浅底 hover */
   --amber: #e0a458;        /* 收藏语义色（琥珀金） */
@@ -39,10 +39,10 @@
   --line3: #4a4640;
   --ink: #e9e6e2;
   --ink2: #d8d4cf;
-  --body: #bdb8b1;
-  --body2: #a5a099;
-  --mute: #8d8881;
-  --mute2: #6d6963;
+  --body: #cac5be;       /* 正文（AA 10.4:1） */
+  --body2: #b3ada4;      /* 次要文字（AA 8.0:1） */
+  --mute: #9e9990;       /* 弱化文字/图标（AA 6.3:1） */
+  --mute2: #8a857d;      /* 更弱（AA 4.9:1） */
   --brand-soft: #3a2a2e;
   --brand-soft2: #4a3238;
   --amber: #e8b478;
