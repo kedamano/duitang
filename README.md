@@ -18,7 +18,10 @@
 
 </div>
 
-![首页瀑布流](docs/screenshots/home.jpg)
+![首页](docs/screenshots/home.jpg)
+
+> 首页实拍：三栏布局（左导航 / 中卡片流 / 右热门话题），暖米白底色 + 品牌粉点缀。
+> 更多界面见下方[界面预览](#-界面预览)。
 
 ---
 
@@ -56,14 +59,50 @@
 
 ## 🖼 界面预览
 
-| | |
-| --- | --- |
-| ![首页瀑布流](docs/screenshots/home.jpg) | ![帖子详情](docs/screenshots/detail.jpg) |
-| **首页 · 三栏瀑布流** | **帖子详情 · 楼中楼评论** |
-| ![图片灯箱](docs/screenshots/lightbox.jpg) | ![富文本编辑器](docs/screenshots/editor.jpg) |
-| **灯箱 · 键盘翻页 / 移动端滑动** | **发布 · 富文本 + AI 生成** |
-| ![发现页](docs/screenshots/discover.jpg) | ![个人主页](docs/screenshots/profile.jpg) |
-| **发现 · 热门作者 / 话题** | **个人主页 · 专辑与收藏** |
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/home.jpg" alt="首页" /></td>
+<td width="50%"><img src="docs/screenshots/detail.jpg" alt="帖子详情" /></td>
+</tr>
+<tr>
+<td align="center"><b>首页 · 三栏 + 整版卡片流</b></td>
+<td align="center"><b>帖子详情 · 大图 + 操作条</b></td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/screenshots/comments.jpg" alt="评论区" /></td>
+<td width="50%"><img src="docs/screenshots/lightbox.jpg" alt="灯箱" /></td>
+</tr>
+<tr>
+<td align="center"><b>评论区 · 楼中楼 + @提及</b></td>
+<td align="center"><b>灯箱 · 键盘翻页 / 移动端滑动</b></td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/screenshots/editor.jpg" alt="富文本编辑器" /></td>
+<td width="50%"><img src="docs/screenshots/discover.jpg" alt="发现页" /></td>
+</tr>
+<tr>
+<td align="center"><b>发布 · 富文本 + AI 生成</b></td>
+<td align="center"><b>发现 · 热门作者 / 话题</b></td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/screenshots/profile.jpg" alt="个人主页" /></td>
+<td width="50%"><img src="docs/screenshots/messages.jpg" alt="私信" /></td>
+</tr>
+<tr>
+<td align="center"><b>个人主页 · 专辑与收藏</b></td>
+<td align="center"><b>站内私信 · 实时 + 已读回执</b></td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/screenshots/home-dark.jpg" alt="深色模式" /></td>
+<td width="50%"><img src="docs/screenshots/admin.jpg" alt="审核队列" /></td>
+</tr>
+<tr>
+<td align="center"><b>深色模式 · 暖调色板</b></td>
+<td align="center"><b>审核队列 · 举报处理</b></td>
+</tr>
+</table>
+
+> 截图全部由 [`scripts/gen-readme-shots.mjs`](scripts/gen-readme-shots.mjs) 通过 CDP 从真实运行中的页面自动采集，UI 改动后可一键重跑。
 
 ---
 
@@ -125,28 +164,12 @@
 
 <table>
 <tr>
-<td width="50%"><img src="docs/screenshots/detail.jpg" alt="帖子详情" /></td>
-<td width="50%"><img src="docs/screenshots/comments.jpg" alt="楼中楼评论" /></td>
+<td width="50%"><img src="docs/screenshots/footer.jpg" alt="全站页脚" /></td>
+<td width="50%"><img src="docs/screenshots/about.jpg" alt="关于页" /></td>
 </tr>
 <tr>
-<td align="center"><sub>帖子详情：多图切换、互动栏、灯箱</sub></td>
-<td align="center"><sub>楼中楼评论：默认折叠、@提及、轻量格式</sub></td>
-</tr>
-<tr>
-<td width="50%"><img src="docs/screenshots/editor.jpg" alt="富文本编辑器" /></td>
-<td width="50%"><img src="docs/screenshots/discover.jpg" alt="发现页" /></td>
-</tr>
-<tr>
-<td align="center"><sub>TipTap 富文本编辑器：工具栏激活态实时同步</sub></td>
-<td align="center"><sub>发现页：热门作者 / 话题 / 新人</sub></td>
-</tr>
-<tr>
-<td width="50%"><img src="docs/screenshots/admin.jpg" alt="审核队列" /></td>
-<td width="50%"><img src="docs/screenshots/profile.jpg" alt="个人主页" /></td>
-</tr>
-<tr>
-<td align="center"><sub>审核队列：管理员处理举报</sub></td>
-<td align="center"><sub>个人主页：发布 / 收集 / 喜欢 / 专辑</sub></td>
+<td align="center"><sub>全站页脚：下载引导 + 真实路由链接</sub></td>
+<td align="center"><sub>关于页：关于 / 帮助 / 反馈 / 举报</sub></td>
 </tr>
 </table>
 
