@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "../context/AuthContext";
 import { CollectionProvider } from "../context/CollectionContext";
 import { ToastProvider } from "../context/ToastContext";
@@ -168,5 +168,28 @@ describe("HomePage 关注流", () => {
     fireEvent.click(screen.getByTestId("suggest-refresh"));
     const second = panel.querySelector('button[aria-label^="查看"]')?.getAttribute("aria-label");
     expect(second).toBe("查看 作者6 的主页");
+  });
+});
+
+describe("HomePage Banner 立即探索", () => {
+  it("点击立即探索跳转到对应目标路由", async () => {
+    resetTrendingCache();
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <ToastProvider>
+          <AuthProvider>
+            <CollectionProvider>
+              <Routes>
+                <Route path="/" element={<HomePage search="" onSearchChange={() => {}} activeNav="推荐" onNavChange={() => {}} />} />
+                <Route path="/board/:key" element={<div data-testid="target-board">画板页</div>} />
+              </Routes>
+            </CollectionProvider>
+          </AuthProvider>
+        </ToastProvider>
+      </MemoryRouter>,
+    );
+    // Banner 渲染 3 张 slide（未激活只是 opacity-0，仍在 DOM），取第一个按钮
+    fireEvent.click((await screen.findAllByRole("button", { name: /立即探索/ }))[0]);
+    await waitFor(() => expect(screen.getByTestId("target-board")).toBeInTheDocument());
   });
 });

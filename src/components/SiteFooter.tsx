@@ -1,5 +1,5 @@
 import { Icon } from "./Icons";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 /**
  * 全站页脚：下载 App 引导卡 + 版权链接。
@@ -15,6 +15,7 @@ const FOOTER_LINKS = [
 ];
 
 export default function SiteFooter() {
+  const navigate = useNavigate();
   return (
     <footer data-testid="site-footer" className="mt-12 border-t border-line bg-surface">
       <div className="max-w-6xl mx-auto px-4 py-10">
@@ -27,7 +28,10 @@ export default function SiteFooter() {
             <h3 className="font-bold text-base mb-0.5">下载堆糖App</h3>
             <p className="text-xs text-white/85">随时随地收集你喜欢的图片</p>
           </div>
-          <button className="bg-surface text-[#e05d6f] font-bold text-sm px-6 py-2.5 rounded-full hover:shadow-lg transition-shadow shrink-0">
+          <button
+            onClick={() => navigate("/about#about")}
+            className="bg-surface text-[#e05d6f] font-bold text-sm px-6 py-2.5 rounded-full hover:shadow-lg transition-shadow shrink-0"
+          >
             立即下载
           </button>
         </div>

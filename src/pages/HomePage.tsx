@@ -18,10 +18,11 @@ import { useTrending } from "../hooks/useTrending";
 // ─── Banner ───────────────────────────────────────────────────────────────────
 function Banner() {
   const [active, setActive] = useState(0);
+  const navigate = useNavigate();
   const slides = [
-    { bg: "from-rose-400 to-pink-300", title: "发现美好生活", sub: "数十亿高清图片等你探索", img: "/images/banner1.jpg" },
-    { bg: "from-violet-400 to-purple-300", title: "分享你的灵感", sub: "记录生活中每一个珍贵瞬间", img: "/images/banner5.jpg" },
-    { bg: "from-amber-400 to-orange-300", title: "遇见有趣的灵魂", sub: "找到与你兴趣相同的糖友", img: "/images/banner2.jpg" },
+    { bg: "from-rose-400 to-pink-300", title: "发现美好生活", sub: "数十亿高清图片等你探索", img: "/images/banner1.jpg", to: "/board/wallpaper" },
+    { bg: "from-violet-400 to-purple-300", title: "分享你的灵感", sub: "记录生活中每一个珍贵瞬间", img: "/images/banner5.jpg", to: "/publish" },
+    { bg: "from-amber-400 to-orange-300", title: "遇见有趣的灵魂", sub: "找到与你兴趣相同的糖友", img: "/images/banner2.jpg", to: "/discover" },
   ];
 
   useEffect(() => {
@@ -43,7 +44,10 @@ function Banner() {
           <div className="flex-1 px-8 md:px-12">
             <h2 className="text-white font-extrabold text-xl md:text-3xl mb-1 drop-shadow-sm">{s.title}</h2>
             <p className="text-white/80 text-sm md:text-base mb-4">{s.sub}</p>
-            <button className="bg-surface text-[#e05d6f] font-bold text-sm px-5 py-2 rounded-full hover:shadow-lg transition-shadow flex items-center gap-1.5">
+            <button
+              onClick={() => navigate(s.to)}
+              className="bg-surface text-[#e05d6f] font-bold text-sm px-5 py-2 rounded-full hover:shadow-lg transition-shadow flex items-center gap-1.5"
+            >
               立即探索
               <Icon name="arrowRight" className="w-4 h-4" />
             </button>
